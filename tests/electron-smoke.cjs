@@ -1,0 +1,83 @@
+// Run with: node_modules/electron/dist/electron.exe tests/electron-smoke.cjs
+// Uses the real main/preload/renderer and AudioWorklet. Does not certify speakers.
+const {app}=require('electron');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const output=path.resolve('.validation');fs.mkdirSync(output,{recursive:true});
+const result={checks:[],errors:[]};
+const deadline=setTimeout(()=>finish(Error('Native smoke test timed out')),45000);
+function finish(error){
+ clearTimeout(deadline);if(error)result.errors.push(String(error.stack??error));
+ result.passed=result.errors.length===0;
+ fs.writeFileSync(path.join(output,'electron-smoke.json'),JSON.stringify(result,null,2));
+ app.exit(result.passed?0:1);
+}
+app.on('browser-window-created',(_,win)=>{
+ const wc=win.webContents;
+ wc.on('render-process-gone',(_,details)=>result.errors.push(JSON.stringify(details)));
+ wc.on('did-fail-load',(_,code,message)=>result.errors.push(`${code}: ${message}`));
+ wc.once('did-finish-load',async()=>{
+  try{
+   win.show();win.focus();
+   const evaluate=code=>wc.executeJavaScript(code,true);
+   const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+   await evaluate(`window.__meters=[];const originalConnect=AudioNode.prototype.connect;
+    AudioNode.prototype.connect=function(destination,...args){
+     const result=originalConnect.call(this,destination,...args);
+     if(destination instanceof AudioDestinationNode){const meter=this.context.createAnalyser();meter.fftSize=2048;originalConnect.call(this,meter);window.__meters.push(meter);}
+     return result;
+    };true;`);
+   const click=async(x,y)=>{
+    wc.sendInputEvent({type:'mouseDown',x,y,button:'left',clickCount:1});
+    wc.sendInputEvent({type:'mouseUp',x,y,button:'left',clickCount:1});
+   };
+   const point=await evaluate(`(()=>{const r=document.getElementById('canvas').getBoundingClientRect();return {x:Math.round(r.left+20),y:Math.round(r.top+200)};})()`);
+   const before=await evaluate(`import('./dist/state.js').then(({state})=>JSON.stringify(state.project))`);
+   for(const program of [0,40,73]){
+    await evaluate(`(()=>{const s=document.querySelector('#instruments select');s.value='${program}';s.dispatchEvent(new Event('change'));document.getElementById('status').textContent='waiting';})()`);
+    await click(point.x,point.y);
+    let status='';
+    for(let i=0;i<150;i++){await wait(50);status=await evaluate(`document.getElementById('status').textContent`);if(status.startsWith('Preview:')||status.includes('failed'))break;}
+    assert.match(status,/^Preview:/);await wait(100);
+    const peak=await evaluate(`Math.max(...window.__meters.map(m=>{const b=new Float32Array(m.fftSize);m.getFloatTimeDomainData(b);return Math.max(...b.map(Math.abs));}))`);
+    assert.ok(peak>0.00001,`Silent native preview for program ${program}: ${peak}`);
+    result.checks.push({previewProgram:program,peak,status});
+   }
+   assert.equal(await evaluate(`import('./dist/state.js').then(({state})=>state.project.notes.length)`),0);
+   result.checks.push('Piano clicks did not create notes');
+   // A held note lets us check Pause/Resume and preview independence.
+   await evaluate(`import('./dist/state.js').then(({state})=>{state.project.notes=[{id:1,instrument:0,start:0,length:512,pitch:60,volume:null}];})`);
+   await evaluate(`import('./dist/playback/transport.js').then(m=>m.play())`);
+   await wait(200);
+   assert.equal(await evaluate(`document.getElementById('pause').disabled`),false);
+   await click(point.x,point.y);await wait(150);
+   assert.equal(await evaluate(`document.getElementById('pause').disabled`),false);
+   await evaluate(`document.getElementById('pause').click()`);
+   assert.equal(await evaluate(`document.getElementById('play').textContent`),'Resume');
+   await evaluate(`import('./dist/playback/transport.js').then(m=>m.play())`);
+   await wait(150);
+   result.checks.push({transportPosition:await evaluate(`document.getElementById('playback-position').textContent`)});
+   await evaluate(`document.getElementById('stop').click()`);
+   assert.equal(await evaluate(`document.getElementById('play').disabled`),false);
+   result.checks.push('Song Play/Pause/Resume/Stop and simultaneous keyboard preview passed');
+   await evaluate(`(()=>{const s=document.querySelector('#instruments select');s.value='drums';s.dispatchEvent(new Event('change'));})()`);
+   assert.match(await evaluate(`document.querySelector('.instrument-warning').textContent`),/Not a valid MS2 instrument/);
+   await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/constants.js')]).then(([{state},{ROW,HEAD}])=>{document.getElementById('view').scrollTop=(state.topPitch-36)*ROW-(200-HEAD);})`);
+   await wait(100);await click(point.x,point.y);await wait(100);
+   assert.match(await evaluate(`document.getElementById('status').textContent`),/Bass Drum 1/);
+   const drumPreviewPeak=await evaluate(`Math.max(...window.__meters.map(m=>{const b=new Float32Array(m.fftSize);m.getFloatTimeDomainData(b);return Math.max(...b.map(Math.abs));}))`);
+   assert.ok(drumPreviewPeak>0.00001);result.checks.push({drumPreviewPeak});
+   await wait(700);
+   await evaluate(`import('./dist/state.js').then(({state})=>{state.project.notes=Array.from({length:8},(_,i)=>({id:i+1,instrument:0,start:i*8,length:4,pitch:i%2?38:36,volume:12}));})`);
+   await evaluate(`import('./dist/playback/transport.js').then(m=>m.play())`);await wait(200);
+   const drumSongPeak=await evaluate(`(()=>{const m=window.__meters.at(-1),b=new Float32Array(m.fftSize);m.getFloatTimeDomainData(b);return Math.max(...b.map(Math.abs));})()`);
+   assert.ok(drumSongPeak>0.00001);result.checks.push({drumSongPeak});
+   await evaluate(`document.getElementById('stop').click()`);
+   result.checks.push('Standard Drum Kit warning, real key preview, and sequenced kick/snare AudioWorklet output passed');
+   fs.writeFileSync(path.join(output,'electron-smoke.png'),(await wc.capturePage()).toPNG());
+   // Restore the in-memory fixture; no project file is saved.
+   await evaluate(`import('./dist/state.js').then(({state})=>{state.project=JSON.parse(${JSON.stringify(before)});state.dirty=false;})`);
+   finish();
+  }catch(error){finish(error);}
+ });
+});
+require('../main.cjs');

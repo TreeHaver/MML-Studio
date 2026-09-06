@@ -1,0 +1,51 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {transpile}=require('../transpile.cjs');
+
+test('preview ignores invalid pitches and stale initialization, and reports recoverable errors',async()=>{
+ const calls=[],messages=[];let resolveEngine,fail=false;
+ const pending=new Promise(resolve=>{resolveEngine=resolve;});
+ const context=vm.createContext({});
+ const exports={
+  './engine.ts':{getPreviewEngine:()=>fail?Promise.reject(Error('device unavailable')):pending},
+  '../dom.ts':{status:text=>messages.push(text)},
+  '../music/pitch.ts':{name:pitch=>String(pitch)},
+  './drums.ts':{drumName:pitch=>`Drum ${pitch}`}
+ };
+ const module=new vm.SourceTextModule(transpile(fs.readFileSync('src/playback/preview.ts','utf8'),'preview.ts'),{context});
+ await module.link(spec=>new vm.SyntheticModule(Object.keys(exports[spec]),function(){for(const [k,v] of Object.entries(exports[spec]))this.setExport(k,v);},{context}));
+ await module.evaluate();const preview=module.namespace.previewNote;
+ await preview(-1,0);assert.match(messages.pop(),/0–127/);
+ const first=preview(60,0),second=preview(64,40);
+ resolveEngine({preview:async(...args)=>calls.push(args)});await Promise.all([first,second]);
+ assert.deepEqual(calls,[[64,40,false]]);
+ fail=true;await preview(67,73);assert.match(messages.pop(),/device unavailable/);
+ fail=false;await preview(69,73);assert.deepEqual(calls[1],[69,73,false]);
+ await preview(36,0,true);assert.deepEqual(calls[2],[36,0,true]);assert.match(messages.pop(),/Drum 36/);
+});
+
+test('preview releases notes, replaces rapid clicks, and uses a synth separate from transport',async()=>{
+ const calls=[],timers=new Map();let nextTimer=0,nextSynth=0,contexts=0;
+ class Context{constructor(){contexts++;this.destination={};this.audioWorklet={addModule:async()=>{}};}async resume(){}async close(){}}
+ class Synth{
+  constructor(){this.id=++nextSynth;this.soundBankManager={addSoundBank:async()=>{}};this.isReady=Promise.resolve();}
+  connect(){}stopAll(){calls.push([this.id,'stop']);}
+  programChange(c,p){calls.push([this.id,'program',c,p]);}
+  noteOn(c,p,v){calls.push([this.id,'on',c,p,v]);}
+  noteOff(c,p){calls.push([this.id,'off',c,p]);}
+ }
+ const context=vm.createContext({AudioContext:Context,URL,Uint8Array,window:{files:{soundBank:async()=>new Uint8Array(4)}},
+  setTimeout:(fn,ms)=>{assert.equal(ms,500);timers.set(++nextTimer,fn);return nextTimer;},clearTimeout:id=>timers.delete(id)});
+ const lib=new vm.SyntheticModule(['WorkletSynthesizer','Sequencer'],function(){this.setExport('WorkletSynthesizer',Synth);this.setExport('Sequencer',class{});},{context});
+ await lib.link(()=>{});await lib.evaluate();
+ const engine=new vm.SourceTextModule(transpile(fs.readFileSync('src/playback/engine.ts','utf8'),'engine.ts'),{
+  context,initializeImportMeta:meta=>{meta.url='file:///studio/dist/playback/engine.js';},importModuleDynamically:()=>lib
+ });await engine.link(()=>{});await engine.evaluate();
+ const preview=await engine.namespace.getPreviewEngine();
+ await preview.preview(60,40);await preview.preview(62,73);
+ assert.equal(timers.size,1);[...timers.values()][0]();
+ assert.deepEqual(calls,[[1,'stop'],[1,'program',0,40],[1,'on',0,60,100],[1,'stop'],[1,'program',0,73],[1,'on',0,62,100],[1,'off',0,62]]);
+ calls.length=0;await preview.preview(36,73,true);[...timers.values()].at(-1)();
+ assert.deepEqual(calls,[[1,'stop'],[1,'program',9,0],[1,'on',9,36,100],[1,'off',9,36]]);
+ await engine.namespace.getEngine();assert.equal(nextSynth,2);assert.equal(contexts,2);
+ assert.equal(await engine.namespace.getPreviewEngine(),preview);
+});

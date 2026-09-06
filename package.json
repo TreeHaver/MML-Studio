@@ -1,0 +1,29 @@
+{
+  "name": "mml-music-studio",
+  "version": "0.3.0",
+  "private": true,
+  "main": "main.cjs",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "node build.cjs",
+    "start": "npm run build && electron .",
+    "test": "node tests/run.cjs"
+  },
+  "devDependencies": {
+    "electron": "37.0.0",
+    "esbuild": "0.25.5",
+    "typescript": "5.8.3"
+  },
+  "type": "module",
+  "dependencies": {
+    "spessasynth_lib": "4.3.14",
+    "spessasynth_core": "4.3.22",
+    "stb-vorbis": "file:packages/sf2-only-decoder"
+  },
+  "overrides": {
+    "spessasynth_core": "$spessasynth_core",
+    "stb-vorbis": "$stb-vorbis"
+  }
+}

@@ -1,0 +1,103 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fixture from './midi-fixtures.cjs';
+import {importMidi} from '../dist/import/midi.js';
+import {readSMF} from '../dist/import/smf.js';
+import {parse} from '../dist/model/serialization.js';
+import {compilePlayback} from '../dist/playback/midi.js';
+import {tempoAt} from '../dist/music/tempo.js';
+const {midi,event:e,end}=fixture;
+
+test('large imports exceed the former note/event caps and still save and compile',()=>{
+ const {project,noteCount}=importMidi(fixture.repeatedMidi(130000));
+ assert.equal(noteCount,130000);assert.equal(project.notes.at(-1).start,129999);
+ assert.equal(parse(JSON.stringify(project)).notes.length,130000);
+ assert.equal(compilePlayback(project).end,130000);
+});
+test('files over 16 MiB and projects over 256 tracks / 512 lanes import intact',()=>{
+ const padded=fixture.padMidi(fixture.repeatedMidi(2),17*1024*1024);
+ assert.equal(importMidi(padded).noteCount,2);
+ const tracks=Array.from({length:513},()=>[e(0,144,60,100),e(7,128,60,0),end()]);
+ const {project}=importMidi(midi(tracks));
+ assert.equal(project.instruments.length,513);assert.equal(project.notes.length,513);
+});
+test('MIDI tempos round to integer BPM without export-range clamping',()=>{
+ for(const micros of [3000000,200000,487805,0xffffff,1]){
+  const bytes=midi([[e(0,255,81,3,micros>>16,(micros>>8)&255,micros&255),e(0,144,60,100),e(7,128,60,0),end()]]);
+  const {project,warnings}=importMidi(bytes),bpm=Math.round(60000000/micros);
+  assert.equal(project.notes[0].tempo,bpm);
+  assert.equal(parse(JSON.stringify(project)).notes[0].tempo,bpm);
+  const decoded=readSMF(new Uint8Array(compilePlayback(project).binary));
+  const event=decoded.events.find(e=>e.meta===81);
+  const expected=Math.round(60000000/bpm);
+  assert.deepEqual([...event.data],[expected>>16,(expected>>8)&255,expected&255]);
+  assert.equal(warnings.some(w=>w.includes('nearest whole BPM')),Math.abs(60000000/micros-bpm)>1e-8);
+  assert.ok(!warnings.some(w=>/tempo.*(clamp|limit)/i.test(w)));
+ }
+});
+
+test('MIDI preserves leading rests, arbitrary integer lengths, running status, programs and velocities',()=>{
+ const result=importMidi(midi([[e(0,192,40),e(5,144,60,100),e(7,60,0),e(3,144,64,127),e(11,128,64,0),end()]]));
+ assert.deepEqual(result.project.notes.map(n=>[n.start,n.length,n.pitch,n.volume]),[[5,7,60,12],[15,11,64,15]]);
+ assert.equal(result.project.instruments[0].midiProgram,40);
+ assert.deepEqual(parse(JSON.stringify(result.project)),result.project);
+ const roundtrip=importMidi(new Uint8Array(compilePlayback(result.project).binary));
+ assert.deepEqual(roundtrip.project.notes.map(n=>[n.start,n.length]),[[5,7],[15,11]]);
+ assert.ok(!result.warnings.some(w=>w.includes('Timing was rounded')));
+});
+test('MIDI only rounds to model units, never to the L4 grid',()=>{
+ const {project,warnings}=importMidi(midi([[e(1,144,60,1),e(29,128,60,0),e(1,144,62,1),e(1,128,62,0),end()]],96));
+ assert.deepEqual(project.notes.map(n=>[n.start,n.length,n.volume]),[[0,10,1],[10,1,1]]);
+ assert.ok(warnings.some(w=>w.includes('nearest 1/128')));
+});
+test('format 1 ports, tracks and changes of program create distinct instruments',()=>{
+ const {project}=importMidi(midi([
+  [e(0,255,3,4,76,101,97,100),e(0,192,40),e(0,144,60,100),e(7,128,60,0),e(0,192,73),e(0,144,62,100),e(9,128,62,0),end()],
+  [e(0,255,33,1,1),e(0,192,24),e(0,144,60,100),e(11,128,60,0),end()]
+ ]));
+ assert.deepEqual(new Set(project.instruments.map(i=>i.midiProgram)),new Set([40,73,24]));
+ assert.ok(project.instruments.some(i=>i.name.startsWith('Lead')));
+ assert.equal(project.notes.length,3);assert.doesNotThrow(()=>parse(JSON.stringify(project)));
+});
+test('sustain and same-pitch overlap are retained without trimming notes',()=>{
+ const {project,warnings}=importMidi(midi([[e(0,176,64,127),e(0,144,60,100),e(5,128,60,0),e(1,144,60,100),e(4,128,60,0),e(3,176,64,0),end()]]));
+ assert.deepEqual(project.notes.map(n=>[n.start,n.length]),[[0,13],[6,7]]);
+ assert.equal(project.instruments.length,1);assert.ok(warnings.some(w=>w.includes('same instrument')));
+ assert.doesNotThrow(()=>parse(JSON.stringify(project)));
+});
+test('tempo changes in a rest and inside a held note use silent markers, without retriggering',()=>{
+ const {project}=importMidi(midi([[e(0,255,81,3,15,66,64),e(5,144,60,100),e(5,255,81,3,7,161,32),e(27,128,60,0),end()]]));
+ const audible=project.notes.filter(n=>n.volume>0);assert.deepEqual(audible.map(n=>[n.start,n.length]),[[5,32]]);
+ assert.equal(tempoAt(project.notes,0),60);assert.equal(tempoAt(project.notes,10),120);
+ assert.equal(project.notes.filter(n=>n.volume===0).length,2);
+ assert.doesNotThrow(()=>parse(JSON.stringify(project)));
+});
+test('coincident tempo and unsupported controls are reported without export-limit warnings',()=>{
+ const {project,warnings}=importMidi(midi([[e(0,255,81,3,0,0,1),e(0,255,81,3,15,66,64),e(0,176,7,50),e(0,224,0,64),e(0,240,1,247),e(0,153,36,90),e(10,137,36,0),end()]]));
+ assert.equal(tempoAt(project.notes,0),60);
+ for(const text of ['Coincident','Controllers','Pitch bend','System-exclusive','Not a valid MS2 instrument'])assert.ok(warnings.some(w=>w.includes(text)),text);
+ assert.ok(!warnings.some(w=>w.includes('clamp')));
+});
+test('MIDI channel 10 imports as a playable standard drum kit with an MS2 warning',()=>{
+ const {project,warnings}=importMidi(midi([[e(0,201,8),e(0,153,36,100),e(8,137,36,0),end()]]));
+ assert.equal(project.instruments[0].isDrum,true);assert.equal(project.instruments[0].midiProgram,0);
+ assert.ok(warnings.some(w=>w.includes('Not a valid MS2 instrument')));
+ assert.ok(warnings.some(w=>w.includes('Alternate MIDI drum kits')));
+ assert.deepEqual(parse(JSON.stringify(project)),project);
+ const again=importMidi(new Uint8Array(compilePlayback(project).binary));assert.equal(again.project.instruments[0].isDrum,true);
+});
+test('dangling notes end at file end and velocity-zero note-ons act as note-offs',()=>{
+ const {project,warnings}=importMidi(midi([[e(0,144,60,100),e(3,144,62,100),e(5,144,62,0),end(9)]]));
+ assert.deepEqual(project.notes.map(n=>[n.pitch,n.length]),[[60,17],[62,5]]);
+ assert.ok(warnings.some(w=>w.includes('Unreleased')));
+});
+test('invalid, truncated, empty, format 2 and SMPTE inputs fail clearly',()=>{
+ const good=midi([[e(0,144,60,100),e(7,128,60,0),end()]]);
+ for(let i=0;i<good.length-3;i++)assert.throws(()=>importMidi(good.subarray(0,i)),`truncation ${i}`);
+ assert.throws(()=>importMidi(midi([[end()]])),/no notes/);
+ assert.throws(()=>importMidi(midi([[end()]],32,2)),/formats 0 and 1/);
+ assert.throws(()=>importMidi(midi([[end()]],0xe728)),/SMPTE/);
+ assert.throws(()=>readSMF(midi([[e(0,60,100),end()]])),/running status/);
+ assert.throws(()=>readSMF(midi([[[128,128,128,128,0],end()]])),/variable-length/);
+ assert.throws(()=>readSMF(midi([[e(0,144,255,100),end()]])),/channel data/);
+});

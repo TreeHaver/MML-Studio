@@ -1,0 +1,9 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {fresh,valid,move,resize,parse,volumeAt,name} from '../src/core.ts';
+const n=(id:number,start:number,pitch=60)=>({id,instrument:0,start,length:16,pitch,volume:null});
+test('group movement preserves spacing and pitches; anchor alone snaps',()=>{const a=[n(1,3),n(2,21,64)];const r=move(a,new Set([1,2]),1,31,2,4);assert.equal(r[0].start,32);assert.equal(r[1].start,50);assert.equal(r[1].pitch-r[0].pitch,4);});
+test('collision rejects whole group and preserves duration',()=>{const a=[n(1,0),n(2,0,64),n(3,32)];assert.deepEqual(move(a,new Set([1,2]),1,32,0,4),a);});
+test('chords and touching endpoints allowed; same pitch overlap blocked',()=>{assert.ok(valid([n(1,0),n(2,0,64),n(3,16)]));assert.ok(!valid([n(1,0),n(2,8)]));});
+test('L64 dotted is 3 units, L128 dotted is not representable',()=>{assert.ok(valid([{...n(1,0),length:3}]));assert.ok(!valid([{...n(1,0),length:1.5}]));assert.equal(resize([n(1,0)],1,3,128)[0].length,3);});
+test('V carries forward; deletion removes change',()=>{const p=fresh();p.notes=[{...n(1,0),volume:5},n(2,32)];assert.equal(volumeAt(p,p.notes[1]),5);p.notes.shift();assert.equal(volumeAt(p,p.notes[0]),8);});
+test('JSON roundtrip and names including out of range',()=>{const p=fresh();p.notes=[n(1,0)];assert.deepEqual(parse(JSON.stringify(p)),p);assert.equal(name(61),'C#4');assert.equal(name(-1),'B-2');assert.throws(()=>parse('{"format":"wrong"}'));});

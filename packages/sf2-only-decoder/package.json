@@ -1,0 +1,8 @@
+{
+  "name": "mml-studio-sf2-only-decoder",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "description": "Rejects unused compressed SF3 decoding; contains no Vorbis decoder or WASM."
+}

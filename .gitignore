@@ -1,0 +1,15 @@
+# Installed dependencies
+node_modules/
+
+# Local validation output and release bundles
+.validation/
+release/
+*.zip
+
+# Generated local/editor state
+.DS_Store
+Thumbs.db
+*.log
+
+# Windows spell-check cache created under the project folder
+眈姶ǋ/

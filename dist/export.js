@@ -1,0 +1,30 @@
+import { state } from './state.js';
+import { generateMml } from './music/mml.js';
+import { $, status } from './dom.js';
+const LIMIT = 10000;
+function xml(channels) { const melody = channels[0] ?? '', chords = channels.slice(1).map((s, i) => `    <chord chord="${i + 1}"><![CDATA[${s}]]></chord>`).join('\n'); return `<?xml version="1.0" encoding="utf-8"?>\n<ms2>\n    <melody><![CDATA[${melody}]]></melody>${chords ? '\n' + chords : ''}\n</ms2>\n`; }
+async function save(name, text) { return window.files.exportMml(name, text); }
+export function installExport() {
+    const selected = $('export-selected');
+    selected.onclick = async () => { const i = state.active, r = generateMml(state.project, i); if (!r.channels.length)
+        return status('The selected instrument has no musical MML.'); if (r.bytes > LIMIT && !confirm(`Instrument ${state.project.instruments[i].name} exceeds the character limit, do you still want to export?`))
+        return; try {
+        if (await save(state.project.instruments[i].name + '.ms2mml', xml(r.channels)))
+            status('Selected instrument exported.');
+    }
+    catch (e) {
+        status('Export failed: ' + e);
+    } };
+    const all = $('export-project');
+    all.onclick = async () => { const items = state.project.instruments.map((i, index) => ({ i, r: generateMml(state.project, index) })).filter(x => x.r.channels.length), large = items.filter(x => x.r.bytes > LIMIT); if (large.length && !confirm(large.map(x => `Instrument ${x.i.name} exceeds the character limit, do you still want to export?`).join('\n')))
+        return; try {
+        let count = 0;
+        for (const x of items)
+            if (await save(x.i.name + '.ms2mml', xml(x.r.channels)))
+                count++;
+        status(`Exported ${count} instrument file${count === 1 ? '' : 's'}.`);
+    }
+    catch (e) {
+        status('Export failed: ' + e);
+    } };
+}
