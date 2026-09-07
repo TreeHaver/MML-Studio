@@ -3,7 +3,7 @@ import {layout} from './viewport.ts';
 import {draw} from './painting.ts';
 import {info} from './inspector.ts';
 import {commitNotes} from './commands.ts';
-import {canvas,status} from './dom.ts';
+import {canvas,status,view} from './dom.ts';
 import {state,isMuted} from './state.ts';
 import {KEY,HEAD,ROW,threshold} from './constants.ts';
 import {cellStart} from './music/timing.ts';
@@ -21,6 +21,19 @@ export function installPointer(){
  const paint=(from:any,to:any)=>{const gesture=state.gesture,step=128/state.project.grid;if(!gesture||gesture.kind!=='paint')return;const a=Math.floor(Math.max(0,from.tick)/step),b=Math.floor(Math.max(0,to.tick)/step),count=Math.max(Math.abs(b-a),Math.abs(to.pitch-from.pitch));for(let i=1;i<=count;i++){const cell=Math.round(a+(b-a)*i/count),pitch=Math.round(from.pitch+(to.pitch-from.pitch)*i/count),start=cell*step,key=`${start}:${pitch}`;if(gesture.painted.has(key))continue;gesture.painted.add(key);const next:Note={id:state.project.notes.reduce((id,n)=>Math.max(id,n.id),0)+1,instrument:state.active,start,length:step,pitch,volume:null};if(valid([...state.project.notes,next])){state.project.notes.push(next);state.selection.add(next.id);}}};
  let keyGesture:{pointerId:number,pitch:number}|null=null;
  let scrubbing=false;
+ // Dragging a selection box past the visible area scrolls the roll instead of stopping at it.
+ const EDGE=52,EDGE_SPEED=20;
+ let edgeFrame=0,edgePoint:{x:number,y:number}|null=null;
+ const edgeScroll=()=>{
+  const gesture=state.gesture,p=edgePoint;
+  if(!gesture||gesture.kind!=='box'||!p){edgeFrame=0;return;}
+  const speed=(gap:number)=>Math.round(EDGE_SPEED*Math.min(1,Math.max(0,EDGE-gap)/EDGE));
+  let dx=0,dy=0;
+  if(p.x<KEY+EDGE)dx=-speed(p.x-KEY);else if(p.x>state.width-EDGE)dx=speed(state.width-p.x);
+  if(p.y<HEAD+EDGE)dy=-speed(p.y-HEAD);else if(p.y>state.height-EDGE)dy=speed(state.height-p.y);
+  if(dx||dy){view.scrollLeft+=dx;view.scrollTop+=dy;info();draw();}
+  edgeFrame=requestAnimationFrame(edgeScroll);
+ };
  let keyHighlightTimer:number|undefined;
  const previewKey=(p:any)=>{const instrument=state.project.instruments[state.active],pitch=musical(p).pitch;if(pitch<0||pitch>127)return;state.previewPitch=pitch;draw();if(keyHighlightTimer!==undefined)window.clearTimeout(keyHighlightTimer);keyHighlightTimer=window.setTimeout(()=>{if(state.previewPitch===pitch){state.previewPitch=null;draw();}},500);void previewNote(pitch,instrument.midiProgram??0,instrument.isDrum===true);return pitch;};
 canvas.onpointerdown=e=>{
@@ -32,7 +45,7 @@ canvas.onpointerdown=e=>{
  }
  if(isMuted(state.active)){status('Unmute this instrument to edit its notes.');return;}e.preventDefault();canvas.focus();const n=hit(p);if(e.button===2){if(n)commitNotes(state.project.notes.filter(o=>o.id!==n.id));state.selection.delete(n?.id??-1);info();return;}
  const add=e.ctrlKey||e.metaKey;const before=JSON.stringify(state.project);const m=musical(p);
- if(e.shiftKey||(!n&&state.tool==='select'))state.gesture={kind:'box',start:p,current:p,music:m,add,before};
+ if(e.shiftKey||(!n&&state.tool==='select'))state.gesture={kind:'box',start:p,current:p,origin:{x:p.x+view.scrollLeft,y:p.y+view.scrollTop},music:m,add,before};
  else if(n){
   const already=state.selection.has(n.id);
   if(state.tool==='select'){
@@ -58,6 +71,7 @@ canvas.onpointermove=e=>{
  const p=point(e);if(scrubbing){seekToTick(musical(p).tick);return;}if(keyGesture){if(p.x>=0&&p.x<KEY&&p.y>=HEAD){const pitch=musical(p).pitch;if(pitch!==keyGesture.pitch&&pitch>=0&&pitch<=127){keyGesture.pitch=pitch;previewKey(p);}}return;}if(!state.gesture){if(p.y<HEAD){canvas.style.cursor=p.x>=KEY?'pointer':'default';return;}const n=p.x>=KEY?hit(p):undefined;canvas.style.cursor=n&&edge(n,p)?'ew-resize':'default';return;}
  state.gesture.current=p;const dx=p.x-state.gesture.start.x,dy=p.y-state.gesture.start.y;
  if(Math.hypot(dx,dy)<threshold&&!state.gesture.moved){draw();return;}state.gesture.moved=true;
+ if(state.gesture.kind==='box'){edgePoint=p;if(!edgeFrame)edgeFrame=requestAnimationFrame(edgeScroll);}
  if(state.gesture.kind==='paint'){paint(state.gesture.music,musical(p));state.gesture.music=musical(p);}
  if(state.gesture.kind==='move')state.project.notes=move(state.gesture.base,state.selection,state.gesture.anchor,dx/state.zoom,state.project.instruments[state.active].isInstructions?0:Math.round(-dy/ROW),state.project.grid);
  if(state.gesture.kind==='resize')state.project.notes=resize(state.gesture.base,state.gesture.nid,state.gesture.length+dx/state.zoom,state.project.grid);

@@ -18,6 +18,7 @@ export function drawNotes(){
  if(!instructions&&state.selection.has(n.id)&&r.w>9){ctx.fillStyle='#ffffffa0';ctx.fillRect(r.x+r.w-4,r.y+3,1,r.h-6);}
  ctx.save();ctx.beginPath();ctx.rect(r.x+2,r.y,Math.max(0,r.w-4),r.h);ctx.clip();ctx.fillStyle=noteLabelColor(instructions?INSTRUCTIONS_COLOR:state.project.instruments[n.instrument].color);ctx.font='10px Segoe UI, sans-serif';ctx.textBaseline='middle';ctx.fillText(instructions?(n.tempo==null?'Event':`T${n.tempo}`):name(n.pitch)+(n.tempo==null?'':` T${n.tempo}`),r.x+4,r.y+r.h/2);ctx.restore();ctx.globalAlpha=1;
  }
- if(state.gesture?.kind==='box'){const a=state.gesture.start,b=state.gesture.current;ctx.fillStyle='#379bf528';ctx.strokeStyle='#67b7ff';ctx.lineWidth=1;ctx.fillRect(Math.min(a.x,b.x),Math.min(a.y,b.y),Math.abs(a.x-b.x),Math.abs(a.y-b.y));ctx.strokeRect(Math.min(a.x,b.x)+.5,Math.min(a.y,b.y)+.5,Math.abs(a.x-b.x),Math.abs(a.y-b.y));}
+ // Anchored to the content, so the box keeps its corner while the roll scrolls under it.
+ if(state.gesture?.kind==='box'){const g=state.gesture,a={x:g.origin.x-view.scrollLeft,y:g.origin.y-view.scrollTop},b=g.current;ctx.fillStyle='#379bf528';ctx.strokeStyle='#67b7ff';ctx.lineWidth=1;ctx.fillRect(Math.min(a.x,b.x),Math.min(a.y,b.y),Math.abs(a.x-b.x),Math.abs(a.y-b.y));ctx.strokeRect(Math.min(a.x,b.x)+.5,Math.min(a.y,b.y)+.5,Math.abs(a.x-b.x),Math.abs(a.y-b.y));}
 
 }

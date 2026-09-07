@@ -3,7 +3,7 @@ import { layout } from './viewport.js';
 import { draw } from './painting.js';
 import { info } from './inspector.js';
 import { commitNotes } from './commands.js';
-import { canvas, status } from './dom.js';
+import { canvas, status, view } from './dom.js';
 import { state, isMuted } from './state.js';
 import { KEY, HEAD, ROW, threshold } from './constants.js';
 import { cellStart } from './music/timing.js';
@@ -31,6 +31,33 @@ export function installPointer() {
     } };
     let keyGesture = null;
     let scrubbing = false;
+    // Dragging a selection box past the visible area scrolls the roll instead of stopping at it.
+    const EDGE = 52, EDGE_SPEED = 20;
+    let edgeFrame = 0, edgePoint = null;
+    const edgeScroll = () => {
+        const gesture = state.gesture, p = edgePoint;
+        if (!gesture || gesture.kind !== 'box' || !p) {
+            edgeFrame = 0;
+            return;
+        }
+        const speed = (gap) => Math.round(EDGE_SPEED * Math.min(1, Math.max(0, EDGE - gap) / EDGE));
+        let dx = 0, dy = 0;
+        if (p.x < KEY + EDGE)
+            dx = -speed(p.x - KEY);
+        else if (p.x > state.width - EDGE)
+            dx = speed(state.width - p.x);
+        if (p.y < HEAD + EDGE)
+            dy = -speed(p.y - HEAD);
+        else if (p.y > state.height - EDGE)
+            dy = speed(state.height - p.y);
+        if (dx || dy) {
+            view.scrollLeft += dx;
+            view.scrollTop += dy;
+            info();
+            draw();
+        }
+        edgeFrame = requestAnimationFrame(edgeScroll);
+    };
     let keyHighlightTimer;
     const previewKey = (p) => { const instrument = state.project.instruments[state.active], pitch = musical(p).pitch; if (pitch < 0 || pitch > 127)
         return; state.previewPitch = pitch; draw(); if (keyHighlightTimer !== undefined)
@@ -85,7 +112,7 @@ export function installPointer() {
         const before = JSON.stringify(state.project);
         const m = musical(p);
         if (e.shiftKey || (!n && state.tool === 'select'))
-            state.gesture = { kind: 'box', start: p, current: p, music: m, add, before };
+            state.gesture = { kind: 'box', start: p, current: p, origin: { x: p.x + view.scrollLeft, y: p.y + view.scrollTop }, music: m, add, before };
         else if (n) {
             const already = state.selection.has(n.id);
             if (state.tool === 'select') {
@@ -173,6 +200,11 @@ export function installPointer() {
             return;
         }
         state.gesture.moved = true;
+        if (state.gesture.kind === 'box') {
+            edgePoint = p;
+            if (!edgeFrame)
+                edgeFrame = requestAnimationFrame(edgeScroll);
+        }
         if (state.gesture.kind === 'paint') {
             paint(state.gesture.music, musical(p));
             state.gesture.music = musical(p);

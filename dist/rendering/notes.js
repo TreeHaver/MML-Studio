@@ -46,8 +46,9 @@ export function drawNotes() {
         ctx.restore();
         ctx.globalAlpha = 1;
     }
+    // Anchored to the content, so the box keeps its corner while the roll scrolls under it.
     if (state.gesture?.kind === 'box') {
-        const a = state.gesture.start, b = state.gesture.current;
+        const g = state.gesture, a = { x: g.origin.x - view.scrollLeft, y: g.origin.y - view.scrollTop }, b = g.current;
         ctx.fillStyle = '#379bf528';
         ctx.strokeStyle = '#67b7ff';
         ctx.lineWidth = 1;
