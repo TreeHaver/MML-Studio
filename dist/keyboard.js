@@ -50,5 +50,7 @@ export function installKeyboard() {
             setTool('draw');
         if (e.key.toLowerCase() === 's' && !e.ctrlKey)
             setTool('select');
+        if (e.key.toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey)
+            setTool('spray');
     };
 }

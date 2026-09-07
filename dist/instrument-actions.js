@@ -7,13 +7,15 @@ import { deleteInstrument, mergeInstruments } from './model/instrument-operation
 function apply(project, source, active) {
     stopPlayback(false);
     checkpoint();
-    const muted = [...instrumentView.muted], collapsed = [...instrumentView.collapsed];
+    const muted = [...instrumentView.muted], collapsed = [...instrumentView.collapsed], solo = instrumentView.solo;
     resetInstrumentView();
     if (state.project.instruments.length > 1) {
         for (const [values, set] of [[muted, instrumentView.muted], [collapsed, instrumentView.collapsed]])
             for (const index of values)
                 if (index !== source)
                     set.add(index > source ? index - 1 : index);
+        if (solo !== null && solo !== source)
+            instrumentView.solo = solo > source ? solo - 1 : solo;
     }
     state.project = project;
     state.active = active;
@@ -26,11 +28,14 @@ export function removeInstrument(index) {
     if (!instrument)
         return;
     const notes = state.project.notes.filter(n => n.instrument === index), tempos = notes.filter(n => n.tempo != null).length;
-    if (!confirm(`Delete “${instrument.name}” and its ${notes.length} notes/events${tempos ? `, including ${tempos} global tempo instructions` : ''}?\n${state.project.instruments.length === 1 ? 'An empty Piano will remain.\n' : ''}You can undo this.`))
+    const contents = `${notes.length} notes/events${tempos ? `, including ${tempos} global tempo instructions` : ''}`, last = state.project.instruments.length === 1;
+    if (notes.length && !confirm(last
+        ? `“${instrument.name}” is the only instrument, so it cannot be deleted — it will be emptied instead.\nIts ${contents} will be cleared and it will be reset to an empty Piano.\nYou can undo this.`
+        : `Delete “${instrument.name}” and its ${contents}?\nYou can undo this.`))
         return;
     const active = state.active === index ? Math.max(0, Math.min(index, state.project.instruments.length - 2)) : state.active > index ? state.active - 1 : state.active;
     apply(deleteInstrument(state.project, index), index, active);
-    status(`Deleted “${instrument.name}”. Undo to restore it.`);
+    status(`${last ? 'Emptied' : 'Deleted'} “${instrument.name}”. Undo to restore it.`);
 }
 export function mergeInstrument(source, target) {
     try {
@@ -77,12 +82,7 @@ export function instrumentActions(row, index) {
     merge.onclick = () => { if (destination.value !== '')
         mergeInstrument(index, Number(destination.value)); };
     destination.onchange = () => { merge.disabled = destination.value === ''; };
-    const remove = document.createElement('button');
-    remove.textContent = 'Delete';
-    remove.className = 'instrument-delete';
-    remove.setAttribute('aria-label', 'Delete ' + state.project.instruments[index].name);
-    remove.onclick = () => removeInstrument(index);
-    body.append(destination, merge, remove);
+    body.append(destination, merge);
     box.append(summary, body);
     row.append(box);
 }

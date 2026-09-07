@@ -9,6 +9,8 @@ export function drawKeyboard() {
     ctx.beginPath();
     ctx.rect(0, HEAD, KEY, state.height - HEAD);
     ctx.clip();
+    ctx.fillStyle = palette.keyLine;
+    ctx.fillRect(0, HEAD, KEY, state.height - HEAD);
     for (let row = startRow; row <= endRow; row++) {
         const p = state.topPitch - row, y = HEAD + row * ROW - view.scrollTop, active = p === state.previewPitch;
         ctx.fillStyle = active ? palette.playhead : sharp(p) ? palette.keyDark : palette.keyLight;

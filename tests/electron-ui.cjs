@@ -35,9 +35,9 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  const gridCell=await evaluate(`(()=>{const view=document.getElementById('view'),canvas=document.getElementById('canvas'),r=canvas.getBoundingClientRect(),targetPitch=76;view.scrollLeft=0;document.getElementById('draw').click();return {x:Math.round(r.x+62+(128/s.project.grid)*s.zoom*.75),y:Math.round(r.y+30+(s.topPitch-targetPitch)*20-view.scrollTop+10)};})()`);
  win.webContents.sendInputEvent({type:'mouseMove',...gridCell});win.webContents.sendInputEvent({type:'mouseDown',...gridCell,button:'left',clickCount:1});await evaluate(`new Promise(resolve=>requestAnimationFrame(resolve))`);win.webContents.sendInputEvent({type:'mouseUp',...gridCell,button:'left',clickCount:1});
  assert.equal(await evaluate(`s.project.notes.find(n=>n.pitch===76)?.start`),0,'a click in the right half of the first cell must stay in that cell');
- const paintStart=await evaluate(`(()=>{const view=document.getElementById('view'),canvas=document.getElementById('canvas'),r=canvas.getBoundingClientRect(),targetPitch=75;return {x:Math.round(r.x+62+(128/s.project.grid)*s.zoom*.25),y:Math.round(r.y+30+(s.topPitch-targetPitch)*20-view.scrollTop+10)};})()`),paintEnd={x:paintStart.x+Math.round((128/4)*3*3),y:paintStart.y};
- win.webContents.sendInputEvent({type:'mouseMove',...paintStart});win.webContents.sendInputEvent({type:'mouseDown',...paintStart,button:'left',clickCount:1});await evaluate(`new Promise(resolve=>requestAnimationFrame(resolve))`);win.webContents.sendInputEvent({type:'mouseMove',...paintEnd,button:'left',modifiers:['leftButtonDown']});win.webContents.sendInputEvent({type:'mouseUp',...paintEnd,button:'left',clickCount:1});
- assert.deepEqual(await evaluate(`s.project.notes.filter(n=>n.pitch===75).map(n=>n.start)`),[0,32,64,96]);
+ const dragStart=await evaluate(`(()=>{const view=document.getElementById('view'),canvas=document.getElementById('canvas'),r=canvas.getBoundingClientRect(),targetPitch=75;return {x:Math.round(r.x+62+(128/s.project.grid)*s.zoom*.25),y:Math.round(r.y+30+(s.topPitch-targetPitch)*20-view.scrollTop+10)};})()`),dragEnd={x:dragStart.x+Math.round((128/4)*3*3),y:dragStart.y};
+ win.webContents.sendInputEvent({type:'mouseMove',...dragStart});win.webContents.sendInputEvent({type:'mouseDown',...dragStart,button:'left',clickCount:1});await evaluate(`new Promise(resolve=>requestAnimationFrame(resolve))`);win.webContents.sendInputEvent({type:'mouseMove',...dragEnd,button:'left',modifiers:['leftButtonDown']});win.webContents.sendInputEvent({type:'mouseUp',...dragEnd,button:'left',clickCount:1});
+ assert.deepEqual(await evaluate(`s.project.notes.filter(n=>n.pitch===75).map(n=>[n.start,n.length])`),[[0,128]],'dragging while drawing must lengthen one note, not add more');
  await evaluate(`import('./dist/history.js').then(({checkpoint})=>{s.history=[];s.future=[];for(let grid=4;grid<12;grid++){checkpoint();s.project.grid=grid;}})`);
  const undoPoint=await evaluate(`(()=>{const r=document.getElementById('undo').getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};})()`);
  win.webContents.sendInputEvent({type:'mouseMove',...undoPoint});win.webContents.sendInputEvent({type:'mouseDown',...undoPoint,button:'left',clickCount:1});
@@ -60,12 +60,9 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
   const overflow=await evaluate(`[...document.querySelectorAll('.app-header,.editor-toolbar,.track-panel,.inspector-panel')].filter(el=>el.scrollWidth>el.clientWidth+1).map(el=>el.className)`);assert.deepEqual(overflow,[]);
   fs.writeFileSync('.validation/ui-'+width+'.png',(await win.webContents.capturePage()).toPNG());
  }
- await evaluate(`document.getElementById('theme').value='midnight';document.getElementById('theme').dispatchEvent(new Event('change'))`);
- assert.equal(await evaluate(`document.documentElement.dataset.theme`),'midnight');
- assert.equal(await evaluate(`JSON.parse(localStorage.getItem('mml-studio-workspace-v1')).theme`),'midnight');
- await evaluate(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
- fs.writeFileSync('.validation/ui-midnight.png',(await win.webContents.capturePage()).toPNG());
- await evaluate(`document.getElementById('theme').value='night';document.getElementById('theme').dispatchEvent(new Event('change'))`);
+ await evaluate(`document.querySelector('#theme-menu .theme-option[data-theme=night]').click()`);
+ assert.equal(await evaluate(`document.documentElement.dataset.theme`),'night');
+ assert.equal(await evaluate(`JSON.parse(localStorage.getItem('mml-studio-workspace-v1')).theme`),'night');
  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.track-panel')).backgroundColor`),'rgb(20, 20, 20)');
  assert.equal(await evaluate(`getComputedStyle(document.documentElement).backgroundColor`),'rgb(13, 13, 13)');
  assert.equal(await evaluate(`getComputedStyle(document.getElementById('left-divider'),'::after').content`),'none');

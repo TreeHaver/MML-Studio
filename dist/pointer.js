@@ -10,6 +10,7 @@ import { cellStart } from './music/timing.js';
 import { valid } from './model/validation.js';
 import { move, resize } from './music/note-operations.js';
 import { previewNote } from './playback/preview.js';
+import { seekToTick } from './playback/transport.js';
 import { tempoAt } from './music/tempo.js';
 import { setPastePosition } from './note-clipboard.js';
 export function endGesture(cancel = false) { if (!state.gesture)
@@ -29,6 +30,7 @@ export function installPointer() {
         }
     } };
     let keyGesture = null;
+    let scrubbing = false;
     let keyHighlightTimer;
     const previewKey = (p) => { const instrument = state.project.instruments[state.active], pitch = musical(p).pitch; if (pitch < 0 || pitch > 127)
         return; state.previewPitch = pitch; draw(); if (keyHighlightTimer !== undefined)
@@ -40,8 +42,15 @@ export function installPointer() {
         if (e.button !== 0 && e.button !== 2)
             return;
         const p = point(e);
-        if (p.y < HEAD)
+        if (p.y < HEAD) {
+            if (e.button === 0 && p.x >= KEY) {
+                e.preventDefault();
+                scrubbing = true;
+                canvas.setPointerCapture(e.pointerId);
+                seekToTick(musical(p).tick);
+            }
             return;
+        }
         if (p.x < KEY) {
             if (e.button === 0 && p.x >= 0 && !isMuted(state.active)) {
                 e.preventDefault();
@@ -124,7 +133,9 @@ export function installPointer() {
                 return;
             state.project.notes.push(newNote);
             state.selection = new Set([newNote.id]);
-            state.gesture = { kind: instructions ? 'instruction-create' : 'paint', start: p, current: p, music: m, nid: newNote.id, before, ...(instructions ? {} : { painted: new Set([`${start}:${m.pitch}`]) }) };
+            const spray = state.tool === 'spray' && !instructions;
+            state.gesture = { kind: instructions ? 'instruction-create' : spray ? 'paint' : 'resize', start: p, current: p, music: m, nid: newNote.id, before,
+                ...(spray ? { painted: new Set([`${start}:${m.pitch}`]) } : { base: structuredClone(state.project.notes), length: newNote.length }) };
         }
         canvas.setPointerCapture(e.pointerId);
         info();
@@ -132,6 +143,10 @@ export function installPointer() {
     };
     canvas.onpointermove = e => {
         const p = point(e);
+        if (scrubbing) {
+            seekToTick(musical(p).tick);
+            return;
+        }
         if (keyGesture) {
             if (p.x >= 0 && p.x < KEY && p.y >= HEAD) {
                 const pitch = musical(p).pitch;
@@ -143,7 +158,11 @@ export function installPointer() {
             return;
         }
         if (!state.gesture) {
-            const n = p.x >= KEY && p.y >= HEAD ? hit(p) : undefined;
+            if (p.y < HEAD) {
+                canvas.style.cursor = p.x >= KEY ? 'pointer' : 'default';
+                return;
+            }
+            const n = p.x >= KEY ? hit(p) : undefined;
             canvas.style.cursor = n && edge(n, p) ? 'ew-resize' : 'default';
             return;
         }
@@ -166,6 +185,12 @@ export function installPointer() {
         draw();
     };
     canvas.onpointerup = e => {
+        if (scrubbing) {
+            scrubbing = false;
+            if (canvas.hasPointerCapture(e.pointerId))
+                canvas.releasePointerCapture(e.pointerId);
+            return;
+        }
         if (keyGesture) {
             keyGesture = null;
             if (canvas.hasPointerCapture(e.pointerId))
@@ -189,8 +214,8 @@ export function installPointer() {
         if (canvas.hasPointerCapture(e.pointerId))
             canvas.releasePointerCapture(e.pointerId);
     };
-    canvas.onpointercancel = () => { keyGesture = null; endGesture(true); };
-    canvas.onlostpointercapture = () => { keyGesture = null; if (state.gesture)
+    canvas.onpointercancel = () => { keyGesture = null; scrubbing = false; endGesture(true); };
+    canvas.onlostpointercapture = () => { keyGesture = null; scrubbing = false; if (state.gesture)
         endGesture(true); };
     canvas.oncontextmenu = e => e.preventDefault();
 }

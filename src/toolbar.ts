@@ -7,10 +7,10 @@ import {stopPlayback} from './playback/transport.ts';
 import {refresh} from './commands.ts';
 import {status} from './dom.ts';
 
-export function setTool(value:string){state.tool=value;for(const id of ['draw','select'])$(id).classList.toggle('active',id===state.tool);}
+export function setTool(value:string){state.tool=value;for(const id of ['draw','select','spray'])$(id).classList.toggle('active',id===state.tool);}
 
 export function installToolbar(){
-$('draw').onclick=()=>setTool('draw');$('select').onclick=()=>setTool('select');
+$('draw').onclick=()=>setTool('draw');$('select').onclick=()=>setTool('select');$('spray').onclick=()=>setTool('spray');
 for(const g of [4,8,16,32,64,128]){const option=document.createElement('option');option.value=String(g);option.textContent='L'+g;$('grid').append(option);}
 $('grid').onchange=()=>{state.project.grid=Number(input('grid').value);draw();};
 $('zoom').oninput=()=>{const time=view.scrollLeft/state.zoom;state.zoom=Number(input('zoom').value);layout();view.scrollLeft=time*state.zoom;draw();};

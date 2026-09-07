@@ -42,7 +42,7 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Native Electron window and file-dialog IPC | `main.cjs`, `preload.cjs` |
 | Main editor structure and styles | `index.html`, `studio.css` |
 | File/Export menu dismissal | `src/chrome.ts` |
-| Sky/Midnight palettes, resizable/collapsible panels, saved workspace | `src/appearance.ts`, `themes.css` |
+| Sky/Night palettes, resizable/collapsible panels, saved workspace | `src/appearance.ts`, `themes.css` |
 | Header logo and native window icon | `assets/logo.svg`, `assets/logo.png`, `main.cjs` |
 | MML pop-out styles | `style.css` |
 

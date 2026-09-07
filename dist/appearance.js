@@ -1,13 +1,15 @@
 import { $ } from './dom.js';
 import { draw } from './painting.js';
-export const palette = { gridA: '#e5f1fa', gridB: '#deedf8', row: '#275d8010', octave: '#387ba447', bar: '#3e789760', beat: '#3c73951c', ruler: '#c8dfef', text: '#284d68', keyDark: '#365b79', keyLight: '#f6fbff', corner: '#b7d3e7', background: '#deedf8', playhead: '#1689dc' };
-const sky = { ...palette }, midnight = { gridA: '#15283e', gridB: '#182d44', row: '#ffffff08', octave: '#77b6eb38', bar: '#82b8df50', beat: '#9bcfff18', ruler: '#213d58', text: '#c8e6ff', keyDark: '#142b42', keyLight: '#b8cee0', corner: '#193149', background: '#15283e', playhead: '#58beff' };
-const night = { gridA: '#171717', gridB: '#1b1b1b', row: '#ffffff08', octave: '#ffffff25', bar: '#ffffff38', beat: '#ffffff12', ruler: '#252525', text: '#dddddd', keyDark: '#111111', keyLight: '#bfbfbf', corner: '#202020', background: '#171717', playhead: '#eeeeee' };
+export const palette = { gridA: '#e5f1fa', gridB: '#deedf8', row: '#275d8010', octave: '#387ba447', bar: '#3e789760', beat: '#3c73951c', ruler: '#c8dfef', text: '#284d68', keyDark: '#3f4144', keyLight: '#ffffff', keyLine: '#c9ced2', corner: '#b7d3e7', background: '#deedf8', playhead: '#1689dc' };
+const sky = { ...palette };
+const night = { gridA: '#171717', gridB: '#1b1b1b', row: '#ffffff08', octave: '#ffffff25', bar: '#ffffff38', beat: '#ffffff12', ruler: '#252525', text: '#dddddd', keyDark: '#111111', keyLight: '#bfbfbf', keyLine: '#2a2a2a', corner: '#202020', background: '#171717', playhead: '#eeeeee' };
 const key = 'mml-studio-workspace-v1';
 export function installAppearance() {
     if (!document.documentElement)
         return;
     const main = $('workspace'), left = $('left-divider'), right = $('right-divider');
+    // The native popup is painted by the browser and ignores page CSS, so selects get our own list.
+    let closeOpenList = null;
     const decorateSelect = (select) => {
         if (select.parentElement?.classList.contains('select-control'))
             return;
@@ -17,15 +19,58 @@ export function installAppearance() {
         chevron.setAttribute('aria-hidden', 'true');
         select.replaceWith(shell);
         shell.append(select, chevron);
-        const close = () => shell.classList.remove('open');
-        select.addEventListener('pointerdown', () => shell.classList.toggle('open'));
-        select.addEventListener('change', close);
-        select.addEventListener('keydown', e => { if (e.key === 'Escape' || e.key === 'Enter')
+        let panel = null;
+        const close = () => { panel?.remove(); panel = null; shell.classList.remove('open'); if (closeOpenList === close)
+            closeOpenList = null; };
+        const open = () => {
+            if (panel) {
+                close();
+                return;
+            }
+            closeOpenList?.();
+            panel = document.createElement('div');
+            panel.className = 'menu-panel select-panel';
+            panel.onpointerdown = e => e.preventDefault();
+            let current = null;
+            for (const option of [...select.options]) {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.textContent = option.textContent;
+                item.disabled = option.disabled;
+                if (option.selected)
+                    current = item;
+                item.onclick = () => { const changed = select.value !== option.value; select.value = option.value; close(); select.focus({ preventScroll: true }); if (changed)
+                    select.dispatchEvent(new Event('change', { bubbles: true })); };
+                panel.append(item);
+            }
+            document.body.append(panel);
+            shell.classList.add('open');
+            closeOpenList = close;
+            const box = select.getBoundingClientRect();
+            panel.style.minWidth = box.width + 'px';
+            panel.style.maxWidth = Math.round(innerWidth - 16) + 'px';
+            const below = innerHeight - box.bottom - 14, above = box.top - 14, full = panel.offsetHeight;
+            const height = Math.min(full, Math.max(below, above), 300);
+            panel.style.maxHeight = height + 'px';
+            panel.style.left = Math.round(Math.max(8, Math.min(box.left, innerWidth - panel.offsetWidth - 8))) + 'px';
+            panel.style.top = Math.round(below >= height ? box.bottom + 4 : box.top - height - 4) + 'px';
+            if (height < full && current)
+                panel.scrollTop = Math.max(0, current.offsetTop - height / 2);
+        };
+        select.addEventListener('pointerdown', e => { e.preventDefault(); open(); });
+        select.addEventListener('keydown', e => { if (e.key === 'Escape')
             close();
-        else if (e.key === ' ' || (e.key === 'ArrowDown' && e.altKey))
-            shell.classList.add('open'); });
-        select.addEventListener('blur', () => window.setTimeout(close, 0));
+        else if (e.key === 'Enter' || e.key === ' ' || (e.key === 'ArrowDown' && e.altKey)) {
+            e.preventDefault();
+            open();
+        } });
     };
+    document.addEventListener('pointerdown', e => { const target = e.target; if (!target?.closest?.('.select-control') && !target?.closest?.('.select-panel'))
+        closeOpenList?.(); }, true);
+    document.addEventListener('scroll', () => closeOpenList?.(), true);
+    window.addEventListener('resize', () => closeOpenList?.());
+    window.addEventListener('keydown', e => { if (e.key === 'Escape')
+        closeOpenList?.(); });
     document.querySelectorAll('select').forEach(select => decorateSelect(select));
     new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => { if (!(node instanceof Element))
         return; if (node.matches('select'))
@@ -34,7 +79,7 @@ export function installAppearance() {
     try {
         const saved = JSON.parse(localStorage.getItem(key) ?? 'null');
         if (saved) {
-            if (['sky', 'midnight', 'night'].includes(saved.theme))
+            if (['sky', 'night'].includes(saved.theme))
                 settings.theme = saved.theme;
             for (const side of ['left', 'right']) {
                 if (Number.isFinite(saved[side]))
@@ -66,9 +111,15 @@ export function installAppearance() {
             $('toggle-' + side).setAttribute('aria-pressed', String(!settings[side + 'Hidden']));
         }
     };
-    const theme = () => { document.documentElement.dataset.theme = settings.theme; Object.assign(palette, settings.theme === 'sky' ? sky : settings.theme === 'night' ? night : midnight); $('theme').value = settings.theme; draw(); };
-    const themeSelect = $('theme');
-    themeSelect.onchange = () => { settings.theme = themeSelect.value; theme(); save(); };
+    const themeLabels = { sky: 'Sky', night: 'Night' };
+    const theme = () => {
+        document.documentElement.dataset.theme = settings.theme;
+        Object.assign(palette, settings.theme === 'night' ? night : sky);
+        $('theme-menu-label').textContent = themeLabels[settings.theme];
+        document.querySelectorAll('#theme-menu .theme-option').forEach(btn => btn.setAttribute('aria-current', String(btn.dataset.theme === settings.theme)));
+        draw();
+    };
+    document.querySelectorAll('#theme-menu .theme-option').forEach(btn => { btn.onclick = () => { settings.theme = btn.dataset.theme; theme(); save(); }; });
     for (const [side, handle] of [['left', left], ['right', right]]) {
         const hidden = side === 'left' ? 'leftHidden' : 'rightHidden', other = side === 'left' ? 'right' : 'left', otherHidden = side === 'left' ? 'rightHidden' : 'leftHidden';
         const clamp = (value) => Math.max(180, Math.min(value, 480, main.clientWidth - 340 - 12 - (settings[otherHidden] ? 0 : $(other === 'left' ? 'track-panel' : 'note-properties').getBoundingClientRect().width)));

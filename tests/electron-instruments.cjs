@@ -5,10 +5,10 @@ app.on('browser-window-created',(_,win)=>win.webContents.once('did-finish-load',
  const evaluate=code=>win.webContents.executeJavaScript(code,true);
  await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/commands.js')]).then(([{state},{refresh}])=>{state.project.instruments=Array.from({length:17},(_,i)=>({name:'Instrument '+i,color:'#77baff',isDrum:i===16}));state.project.notes=state.project.instruments.map((_,i)=>({id:i+1,instrument:i,start:0,length:2048,pitch:60,volume:8}));refresh();})`);
  const expanded=await evaluate(`document.querySelector('.instrument').offsetHeight`);
- await evaluate(`document.querySelector('.instrument-collapse').click()`);
+ await evaluate(`document.querySelector('.instrument-name').click()`);
  assert.ok(await evaluate(`document.querySelector('.instrument').offsetHeight`)<expanded);
  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.instrument-controls')).display`),'none');
- await evaluate(`document.querySelector('.instrument-collapse').click();document.querySelectorAll('.instrument-controls button')[1].click()`);
+ await evaluate(`document.querySelector('.instrument-name').click();document.querySelectorAll('.instrument-controls button')[1].click()`);
  await evaluate(`import('./dist/playback/transport.js').then(m=>m.play())`);
  assert.equal(await evaluate(`document.getElementById('pause').disabled`),false);
  await evaluate(`document.querySelectorAll('.instrument-controls button')[33].click()`);

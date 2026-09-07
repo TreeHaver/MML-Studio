@@ -6,11 +6,12 @@ import { checkpoint } from './history.js';
 import { stopPlayback } from './playback/transport.js';
 import { refresh } from './commands.js';
 import { status } from './dom.js';
-export function setTool(value) { state.tool = value; for (const id of ['draw', 'select'])
+export function setTool(value) { state.tool = value; for (const id of ['draw', 'select', 'spray'])
     $(id).classList.toggle('active', id === state.tool); }
 export function installToolbar() {
     $('draw').onclick = () => setTool('draw');
     $('select').onclick = () => setTool('select');
+    $('spray').onclick = () => setTool('spray');
     for (const g of [4, 8, 16, 32, 64, 128]) {
         const option = document.createElement('option');
         option.value = String(g);

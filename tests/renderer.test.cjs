@@ -118,8 +118,8 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  control(0,'Mute').onclick();assert.deepEqual([0,1,2].map(prefs.isMuted),[true,false,true]);
  control(2,'Solo').onclick();assert.deepEqual([0,1,2].map(prefs.isMuted),[true,true,false]);
  control(2,'Solo').onclick();assert.deepEqual([0,1,2].map(prefs.isMuted),[false,false,false]);
- rows()[0].children.find(el=>el.className==='instrument-collapse').onclick();assert.equal(prefs.instrumentView.collapsed.has(0),true);
- rows()[0].children.find(el=>el.className==='instrument-collapse').onclick();assert.equal(prefs.instrumentView.collapsed.has(0),false);
+ rows()[0].children[1].onclick();assert.equal(prefs.instrumentView.collapsed.has(0),true);
+ rows()[0].children[1].onclick();assert.equal(prefs.instrumentView.collapsed.has(0),false);
  rows()[1].children[1].onclick();assert.equal(run('state.active'),1);
  assert.equal(run('JSON.stringify(project)'),saved);assert.equal(run('state.history.length'),history);
  transport.stopPlayback();

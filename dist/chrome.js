@@ -1,6 +1,6 @@
 import { $ } from './dom.js';
 export function installChrome() {
-    const menus = [$('file-menu'), $('export-menu')];
+    const menus = [$('file-menu'), $('theme-menu'), $('export-menu')];
     document.onclick = event => {
         const target = event.target;
         for (const menu of menus)

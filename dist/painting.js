@@ -26,12 +26,26 @@ export function draw() {
     drawKeyboard();
     drawTempoMarkers();
     if (playback.tick !== null) {
+        const x = KEY + playback.tick * state.zoom - view.scrollLeft;
         ctx.save();
         ctx.beginPath();
         ctx.rect(KEY, HEAD, width - KEY, height - HEAD);
         ctx.clip();
         ctx.fillStyle = palette.playhead;
-        ctx.fillRect(KEY + playback.tick * state.zoom - view.scrollLeft, HEAD, 2, height - HEAD);
+        ctx.fillRect(x, HEAD, 2, height - HEAD);
+        ctx.restore();
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(KEY, 0, width - KEY, HEAD);
+        ctx.clip();
+        ctx.fillStyle = palette.playhead;
+        ctx.fillRect(x, 0, 2, HEAD);
+        ctx.beginPath();
+        ctx.moveTo(x - 5, 0);
+        ctx.lineTo(x + 7, 0);
+        ctx.lineTo(x + 1, 10);
+        ctx.closePath();
+        ctx.fill();
         ctx.restore();
     }
 }

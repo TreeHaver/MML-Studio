@@ -2,7 +2,7 @@ import { $, status } from '../dom.js';
 import { state, isMuted } from '../state.js';
 import { draw } from '../painting.js';
 import { compilePlayback } from './midi.js';
-import { tickAtSeconds, tempoAt } from '../music/tempo.js';
+import { tickAtSeconds, tempoAt, secondsAtTick } from '../music/tempo.js';
 import { volumeAt } from '../music/volume.js';
 import { getEngine } from './engine.js';
 import { followPlayback } from '../viewport.js';
@@ -17,10 +17,11 @@ const playable = () => state.project.notes.some(n => !state.project.instruments[
 function buttons() {
     const canPlay = playable();
     const play = $('play');
-    play.disabled = !canPlay || phase === 'loading' || phase === 'playing';
-    play.title = phase === 'paused' ? 'Resume' : 'Play';
+    const playing = phase === 'playing';
+    play.classList.toggle('is-playing', playing);
+    play.disabled = phase === 'loading' || (!playing && !canPlay);
+    play.title = playing ? 'Pause' : phase === 'paused' ? 'Resume' : 'Play';
     play.setAttribute('aria-label', play.title);
-    $('pause').disabled = phase !== 'playing';
     $('stop').disabled = phase === 'idle';
     $('clear-all').disabled = !state.project.notes.length;
     for (const id of ['start', 'rewind', 'forward'])
@@ -29,6 +30,16 @@ function buttons() {
 export function syncPlaybackControls() { buttons(); }
 function setPosition(seconds) { if (!engine || !plan)
     return; const time = Math.max(0, Math.min(plan.duration, seconds)); engine.seq.currentTime = time; playback.tick = tickAtSeconds(plan.map, time); followPlayback(playback.tick); $('playback-position').textContent = `${time.toFixed(1)} s · ${tempoAt(snapshot.notes, playback.tick)} BPM`; draw(); }
+// Idle seeks park the playhead so the next play() starts from there.
+export function seekToTick(tick) {
+    const target = Math.max(0, tick);
+    if (engine && plan && (phase === 'playing' || phase === 'paused')) {
+        setPosition(secondsAtTick(plan.map, target));
+        return;
+    }
+    playback.tick = target;
+    draw();
+}
 function animate() {
     if (phase !== 'playing')
         return;
@@ -73,6 +84,7 @@ export async function play() {
     }
     const token = ++generation;
     phase = 'loading';
+    const from = playback.tick;
     buttons();
     status('Preparing General MIDI playback…');
     try {
@@ -88,6 +100,8 @@ export async function play() {
         await engine.play();
         phase = 'playing';
         buttons();
+        if (from != null && from > 0)
+            setPosition(secondsAtTick(plan.map, from));
         status('Playing unmuted instruments.' + (plan.skipped ? ` ${plan.skipped} notes outside MIDI pitches 0–127 are silent.` : ''));
         animate();
     }
@@ -104,14 +118,15 @@ export async function play() {
     }
 }
 export function installPlayback() {
-    $('play').onclick = () => void play();
-    $('pause').onclick = () => { if (phase === 'playing') {
+    $('play').onclick = () => { if (phase === 'playing') {
         engine.pause();
         phase = 'paused';
         cancelAnimationFrame(frame);
         buttons();
         status('Playback paused.');
-    } };
+    }
+    else
+        void play(); };
     $('stop').onclick = () => stopPlayback();
     buttons();
     $('start').onclick = () => setPosition(0);
