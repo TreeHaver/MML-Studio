@@ -1,5 +1,9 @@
 const {app,BrowserWindow,ipcMain,dialog,clipboard}=require('electron');
 const path=require('node:path'),fs=require('node:fs/promises');
+// All editor assets are local. Avoid Chromium disk-cache locks/permission errors
+// on Windows without moving userData (which holds saved workspace preferences).
+app.commandLine.appendSwitch('disable-http-cache');
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 let win;
 app.whenReady().then(()=>{
  win=new BrowserWindow({width:1320,height:850,minWidth:900,minHeight:560,icon:path.join(__dirname,'assets','logo.png'),backgroundColor:'#171d21',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
