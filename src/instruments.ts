@@ -1,4 +1,5 @@
 import {mmlControls,updateMml} from './mml.ts';
+import {instrumentActions} from './instrument-actions.ts';
 import {GM_PROGRAMS} from './playback/gm-programs.ts';
 import {DRUM_KIT_NAME,DRUM_MS2_WARNING} from './playback/drums.ts';
 import {INSTRUCTIONS_NAME} from './model/instructions.ts';
@@ -14,10 +15,11 @@ import {colors} from './model/project.ts';
 import {name} from './music/pitch.ts';
 
 export function instruments(){
+ $('instrument-count').textContent=String(state.project.instruments.length);$('editing-instrument').textContent=state.project.instruments[state.active]?.name??'';
  $('instruments').replaceChildren();state.project.instruments.forEach((i,index)=>{
- const row=document.createElement('div');row.className='instrument';const color=document.createElement('input');color.type='color';color.value=i.color;color.onchange=()=>{checkpoint();i.color=color.value;draw();};
+ const row=document.createElement('div');row.className='instrument';row.classList.toggle('selected',index===state.active);const color=document.createElement('input');color.type='color';color.value=i.color;color.setAttribute('aria-label','Color for '+i.name);color.onchange=()=>{checkpoint();i.color=color.value;draw();};
  const button=document.createElement('button');button.textContent=i.name+(isMuted(index)?' (muted)':'');button.className='instrument-name';button.classList.toggle('active',index===state.active);
- button.onclick=()=>{state.active=index;state.selection.clear();document.querySelectorAll('.instrument-name').forEach((el,j)=>el.classList.toggle('active',j===index));if(i.isInstructions){const event=state.project.notes.find(n=>n.instrument===index);view.scrollTop=Math.max(0,(state.topPitch-(event?.pitch??60)-5)*ROW);}info();draw();};
+ button.onclick=()=>{state.active=index;state.selection.clear();document.querySelectorAll('.instrument-name').forEach((el,j)=>el.classList.toggle('active',j===index));document.querySelectorAll('.instrument').forEach((el,j)=>el.classList.toggle('selected',j===index));$('editing-instrument').textContent=i.name;if(i.isInstructions){const event=state.project.notes.find(n=>n.instrument===index);view.scrollTop=Math.max(0,(state.topPitch-(event?.pitch??60)-5)*ROW);}info();draw();};
  button.ondblclick=()=>{const field=document.createElement('input');field.type='text';field.value=i.name;button.replaceWith(field);field.focus();field.select();let done=false;const finish=(save:boolean)=>{if(done)return;done=true;if(save&&field.value.trim()&&i.name!==field.value.trim()){checkpoint();i.name=field.value.trim();}instruments();};field.onblur=()=>finish(true);field.onkeydown=e=>{if(e.key==='Enter')finish(true);if(e.key==='Escape')finish(false);};};
  const preset=document.createElement('select');preset.title='General MIDI playback instrument';preset.setAttribute('aria-label','Playback preset for '+i.name);GM_PROGRAMS.forEach((name,program)=>{const option=document.createElement('option');option.value=String(program);option.textContent=`${program+1}. ${name}`;preset.append(option);});
  const drums=document.createElement('option');drums.value='drums';drums.textContent=`${DRUM_KIT_NAME} (not valid in MS2)`;preset.append(drums);
@@ -34,7 +36,8 @@ export function instruments(){
  solo.onclick=()=>{instrumentView.solo=instrumentView.solo===index?null:index;instrumentView.muted.clear();if(instrumentView.solo!==null)state.project.instruments.forEach((_,other)=>{if(other!==index)instrumentView.muted.add(other);});changed();};
  controls.append(mute,solo);row.append(controls);
  const collapse=document.createElement('button');const collapsed=instrumentView.collapsed.has(index);collapse.textContent=collapsed?'▸':'▾';collapse.className='instrument-collapse';collapse.title=collapsed?'Expand instrument':'Collapse instrument';collapse.setAttribute('aria-label',collapse.title+' '+i.name);collapse.setAttribute('aria-expanded',String(!collapsed));
- collapse.onclick=()=>{if(collapsed)instrumentView.collapsed.delete(index);else instrumentView.collapsed.add(index);instruments();};row.append(collapse);row.classList.toggle('collapsed',collapsed);mmlControls(row,index);
+ collapse.onclick=()=>{if(index!==state.active){state.active=index;state.selection.clear();instrumentView.collapsed.delete(index);}else if(collapsed)instrumentView.collapsed.delete(index);else instrumentView.collapsed.add(index);instruments();info();draw();};row.append(collapse);row.classList.toggle('collapsed',collapsed);mmlControls(row,index);
+ instrumentActions(row,index);
  });
 }
 

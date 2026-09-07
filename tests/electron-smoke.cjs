@@ -44,6 +44,14 @@ app.on('browser-window-created',(_,win)=>{
    }
    assert.equal(await evaluate(`import('./dist/state.js').then(({state})=>state.project.notes.length)`),0);
    result.checks.push('Piano clicks did not create notes');
+   await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/constants.js')]).then(([{state},{ROW,HEAD}])=>{document.getElementById('view').scrollTop=(state.topPitch-109)*ROW-(200-HEAD);})`);
+   await wait(100);await click(point.x,point.y);await wait(150);
+   assert.match(await evaluate(`document.getElementById('status').textContent`),/Preview: C#8/);
+   const highPreviewPeak=await evaluate(`Math.max(...window.__meters.map(m=>{const b=new Float32Array(m.fftSize);m.getFloatTimeDomainData(b);return Math.max(...b.map(Math.abs));}))`);
+   assert.ok(highPreviewPeak>0.00001,`Silent native C#8 preview: ${highPreviewPeak}`);result.checks.push({highPreviewPeak});
+   await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/constants.js')]).then(([{state},{ROW,HEAD}])=>{document.getElementById('view').scrollTop=(state.topPitch-60)*ROW-(200-HEAD);})`);
+   await wait(100);await evaluate(`(()=>{const c=document.getElementById('canvas');c.onpointerdown({button:0,clientX:${point.x},clientY:${point.y},pointerId:1,preventDefault(){}});c.onpointermove({clientX:${point.x},clientY:${point.y-80},pointerId:1});c.onpointerup({pointerId:1});})()`);await wait(150);
+   assert.match(await evaluate(`document.getElementById('status').textContent`),/Preview: E4/);result.checks.push('Piano-key drag preview passed');
    // A held note lets us check Pause/Resume and preview independence.
    await evaluate(`import('./dist/state.js').then(({state})=>{state.project.notes=[{id:1,instrument:0,start:0,length:512,pitch:60,volume:null}];})`);
    await evaluate(`import('./dist/playback/transport.js').then(m=>m.play())`);

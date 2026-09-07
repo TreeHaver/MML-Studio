@@ -1,4 +1,4 @@
-*{box-sizing:border-box}body{margin:0;background:#23262a;color:#e7e9ec;font:13px 'Segoe UI',sans-serif;overflow:hidden;user-select:none}header{height:66px;background:#191c20;display:flex;align-items:center;gap:9px;padding:0 22px;border-bottom:1px solid #41464d}.brand{flex:1;color:#88c5c5;font-size:22px}.brand strong{color:#eef0f3;font-size:17px;margin:0 12px}.brand small{font-size:9px;letter-spacing:2px;color:#85929d}button,select,input{font:inherit;color:inherit;background:#30363e;border:1px solid #515964;border-radius:4px;padding:6px}button{cursor:pointer}button:hover,button.active{border-color:#77bfc6;background:#354b52}main{height:calc(100vh - 66px);display:grid;grid-template-columns:224px minmax(0,1fr)}aside{background:#282d33;padding:16px;overflow:auto;border-right:1px solid #444b54}h4{font-size:10px;letter-spacing:1.5px;color:#adb9c4;display:flex;justify-content:space-between;align-items:center}aside p{color:#98a4af;font-size:11px;line-height:1.6}aside label{display:block;margin:14px 0;font-size:11px}aside input,aside select{display:block;width:100%;margin-top:6px}.instrument{display:flex;margin-bottom:6px;align-items:center;gap:6px}.instrument button{flex:1;text-align:left;overflow:hidden}.instrument input[type=color]{width:28px;height:28px;padding:1px;margin:0}.instrument input[type=text]{width:130px;margin:0}section{min-height:0;display:flex;flex-direction:column}nav{display:flex;align-items:center;gap:12px;height:52px;padding:8px 14px;flex-shrink:0}nav label{display:flex;align-items:center;gap:8px;color:#afbac6}#view{position:relative;flex:1;min-height:0;overflow:auto;background:#292c30}#extent{position:absolute;left:0;top:0;pointer-events:none}canvas{position:sticky;top:0;left:0;display:block;touch-action:none;cursor:default}footer{padding:10px 14px;color:#a8b6c5;background:#1c2025;font-size:11px;min-height:34px}input,select{user-select:text}#info{color:#87ccd3;min-height:36px}
+html{margin:0;width:100%;height:100%;background:#23262a}*{box-sizing:border-box}body{margin:0;width:100%;min-height:100%;background:#23262a;color:#e7e9ec;font:13px 'Segoe UI',sans-serif;overflow:hidden;user-select:none}header{height:66px;background:#191c20;display:flex;align-items:center;gap:9px;padding:0 22px;border-bottom:1px solid #41464d}.brand{flex:1;color:#88c5c5;font-size:22px}.brand strong{color:#eef0f3;font-size:17px;margin:0 12px}.brand small{font-size:9px;letter-spacing:2px;color:#85929d}button,select,input{font:inherit;color:inherit;background:#30363e;border:1px solid #515964;border-radius:4px;padding:6px}button{cursor:pointer}button:hover,button.active{border-color:#77bfc6;background:#354b52}main{height:calc(100vh - 66px);display:grid;grid-template-columns:224px minmax(0,1fr)}aside{background:#282d33;padding:16px;overflow:auto;border-right:1px solid #444b54}h4{font-size:10px;letter-spacing:1.5px;color:#adb9c4;display:flex;justify-content:space-between;align-items:center}aside p{color:#98a4af;font-size:11px;line-height:1.6}aside label{display:block;margin:14px 0;font-size:11px}aside input,aside select{display:block;width:100%;margin-top:6px}.instrument{display:flex;margin-bottom:6px;align-items:center;gap:6px}.instrument button{flex:1;text-align:left;overflow:hidden}.instrument input[type=color]{width:28px;height:28px;padding:1px;margin:0}.instrument input[type=text]{width:130px;margin:0}section{min-height:0;display:flex;flex-direction:column}nav{display:flex;align-items:center;gap:12px;height:52px;padding:8px 14px;flex-shrink:0}nav label{display:flex;align-items:center;gap:8px;color:#afbac6}#view{position:relative;flex:1;min-height:0;overflow:auto;background:#292c30}#extent{position:absolute;left:0;top:0;pointer-events:none}canvas{position:sticky;top:0;left:0;display:block;touch-action:none;cursor:default}footer{padding:10px 14px;color:#a8b6c5;background:#1c2025;font-size:11px;min-height:34px}input,select{user-select:text}#info{color:#87ccd3;min-height:36px}
 
 .instrument{flex-wrap:wrap}.instrument select{width:100%;font-size:11px;margin-bottom:8px}#playback-position{min-width:110px;color:#91cdd7;font-size:11px}button:disabled{opacity:.45;cursor:default}
 .instrument-warning{display:block;width:100%;color:#f2bd78;font-size:11px;line-height:1.4;margin:0 0 8px}
@@ -9,3 +9,30 @@ dialog{max-width:640px;max-height:85vh;overflow:auto;background:#282d33;color:#e
 
 .instrument-mml{width:100%;display:flex;flex-wrap:wrap;gap:5px}.instrument-mml small{width:100%;font-size:10px}.instrument-mml label{display:flex;align-items:center;gap:5px;margin:3px 0;width:100%}.instrument-mml input[type=checkbox]{width:auto;margin:0}.instrument-mml button{font-size:10px}.instrument.collapsed .instrument-mml{display:none}
 .mml-window{padding:18px;overflow:auto;user-select:text;display:flex;flex-direction:column;height:100vh}.mml-window h2{margin:0}.mml-window #mml-tabs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;max-height:150px;overflow:auto}.mml-window textarea{flex:1;min-height:120px;width:100%;resize:none;background:#191c20;color:#e7e9ec;padding:12px;font:13px Consolas,monospace;overflow-wrap:anywhere}.mml-window #mml-warning{color:#f2bd78}.mml-window #mml-copy{align-self:flex-start}
+
+/* Instrument panels: a consistent title bar, sound controls, MML and actions. */
+main{grid-template-columns:280px minmax(0,1fr)}
+aside{padding:12px}
+#instruments{display:flex;flex-direction:column;gap:10px}
+.instrument{margin:0;padding:10px;gap:8px;background:#22272d;border:1px solid #454e59;border-radius:7px;box-shadow:0 2px 5px #0002}
+.instrument:has(.instrument-name.active){border-color:#77bfc6}
+.instrument .instrument-name{flex:1;min-width:0;margin-right:25px;border-color:transparent;background:transparent;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.instrument .instrument-name.active{color:#a6e1e6;background:#31434a}
+.instrument .instrument-collapse{top:12px;right:9px;width:24px;padding:4px 2px;border-color:transparent;background:transparent}
+.instrument input[type=text]{flex:1;min-width:0;margin-right:25px}
+.instrument select{min-width:0;margin:0;font-size:11px}
+.instrument-controls{margin:0;gap:6px}
+.instrument-mml{border-top:1px solid #3c444e;padding-top:9px;gap:6px}
+.instrument-mml small{line-height:1.5;color:#aebac7}
+.instrument-mml .instrument-warning{color:#f2bd78;margin:0}
+.instrument-mml .instrument-warning:empty{display:none}
+.instrument-actions{display:grid;grid-template-columns:1fr auto;gap:6px;width:100%;padding-top:9px;border-top:1px solid #3c444e}
+.instrument-actions .instrument-destination{grid-column:1 / -1;width:100%}
+.instrument-actions button{text-align:center;font-size:11px}
+.instrument-actions .instrument-delete{color:#f0a6a6;background:transparent}
+.instrument-actions .instrument-delete:hover{background:#4b3036;border-color:#d78787}
+.instrument.collapsed{margin:0;padding:7px 10px}
+.instrument.collapsed .instrument-name{padding:4px 6px}
+.instrument.collapsed .instrument-collapse{top:8px}
+.instrument.collapsed .instrument-actions{display:none}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #9bdde3;outline-offset:2px}

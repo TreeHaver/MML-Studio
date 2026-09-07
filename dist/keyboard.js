@@ -5,10 +5,19 @@ import { commitNotes } from './commands.js';
 import { endGesture } from './pointer.js';
 import { setTool } from './toolbar.js';
 import { state } from './state.js';
+import { copyNotes, pasteNotes } from './note-clipboard.js';
 export function installKeyboard() {
     document.onkeydown = e => {
-        if (e.target.matches('input,select,textarea'))
+        if (e.target.matches('input,select,textarea') || e.target.isContentEditable)
             return;
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && ['c', 'v'].includes(e.key.toLowerCase())) {
+            e.preventDefault();
+            if (e.key.toLowerCase() === 'c')
+                copyNotes();
+            else
+                pasteNotes();
+            return;
+        }
         if (e.key === 'Escape') {
             endGesture(true);
             state.selection.clear();

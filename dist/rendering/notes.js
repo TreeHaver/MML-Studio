@@ -4,6 +4,9 @@ import { KEY, HEAD, ROW } from '../constants.js';
 import { rect, boxIds, musical } from '../geometry.js';
 import { name, sharp } from '../music/pitch.js';
 import { INSTRUCTIONS_COLOR } from '../model/instructions.js';
+const luminance = (hex) => { const match = /^#([0-9a-f]{6})$/i.exec(hex); if (!match)
+    return 1; const value = Number.parseInt(match[1], 16), channel = (shift) => { const c = ((value >> shift) & 255) / 255; return c <= .04045 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4); }; return .2126 * channel(16) + .7152 * channel(8) + .0722 * channel(0); };
+export function noteLabelColor(background) { const bg = luminance(background), dark = luminance('#161b20'), light = luminance('#f7fbff'); return (light + .05) / (bg + .05) > (bg + .05) / (dark + .05) ? '#f7fbff' : '#161b20'; }
 export function drawNotes() {
     const preview = state.gesture?.kind === 'box' ? new Set(boxIds(state.gesture.music, musical(state.gesture.current))) : null;
     for (const n of state.project.notes) {
@@ -36,7 +39,7 @@ export function drawNotes() {
         ctx.beginPath();
         ctx.rect(r.x + 2, r.y, Math.max(0, r.w - 4), r.h);
         ctx.clip();
-        ctx.fillStyle = '#161b20';
+        ctx.fillStyle = noteLabelColor(instructions ? INSTRUCTIONS_COLOR : state.project.instruments[n.instrument].color);
         ctx.font = '10px Segoe UI, sans-serif';
         ctx.textBaseline = 'middle';
         ctx.fillText(instructions ? (n.tempo == null ? 'Event' : `T${n.tempo}`) : name(n.pitch) + (n.tempo == null ? '' : ` T${n.tempo}`), r.x + 4, r.y + r.h / 2);

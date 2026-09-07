@@ -11,6 +11,7 @@ import {volumeAt} from './music/volume.ts';
 export function info(){
  updateMml();
  const n=anchor(),instructions=n&&state.project.instruments[n.instrument].isInstructions;
+ $('note-properties').classList.toggle('has-selection',!!n);
  $('info').textContent=n?(instructions?`${state.selection.size} selected · Instructions (silent) · T${tempoAt(state.project.notes,n.start)}`:`${state.selection.size} selected · ${name(n.pitch)} · effective V${volumeAt(state.project,n)} · T${tempoAt(state.project.notes,n.start)}`):'Select a note or instruction to edit.';
  for(const key of ['pitch','length','volume','tempo'])input(key).disabled=!n||!!(instructions&&key!=='tempo');
  if(n){input('pitch').value=String(n.pitch);input('length').value=String(n.length);input('volume').value=n.volume===null?'':String(n.volume);input('tempo').value=n.tempo==null?'':String(n.tempo);}

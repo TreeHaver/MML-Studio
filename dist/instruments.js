@@ -1,4 +1,5 @@
 import { mmlControls, updateMml } from './mml.js';
+import { instrumentActions } from './instrument-actions.js';
 import { GM_PROGRAMS } from './playback/gm-programs.js';
 import { DRUM_KIT_NAME, DRUM_MS2_WARNING } from './playback/drums.js';
 import { INSTRUCTIONS_NAME } from './model/instructions.js';
@@ -13,19 +14,23 @@ import { state, instrumentView, isMuted } from './state.js';
 import { colors } from './model/project.js';
 import { name } from './music/pitch.js';
 export function instruments() {
+    $('instrument-count').textContent = String(state.project.instruments.length);
+    $('editing-instrument').textContent = state.project.instruments[state.active]?.name ?? '';
     $('instruments').replaceChildren();
     state.project.instruments.forEach((i, index) => {
         const row = document.createElement('div');
         row.className = 'instrument';
+        row.classList.toggle('selected', index === state.active);
         const color = document.createElement('input');
         color.type = 'color';
         color.value = i.color;
+        color.setAttribute('aria-label', 'Color for ' + i.name);
         color.onchange = () => { checkpoint(); i.color = color.value; draw(); };
         const button = document.createElement('button');
         button.textContent = i.name + (isMuted(index) ? ' (muted)' : '');
         button.className = 'instrument-name';
         button.classList.toggle('active', index === state.active);
-        button.onclick = () => { state.active = index; state.selection.clear(); document.querySelectorAll('.instrument-name').forEach((el, j) => el.classList.toggle('active', j === index)); if (i.isInstructions) {
+        button.onclick = () => { state.active = index; state.selection.clear(); document.querySelectorAll('.instrument-name').forEach((el, j) => el.classList.toggle('active', j === index)); document.querySelectorAll('.instrument').forEach((el, j) => el.classList.toggle('selected', j === index)); $('editing-instrument').textContent = i.name; if (i.isInstructions) {
             const event = state.project.notes.find(n => n.instrument === index);
             view.scrollTop = Math.max(0, (state.topPitch - (event?.pitch ?? 60) - 5) * ROW);
         } info(); draw(); };
@@ -92,13 +97,19 @@ export function instruments() {
         collapse.title = collapsed ? 'Expand instrument' : 'Collapse instrument';
         collapse.setAttribute('aria-label', collapse.title + ' ' + i.name);
         collapse.setAttribute('aria-expanded', String(!collapsed));
-        collapse.onclick = () => { if (collapsed)
+        collapse.onclick = () => { if (index !== state.active) {
+            state.active = index;
+            state.selection.clear();
+            instrumentView.collapsed.delete(index);
+        }
+        else if (collapsed)
             instrumentView.collapsed.delete(index);
         else
-            instrumentView.collapsed.add(index); instruments(); };
+            instrumentView.collapsed.add(index); instruments(); info(); draw(); };
         row.append(collapse);
         row.classList.toggle('collapsed', collapsed);
         mmlControls(row, index);
+        instrumentActions(row, index);
     });
 }
 export function installInstruments() {

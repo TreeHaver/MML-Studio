@@ -1,11 +1,34 @@
 import { refresh } from './commands.js';
 import { $ } from './dom.js';
-import { state } from './state.js';
+import { state, resetInstrumentView } from './state.js';
+import { stopPlayback } from './playback/transport.js';
 export function checkpoint() { state.history.push(JSON.stringify(state.project)); if (state.history.length > 100)
     state.history.shift(); state.future = []; state.dirty = true; }
 export function undo(redo = false) { const src = redo ? state.future : state.history, dst = redo ? state.history : state.future; if (!src.length)
-    return; dst.push(JSON.stringify(state.project)); state.project = JSON.parse(src.pop()); state.active = Math.min(state.active, state.project.instruments.length - 1); state.selection.clear(); state.dirty = true; refresh(); }
+    return; dst.push(JSON.stringify(state.project)); const restored = JSON.parse(src.pop()); if (restored.instruments.length !== state.project.instruments.length) {
+    stopPlayback(false);
+    resetInstrumentView();
+} state.project = restored; state.active = Math.min(state.active, state.project.instruments.length - 1); state.selection.clear(); state.gesture = null; state.dirty = true; refresh(); }
 export function installHistory() {
-    $('undo').onclick = () => undo();
-    $('redo').onclick = () => undo(true);
+    const repeat = (id, action) => {
+        const button = $(id);
+        let delay, interval, held = false;
+        const stop = () => { held = false; if (delay !== undefined) {
+            clearTimeout(delay);
+            delay = undefined;
+        } if (interval !== undefined) {
+            clearInterval(interval);
+            interval = undefined;
+        } };
+        button.onpointerdown = e => { if (e.button !== 0)
+            return; button.setPointerCapture(e.pointerId); held = true; action(); delay = window.setTimeout(() => { if (!held)
+            return; action(); interval = window.setInterval(action, 85); }, 420); };
+        button.onpointerup = stop;
+        button.onpointercancel = stop;
+        button.onlostpointercapture = stop;
+        button.onclick = e => { if (e.detail === 0)
+            action(); };
+    };
+    repeat('undo', () => undo());
+    repeat('redo', () => undo(true));
 }

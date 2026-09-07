@@ -1,4 +1,5 @@
-import { playback } from './playback/transport.js';
+import { palette } from './appearance.js';
+import { playback, syncPlaybackControls } from './playback/transport.js';
 import { view } from './dom.js';
 import { ctx } from './dom.js';
 import { state } from './state.js';
@@ -9,9 +10,10 @@ import { drawRuler } from './rendering/ruler.js';
 import { drawKeyboard } from './rendering/keyboard.js';
 import { drawTempoMarkers } from './rendering/tempo.js';
 export function draw() {
+    syncPlaybackControls();
     const { width, height } = state;
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#34373b';
+    ctx.fillStyle = palette.background;
     ctx.fillRect(0, 0, width, height);
     ctx.save();
     ctx.beginPath();
@@ -28,7 +30,7 @@ export function draw() {
         ctx.beginPath();
         ctx.rect(KEY, HEAD, width - KEY, height - HEAD);
         ctx.clip();
-        ctx.fillStyle = '#72ecc8';
+        ctx.fillStyle = palette.playhead;
         ctx.fillRect(KEY + playback.tick * state.zoom - view.scrollLeft, HEAD, 2, height - HEAD);
         ctx.restore();
     }

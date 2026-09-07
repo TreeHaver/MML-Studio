@@ -18,6 +18,7 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Mouse hit testing, coordinates, selection anchor | `src/geometry.ts` |
 | Pointer gestures: draw, box select, move, resize, cancel | `src/pointer.ts` |
 | Keyboard shortcuts and deletion | `src/keyboard.ts` |
+| Internal note-group copy/paste and insertion position | `src/note-clipboard.ts`, `src/pointer.ts` |
 | Gray bands, pitch rows, measure/beat grid lines | `src/rendering/grid.ts` |
 | Note bodies, tint, labels, handles, selection outlines/box | `src/rendering/notes.ts` |
 | Measure labels | `src/rendering/ruler.ts` |
@@ -25,6 +26,8 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Painting order and clipping | `src/painting.ts` |
 | Canvas sizing, scrolling extent, pixel scaling | `src/viewport.ts` |
 | Instruments UI, rename, color, add | `src/instruments.ts` |
+| Delete/merge instrument UI, confirmation and session cleanup | `src/instrument-actions.ts` |
+| Pure deletion, index remapping, merging and inherited volumes | `src/model/instrument-operations.ts` |
 | Note properties panel | `src/inspector.ts` |
 | Draw/select tool, grid and zoom controls | `src/toolbar.ts` |
 | Undo/redo snapshots | `src/history.ts` |
@@ -37,7 +40,11 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Keyboard/header/row dimensions, drag threshold | `src/constants.ts` |
 | Startup wiring only | `src/renderer.ts` |
 | Native Electron window and file-dialog IPC | `main.cjs`, `preload.cjs` |
-| Page structure and styles | `index.html`, `style.css` |
+| Main editor structure and styles | `index.html`, `studio.css` |
+| File/Export menu dismissal | `src/chrome.ts` |
+| Sky/Midnight palettes, resizable/collapsible panels, saved workspace | `src/appearance.ts`, `themes.css` |
+| Header logo and native window icon | `assets/logo.svg`, `assets/logo.png`, `main.cjs` |
+| MML pop-out styles | `style.css` |
 
 `src/core.ts` is a compatibility export barrel for the pure model/music API, not a place to add implementations. Model/music modules do not import DOM or editor state. UI modules share the `state` object; importing modules alone does not install event handlers. The renderer entrypoint installs handlers once. Cross-module function calls are deliberate; the module-loading integration test checks that startup works.
 
@@ -61,7 +68,7 @@ No need to rewrite the whole app or read every module for each change. Tests sim
 - Whole note = 128 integer timing units. L128 is 1; L64. is 3; L128. is invalid.
 - MapleStory 2 MML lengths need not be powers of two. Keep arbitrary positive integer note lengths (e.g. 5, 7, 11 units); grid choices are editing aids, not the set of legal durations. MIDI finer than the version-2 resolution is rounded with an import warning. See MIDI_IMPORT.md before implementing MML export or changing timing.
 - Grid default L4; dropdown through L128. Grid and zoom never change existing duration.
-- Chords are allowed. Same-pitch overlapping notes within one instrument are not.
+- Chords and same-pitch overlaps are allowed; MML generation reports overlap warnings without removing notes.
 - Draw tool click/drag creates notes; Select tool or Shift-drag box-selects.
 - Body movement requires prior selection and a four-pixel threshold. First selected note anchors group snapping. Group edits preserve relative offsets and pitches.
 - Edge resizing snaps duration. Delete/Backspace and right-click delete notes.
@@ -100,3 +107,13 @@ Timeline following, Instructions lanes and yellow tempo indicators: see TIMELINE
 ## MML generation and channel text
 
 Pure compiler: `src/music/mml.ts`. Session cache and instrument controls: `src/mml.ts`, mounted by `src/instruments.ts`, refreshed by `src/inspector.ts`. Native pop-out: `mml.html`, `src/mml-window.ts`, fixed IPC in `main.cjs` / `preload.cjs`. Session reset epoch: `src/state.ts`. Tests: `tests/mml.test.mjs`, `tests/renderer.test.cjs`, `tests/electron-mml.cjs`. See MML_GENERATION.md for byte counts, channel allocation, unsupported-data warnings and validation scope.
+
+## Instrument deletion and merging
+
+Expanded panels expose Delete and a Merge into destination selector. Delete confirms owned notes/events and tempo removal; deleting the final instrument leaves an empty Piano because version-2 projects require an instrument. Merge retains destination settings and transfers all source notes/events, then removes the source. Silent Instructions can merge only with other Instructions; musical lanes can merge with other musical lanes, adopting the destination preset. Timing, IDs, pitches and tempo values are retained. Original inherited volumes are materialized before merging; differing volumes at the same position produce an explicit confirmation warning because the current model has one V value per instrument/position.
+
+Both actions stop playback, checkpoint once, clear selection/gestures and invalidate MML caches/pop-out. Surviving mute/collapse indexes are remapped and the Solo indicator is cleared. Undo/redo restores project data; instrument-count changes stop playback and reset session-only lane preferences so they cannot attach to the wrong lane. Tests: `tests/instrument-operations.test.mjs`, `tests/renderer.test.cjs`, `tests/electron-instrument-actions.cjs`.
+
+## Desktop visual refresh
+
+Main editor uses studio.css; style.css remains for the MML pop-out. File and Export are native details menus with outside-click/action/Escape dismissal in chrome.ts. Note fields live in the right inspector and become visible when info() sets has-selection. Instrument details are visible only on the selected lane; other lanes retain name/color and Mute/Solo, while explicit collapse hides their controls. Merge/Delete are under Instrument actions. Selection toggles row classes without rebuilding the name button, preserving double-click rename. Native layout/menu/selection checks and SVG-to-PNG icon rendering: tests/electron-ui.cjs. No musical data format changes.

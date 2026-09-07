@@ -1,4 +1,5 @@
-import {playback} from './playback/transport.ts';
+import {palette} from './appearance.ts';
+import {playback,syncPlaybackControls} from './playback/transport.ts';
 import {view} from './dom.ts';
 import {ctx} from './dom.ts';
 import {state} from './state.ts';
@@ -10,9 +11,10 @@ import {drawKeyboard} from './rendering/keyboard.ts';
 import {drawTempoMarkers} from './rendering/tempo.ts';
 
 export function draw(){
+ syncPlaybackControls();
  const {width,height}=state;
  ctx.clearRect(0,0,width,height);
- ctx.fillStyle='#34373b';
+ ctx.fillStyle=palette.background;
  ctx.fillRect(0,0,width,height);
  ctx.save();
  ctx.beginPath();
@@ -24,5 +26,5 @@ export function draw(){
  drawRuler();
  drawKeyboard();
  drawTempoMarkers();
- if(playback.tick!==null){ctx.save();ctx.beginPath();ctx.rect(KEY,HEAD,width-KEY,height-HEAD);ctx.clip();ctx.fillStyle='#72ecc8';ctx.fillRect(KEY+playback.tick*state.zoom-view.scrollLeft,HEAD,2,height-HEAD);ctx.restore();}
+ if(playback.tick!==null){ctx.save();ctx.beginPath();ctx.rect(KEY,HEAD,width-KEY,height-HEAD);ctx.clip();ctx.fillStyle=palette.playhead;ctx.fillRect(KEY+playback.tick*state.zoom-view.scrollLeft,HEAD,2,height-HEAD);ctx.restore();}
 }

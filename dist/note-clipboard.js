@@ -1,0 +1,62 @@
+import { state, isMuted } from './state.js';
+import { checkpoint } from './history.js';
+import { refresh } from './commands.js';
+import { status } from './dom.js';
+import { valid } from './model/validation.js';
+let clipboard = null;
+let position = null;
+export function setPastePosition(tick) { position = tick; status('Paste position set. Ctrl+V pastes into the active instrument.'); }
+export function copyNotes() {
+    if (state.gesture)
+        return;
+    const selected = state.project.notes.filter(n => n.instrument === state.active && state.selection.has(n.id));
+    if (!selected.length) {
+        status('Select notes to copy.');
+        return;
+    }
+    const start = selected.reduce((min, n) => Math.min(min, n.start), Infinity), end = selected.reduce((max, n) => Math.max(max, n.start + n.length), 0);
+    const lane = state.project.notes.filter(n => n.instrument === state.active).sort((a, b) => a.start - b.start || a.id - b.id), volumes = new Map();
+    let volume = 8;
+    for (let a = 0; a < lane.length;) {
+        let b = a;
+        while (b < lane.length && lane[b].start === lane[a].start) {
+            if (lane[b].volume !== null)
+                volume = lane[b].volume;
+            b++;
+        }
+        for (; a < b; a++)
+            volumes.set(lane[a].id, volume);
+    }
+    clipboard = { notes: selected.map(n => ({ ...n, start: n.start - start, volume: volumes.get(n.id) })), instructions: !!state.project.instruments[state.active].isInstructions, span: end - start };
+    position = end;
+    status(`Copied ${selected.length} notes/events. Ctrl+V pastes after this group, or click empty space in Select mode to choose a position.`);
+}
+export function pasteNotes() {
+    if (state.gesture)
+        return;
+    if (!clipboard) {
+        status('Copy a selection with Ctrl+C first.');
+        return;
+    }
+    if (isMuted(state.active)) {
+        status('Unmute this instrument to paste notes.');
+        return;
+    }
+    if (clipboard.instructions !== !!state.project.instruments[state.active].isInstructions) {
+        status('Paste musical notes into a musical instrument, or silent events into Instructions.');
+        return;
+    }
+    let id = state.project.notes.reduce((max, n) => Math.max(max, n.id), 0);
+    const start = position ?? 0, added = clipboard.notes.map(n => ({ ...n, id: ++id, instrument: state.active, start: start + n.start }));
+    const notes = [...state.project.notes, ...added];
+    if (!valid(notes)) {
+        status('Cannot paste here: the copied tempo instructions conflict with an existing tempo change.');
+        return;
+    }
+    checkpoint();
+    state.project.notes = notes;
+    state.selection = new Set(added.map(n => n.id));
+    position = start + clipboard.span;
+    refresh();
+    status(`Pasted ${added.length} notes/events. Drag the selected group to move it; Undo restores the previous project.`);
+}

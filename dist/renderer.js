@@ -1,4 +1,6 @@
 import { installPlayback } from './playback/transport.js';
+import { installChrome } from './chrome.js';
+import { installAppearance } from './appearance.js';
 import { view } from './dom.js';
 import { state } from './state.js';
 import { ROW } from './constants.js';
@@ -16,6 +18,7 @@ import { installFiles } from './files.js';
 import { installExport } from './export.js';
 // Composition root: wire modules once, then initialize the editor.
 installPointer();
+installChrome();
 installToolbar();
 installInspector();
 installInstruments();
@@ -27,6 +30,7 @@ view.onscroll = draw;
 new ResizeObserver(layout).observe(view);
 setTool('draw');
 refresh();
+installAppearance();
 view.scrollTop = (state.topPitch - 78) * ROW;
 draw();
 installPlayback();

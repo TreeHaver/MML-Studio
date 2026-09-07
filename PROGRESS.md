@@ -1,5 +1,131 @@
 # Checkpoint — 0.3.0 General MIDI playback and note-attached tempo
 
+## Neutral closed theme selector — 2026-09-07
+
+The theme selector now uses the neutral surface while closed and switches to the selected/accent treatment only while its dropdown is open. Changed themes.css and this log. Technical validation confirms both state rules, a successful build and all 45 functional tests. Per user direction, no visual judgment was performed. Local only, no push.
+
+## Automatic note-label contrast — 2026-09-07
+
+Note labels now compare WCAG-style relative luminance contrast between the existing dark text and a light alternative, selecting the more readable color for each instrument swatch. Dark blues and blacks receive light labels; bright colors retain dark labels. Instructions use the same calculation against their fixed yellow. Changed src/rendering/notes.ts, dist/rendering/notes.js, tests/renderer.test.cjs and this log. Technical validation: successful build and all 45 tests, including dark-blue/light-label and orange/dark-label assertions. Per user direction, no visual judgment was performed. Local only, no push.
+
+## Stable panel columns when hidden — 2026-09-07
+
+Assigned Instruments, both resize hit areas, the editor and Note properties to explicit grid columns. Hiding one panel no longer causes the remaining grid children to shift into earlier columns and collapse the useful editor area. Changed themes.css, tests/electron-ui.cjs and this log. Technical validation: successful build, all 45 functional tests, and DOM geometry confirms the editor remains over 400 px wide while Note properties remains over 180 px after hiding Instruments. Per user direction, no visual judgment was performed. Local only, no push.
+
+## Single-gesture select and move — 2026-09-07
+
+Dragging an unselected note in Select mode now selects and moves it in the same gesture. Dragging an already-selected note continues to move the current group; dragging from empty space retains multi-note box selection, and Ctrl-click retains additive toggling. Changed src/pointer.ts, dist/pointer.js, tests/renderer.test.cjs and this log. Technical validation: successful build and all 45 tests, including immediate unselected-note movement. Per user direction, no visual judgment was performed. Local only, no push.
+
+## Select menu edge spacing — 2026-09-07
+
+Added four pixels of separation before the first select option and after the last, with six-pixel option padding and additional edge padding so the first row does not visually merge with the trigger border. Changed themes.css and this log. Technical validation confirms the rule, successful build and all 45 functional tests. Per user direction, no visual judgment was performed. Local only, no push.
+
+## Visible history buttons and panel icons — 2026-09-07
+
+Undo, Redo and Trash now use 36 px bordered control backgrounds with 19 px neutral Lucide icons. Removed the accent-colored bottom focus stripe from every control. Replaced the ambiguous mirrored text glyphs with Lucide PanelLeft and PanelRight: the first toggles Instruments and the second toggles Note properties. Changed index.html, themes.css, tests/electron-ui.cjs and this log. Technical validation confirms all required Lucide classes, absence of the focus stripe, successful build and all 45 functional tests. Per user direction, no visual judgment was performed. Local only, no push.
+
+## Lucide history actions — 2026-09-07
+
+Replaced the custom Undo, Redo and Trash drawings with the official Lucide Undo2, Redo2 and Trash2 SVG geometry and standard `currentColor` stroke attributes. Removed the forced red color from Trash so all three controls inherit the same neutral theme color. Changed index.html, themes.css, tests/electron-ui.cjs and this log. Technical validation confirms all three Lucide classes, neutral Trash styling, a successful build and all 45 functional tests. Per user direction, no visual judgment was performed. Local only, no push.
+
+## Clear-all action and fixed-center chevrons — 2026-09-07
+
+Added a disabled-when-empty trash button beside Undo/Redo. It shows the English confirmation “Delete all N notes and instructions from this project? You can undo this action.”, stops playback, clears every note/event as one undoable history step, and retains instruments/settings. Rebuilt dropdown indicators as symmetric chevrons inside fixed boxes so their centers do not move when rotating between closed/down and open/up states. Changed index.html, src/toolbar.ts, src/playback/transport.ts, themes.css, matching dist modules, tests/electron-ui.cjs and this log. Build and all 45 functional tests pass. Native Electron verifies confirmation text, empty-state disabling, Undo restoration, and identical arrow center coordinates before/after opening. Local only, no push.
+
+## Refined transport icon geometry — 2026-09-07
+
+Replaced font glyphs with consistent inline SVG transport icons. Pause now uses two rounded bars with a wider gap; Stop uses a larger rounded square; Play uses a curved triangle without sharp corners. Changed index.html, themes.css, tests/electron-ui.cjs and this log. All 45 functional tests pass, native Electron verifies six SVG controls, and the refreshed Night screenshot was inspected. Local only, no push.
+
+## Unified animated select chevrons — 2026-09-07
+
+Replaced generic/native dropdown arrows with a single visible CSS chevron for File, Export, Instrument actions and every main-window select. Each has a consistent 7 px stroke form, 14 px right inset and rotates upward while its control is open. Select wrappers preserve all existing change handlers and dynamically cover newly rendered instrument controls. Changed index.html, src/appearance.ts, dist/appearance.js, themes.css, tests/electron-ui.cjs and this log. Build and all 45 functional tests pass. Native Electron verifies menu chevrons, select open/close state and preserved controls; the refreshed Night screenshot was inspected. Local only, no push.
+
+## Icon transport and empty-project guard — 2026-09-07
+
+Replaced textual playback controls with compact Start, Rewind, Play, Pause, Stop and Forward icons. Start/Rewind/Forward seek the loaded playhead; Play is disabled when there are no audible musical notes and becomes available immediately after adding one. Changed index.html, src/playback/transport.ts, src/painting.ts, themes.css, matching dist modules, tests/renderer.test.cjs, tests/electron-ui.cjs and this log. Build and all 45 functional tests pass. Native Electron verifies the empty-project disabled state, icon labels and re-enabled Play after fixture notes are added; the refreshed Night screenshot was inspected. Local only, no push.
+
+## Wider piano-roll scrollbar — 2026-09-07
+
+Increased the piano-roll vertical and horizontal scrollbar tracks to 18 px and reduced the thumb border so their usable hit area is substantially larger. Changed themes.css, tests/electron-ui.cjs and this log. Native Electron confirms the view scrollbar is 18 px wide. Local only, no push.
+
+## Consistent menu chevrons — 2026-09-07
+
+File, Export and Instrument actions now use down chevrons while closed and rotate them upward while open. Replaced Export's unrelated diagonal-arrow icon. Changed index.html, themes.css, tests/electron-ui.cjs and this log. Native Electron verifies File and Export open states and their chevron elements. Local only, no push.
+
+## Divider handle removal — 2026-09-07
+
+Removed all visible divider treatment: both the decorative accent handle and the divider columns themselves are transparent. The hit areas remain draggable and keyboard-resizable but no longer show blue or light strips beneath the header controls. Changed themes.css, tests/electron-ui.cjs and this log. Native Electron confirms the pseudo-element has no content and the divider background is transparent. Local only, no push.
+
+## Preview-key label contrast — 2026-09-07
+
+The highlighted piano key now keeps its pitch label in dark, high-contrast text rather than inheriting the white label used by black keys. Changed src/rendering/keyboard.ts and dist/rendering/keyboard.js. Build and all 45 functional tests pass. Local only, no push.
+
+## Root-window background coverage — 2026-09-07
+
+Explicitly sized and colored the document root and body so no system-colored strip can show through at the window edge. The main editor root follows the active theme; the MML pop-out root uses its graphite background. Changed themes.css, style.css, tests/electron-ui.cjs and this log. All 45 functional tests pass. Native Electron verifies the Night document root is #0d0d0d and the full visual/layout test passes. Local only, no push.
+
+## Keyboard glide, visual feedback and smooth retrigger — 2026-09-07
+
+Holding the mouse on the piano keyboard and dragging across keys now previews each crossed pitch; the most recently previewed key lights up for the 500 ms preview duration. Preview retriggering now releases the prior sound rather than force-stopping it, removing the abrupt discontinuity that produced a click on rapid low-note repeats. Changed src/pointer.ts, src/rendering/keyboard.ts, src/state.ts, src/playback/engine.ts, matching dist modules, tests/renderer.test.cjs, tests/preview.test.cjs, tests/electron-smoke.cjs and this log. Build and all 45 functional tests pass. Native Electron verifies C#8 audio plus a C4→E4 keyboard glide in the real canvas/AudioWorklet. Local only, no push.
+
+## High-key keyboard preview — 2026-09-07
+
+The bundled SoundFont becomes nearly silent above C8 (MIDI 108), causing C#8 through G9 keyboard previews to appear broken. Melodic previews now trigger C8 as the source sample and apply a proportional pitch wheel, preserving the requested high pitch. Drum previews are unchanged. Changed src/playback/engine.ts, dist/playback/engine.js, tests/preview.test.cjs, tests/playback.test.mjs, tests/electron-smoke.cjs and this log. Build and all 45 functional tests pass. Native Electron clicks C#8 in the piano keyboard and measured non-silent audio (peak 0.0152). Local only, no push.
+
+## Draw-mode paint gesture — 2026-09-07
+
+Dragging from an empty cell in Draw mode now paints one grid-length note into every cell crossed, including cells skipped by a fast pointer movement; painted notes remain selected as one group. Click still creates one note, moving an existing selected note still moves it, and dragging its right edge still resizes it. Instructions remain one-unit silent markers. Changed src/pointer.ts, dist/pointer.js, tests/renderer.test.cjs, tests/electron-ui.cjs and this log. Build and all 44 functional tests pass. Native Electron drag across four cells verifies notes at all four cell starts. Local only, no push.
+
+## Grid-cell click alignment — 2026-09-07
+
+Drawing a note or setting an empty Select-mode paste location now resolves to the left edge of the rendered grid cell. Previously nearest-grid rounding sent clicks in the right half of a cell to the next cell. Movement and edge-resize retain nearest-grid snapping. Changed src/music/timing.ts, src/pointer.ts, dist/music/timing.js, dist/pointer.js, tests/core.test.ts, tests/renderer.test.cjs, tests/electron-ui.cjs and this log. Build and all 44 functional tests pass. Native Electron sends a real click into the right half of an empty cell and verifies it creates at that cell's left edge. Local only, no push.
+
+## Hold-to-repeat history controls — 2026-09-07
+
+Undo and Redo now apply once immediately on press, then repeat every 85 ms after a 420 ms hold. Releasing, cancelling or losing pointer capture stops the repeat; keyboard activation remains a single action. Changed src/history.ts and generated dist/history.js. Build, functional tests and native Electron history interaction check pass. Local only, no push.
+
+## Theme selector focus refinement — 2026-09-07
+
+Removed the oversized outer accent ring from header controls and inputs. Keyboard focus now uses a slim inset accent line instead of a second blue perimeter, while active controls keep their regular active state. Changed themes.css. Native Electron visual check passes. Local only, no push.
+
+## Minimal M logo — 2026-09-07
+
+Simplified the application mark to a transparent cyan musical M with its two note heads. Removed the cloud, sparkle, background tile and piano-roll bars; regenerated the native PNG window icon from the SVG. The Night palette and all workspace behavior remain unchanged. Validation: build, 43 functional tests and native Electron visual check pass. Local only, no push.
+
+## Neutral Night theme — 2026-09-07
+
+Added Night alongside Sky/Midnight: near-black surfaces, neutral gray controls, grid, keyboard and ruler, with grayscale UI accents. Instrument/note colors, warning semantics and the blue logo remain intact. Selection persists using the existing workspace preference key. Changed index.html, themes.css, src/appearance.ts, dist/appearance.js, tests/electron-ui.cjs and this log. Build and all 43 functional tests pass. Native Electron verifies neutral panel/canvas colors and Night restoration after reload; ui-night.png captured and inspected. Local only, no push.
+
+## Sky/Midnight, movable dividers and sky logo — 2026-09-07
+
+Added Sky (default light azure) and Midnight (deep blue) themes, covering main-window controls and canvas grid/ruler/keyboard/playhead. The new original SVG mark combines a musical M, note heads, a cloud and a sparkle on a clear-blue gradient; generated the native PNG from that vector. Instrument colors and project version-2 data remain unchanged.
+
+Added draggable left/right dividers, header buttons to hide/show either panel, keyboard arrow adjustments and double-click default widths. Widths are constrained to preserve the editor, adapt when the window shrinks and restore preferred sizes when space returns. Theme, widths and panel visibility persist under mml-studio-workspace-v1 in localStorage; unavailable/malformed storage falls back safely. Scrollbars remain only where content overflows. The MML pop-out retains its separate stylesheet.
+
+Changed: index.html, themes.css, src/appearance.ts, src/renderer.ts, src/painting.ts, src/rendering/grid.ts, src/rendering/ruler.ts, src/rendering/keyboard.ts and matching dist modules; assets/logo.svg, assets/logo.png; tests/electron-ui.cjs, PROJECT_MAP.md, PROGRESS.md. Validation: build and all 43 functional tests pass; native Electron test with software rendering verifies mouse drag with button held, hide/show, keyboard resize, default reset, theme selection and preference restoration after reload, menus/inspector, and layout at 900/1320px. Sky/Midnight screenshots were inspected. Initial synthetic drag needed a held-button modifier and capture needed completed frames; corrected test passes. Next: user trials of palette and workspace proportions. No commit/push performed.
+
+## Desktop visual refresh and logo — 2026-09-07
+
+Replaced the crowded main header with a compact MML Studio identity, File menu, central transport and Export menu. Introduced a graphite/mint theme and an original vector M logo with piano-roll bars; derived a 256px PNG for the native Electron window icon. Moved selected-note properties into a right-hand inspector with a contextual empty state and shortcut reference. The left list shows full sound/MML controls only for the selected instrument; remaining instruments keep name/color/Mute/Solo. Merge/Delete are collected in a collapsible Instrument actions section. Main editor styles are isolated in studio.css; the MML pop-out keeps style.css. Reduced grid contrast and added octave separators while preserving hit testing, timing and yellow tempo markers.
+
+Changed: index.html, studio.css, assets/logo.svg, assets/logo.png, main.cjs, src/chrome.ts, src/renderer.ts, src/instruments.ts, src/instrument-actions.ts, src/inspector.ts, src/rendering/grid.ts, src/rendering/ruler.ts and corresponding dist modules; tests/electron-ui.cjs, PROJECT_MAP.md, PROGRESS.md. Validation: incremental build and all 43 existing functional tests pass. Dedicated native Electron check passes logo load, File/Export menus, outside/Escape dismissal, selected-instrument detail switching, empty/selected inspector states, action disclosure, and absence of panel/header/toolbar overflow at 900px and 1320px. Captured and visually inspected .validation/ui-900.png and ui-1320.png; result .validation/electron-ui.json. Test uses an isolated profile and software rendering; screenshot notes are an unsaved test fixture. No physical audio or in-game test performed. Local changes only, no commit/push. Next: user feedback on panel proportions, typography and logo.
+
+## Selected-group copy/paste — 2026-09-06
+
+Added Ctrl/Cmd+C and Ctrl/Cmd+V for selected notes/events, using a window-local snapshot clipboard. Paste defaults to the copied group's end, advances by its span for repeated pastes, and targets the active instrument. A click on empty roll space in Select mode sets a grid-aligned paste position. Group offsets, arbitrary integer durations, pitches and attached tempo are retained; original inherited volumes are materialized to avoid destination inheritance changing the copied dynamics. Pasted notes get new IDs, remain selected and form one undo checkpoint. Muted lanes, incompatible silent/musical roles and conflicting global tempo instructions reject paste without mutation. Editing input/select/textarea/contenteditable elements keeps native shortcuts; copying or pasting during a pointer gesture is ignored.
+
+Changed: src/note-clipboard.ts, src/keyboard.ts, src/pointer.ts and corresponding dist modules; tests/renderer.test.cjs, tests/electron-instrument-actions.cjs, README.md, PROJECT_MAP.md, PROGRESS.md. Validation: incremental build and all 43 tests pass, with renderer assertions for group data, fresh IDs, inherited volume, cross-instrument paste, undo/redo, text-field behavior, muted/silent destinations and atomic tempo-conflict rejection. Native Electron verification passes keyboard-event copy/paste and undo in the actual DOM, alongside the instrument-action regressions. Native events in this test are dispatched programmatically; no physical keyboard/audio/in-game testing. Clipboard does not cross app windows or use the system clipboard. Changes remain local, with no push.
+
+## Delete/merge instruments and organized panels — 2026-09-06
+
+Added Delete and Merge into controls to expanded instrument panels. Delete confirms note/event and global-tempo removal; deleting the last instrument leaves an empty Piano. Merge transfers every source note/event into the destination, retaining destination name/color/preset and source timing, IDs, pitch and tempo. Original inherited volumes are resolved before combining lanes; simultaneous conflicting volumes show a confirmation warning because the model has one V per instrument/position. Silent Instructions merge only with silent Instructions. Musical merges adopt the destination sound, including its melodic/drum role, as stated in confirmation.
+
+Both operations checkpoint once and support project undo/redo, stop playback, clear selections/gestures, remap surviving mute/collapse preferences and invalidate stale MML output. Instrument-count changes during undo/redo reset session preferences. Panels now have a consistent border/title area, separate sound/MML/action sections, a wider sidebar and keyboard focus indicators. Collapsing hides all details/actions.
+
+Changed: src/model/instrument-operations.ts, src/instrument-actions.ts, src/instruments.ts, src/history.ts, corresponding dist modules, style.css, tests/instrument-operations.test.mjs, tests/renderer.test.cjs, tests/core.test.ts, tests/run.cjs, tests/electron-instrument-actions.cjs, PROJECT_MAP.md, PROGRESS.md. Existing renderer label expectation and two old overlap-rejection tests were updated to match the already-implemented behavior documented in earlier checkpoints; overlap validation behavior was not changed.
+
+Validation: node tests/run.cjs passes all 43 tests and the incremental build. Regression coverage includes cancellation, deletion of the final lane, index remapping, merge in both index directions, volume inheritance/conflicts, tempo preservation, silent role protection, playback stop and exact project undo/redo. Native Electron test passes real DOM controls, collapse layout, cancel/confirm action paths (confirmation response stubbed), merge/delete/undo/redo and sidebar overflow at 1100px. Evidence: .validation/electron-instrument-actions.json and .png; screenshot visually inspected. No native confirmation-dialog clicking, physical-speaker listening or in-game MS2 validation was performed. Work is local; no GitHub push. Next: user trials of the updated instrument workflow.
+
 ## Repository setup — 2026-09-06
 
 Initialized a local Git repository for the project. Added `.gitignore` rules for installed dependencies, local validation output, release bundles, archives/logs, and the Windows spell-check cache; source, tests, generated runtime files, bundled assets, package metadata, and documentation remain versionable.

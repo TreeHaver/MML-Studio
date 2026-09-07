@@ -86,3 +86,9 @@ test('bundled bank has all 128 GM presets and every preset renders non-silent PC
  }
  assert.deepEqual(silent,[]);synth.stopAllChannels(true);
 });
+test('C#8 preview fallback transposes C8 instead of using the silent high bank zone',async()=>{
+ const bytes=fs.readFileSync('assets/TimGM6mb.sf2');const bank=SoundBankLoader.fromArrayBuffer(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
+ const synth=new SpessaSynthProcessor(22050);await synth.processorInitialized;synth.soundBankManager.addSoundBank(bank,'gm');synth.programChange(0,0);synth.midiChannels[0].setMIDIParameter('pitchWheelRange',2);synth.pitchWheel(0,12288);synth.noteOn(0,108,100);
+ const left=new Float32Array(128),right=new Float32Array(128);let peak=0;for(let block=0;block<80;block++){left.fill(0);right.fill(0);synth.process(left,right);for(let i=0;i<128;i++)peak=Math.max(peak,Math.abs(left[i]),Math.abs(right[i]));}
+ assert.ok(peak>0.001,`C#8 fallback was silent: ${peak}`);synth.stopAllChannels(true);
+});

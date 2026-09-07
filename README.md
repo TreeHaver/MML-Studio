@@ -11,6 +11,8 @@ The source is TypeScript; the build uses the pinned TypeScript package to genera
 
 ## Editing
 
+- **Ctrl+C / Ctrl+V** (Cmd on macOS): copy the selected group and paste into the active instrument. By default, paste starts at the copied group's end; repeated pastes follow consecutively. Click empty piano-roll space in Select mode to choose a grid-aligned insertion position. Pasted notes remain selected for moving and support Undo/Redo. Timing offsets, pitches, durations and attached tempo are retained; inherited volumes are made explicit. Conflicting tempo changes block the paste without modifying the project. The clipboard is internal to this app window; text-field copy/paste keeps its normal behavior.
+
 - **Draw (D)**: click empty space for one grid-length note. Drag right while creating to extend its duration.
 - **Select (S)**: drag empty space for a blue selection box. **Shift-drag** box-selects in either tool. Blue outlines update during selection.
 - Click a note to select. Its body cannot move until a subsequent click-drag. Movement begins after four pixels.

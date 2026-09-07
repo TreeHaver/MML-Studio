@@ -1,4 +1,6 @@
 import {installPlayback} from './playback/transport.ts';
+import {installChrome} from './chrome.ts';
+import {installAppearance} from './appearance.ts';
 import {view} from './dom.ts';
 import {state} from './state.ts';
 import {ROW} from './constants.ts';
@@ -17,6 +19,7 @@ import {installExport} from './export.ts';
 // Composition root: wire modules once, then initialize the editor.
 
 installPointer();
+installChrome();
 installToolbar();
 installInspector();
 installInstruments();
@@ -28,6 +31,7 @@ view.onscroll=draw;
 new ResizeObserver(layout).observe(view);
 setTool('draw');
 refresh();
+installAppearance();
 view.scrollTop=(state.topPitch-78)*ROW;
 draw();
 

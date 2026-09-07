@@ -26,6 +26,7 @@ export function getPreviewEngine() {
             const { context, synth } = await createSynth();
             let timer;
             let generation = 0;
+            let previewBend = false;
             return { context,
                 async preview(pitch, program, isDrum = false) {
                     const token = ++generation;
@@ -33,11 +34,22 @@ export function getPreviewEngine() {
                     if (token !== generation)
                         return;
                     clearTimeout(timer);
-                    synth.stopAll(true);
+                    synth.stopAll(false);
                     const channel = isDrum ? 9 : 0;
+                    const sourcePitch = !isDrum && pitch > 108 ? 108 : pitch;
+                    if (sourcePitch !== pitch) {
+                        const range = Math.max(2, pitch - sourcePitch);
+                        synth.pitchWheelRange(channel, range);
+                        synth.pitchWheel(channel, Math.round(8192 + (pitch - sourcePitch) * 8191 / range));
+                        previewBend = true;
+                    }
+                    else if (previewBend) {
+                        synth.pitchWheel(0, 8192);
+                        previewBend = false;
+                    }
                     synth.programChange(channel, isDrum ? 0 : program);
-                    synth.noteOn(channel, pitch, 100);
-                    timer = setTimeout(() => synth.noteOff(channel, pitch), 500);
+                    synth.noteOn(channel, sourcePitch, 100);
+                    timer = setTimeout(() => synth.noteOff(channel, sourcePitch), 500);
                 }
             };
         }

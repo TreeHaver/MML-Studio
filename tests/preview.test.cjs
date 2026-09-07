@@ -28,8 +28,10 @@ test('preview releases notes, replaces rapid clicks, and uses a synth separate f
  class Context{constructor(){contexts++;this.destination={};this.audioWorklet={addModule:async()=>{}};}async resume(){}async close(){}}
  class Synth{
   constructor(){this.id=++nextSynth;this.soundBankManager={addSoundBank:async()=>{}};this.isReady=Promise.resolve();}
-  connect(){}stopAll(){calls.push([this.id,'stop']);}
+  connect(){}stopAll(force){calls.push([this.id,'stop',force]);}
   programChange(c,p){calls.push([this.id,'program',c,p]);}
+  pitchWheelRange(c,r){calls.push([this.id,'range',c,r]);}
+  pitchWheel(c,v){calls.push([this.id,'bend',c,v]);}
   noteOn(c,p,v){calls.push([this.id,'on',c,p,v]);}
   noteOff(c,p){calls.push([this.id,'off',c,p]);}
  }
@@ -43,9 +45,11 @@ test('preview releases notes, replaces rapid clicks, and uses a synth separate f
  const preview=await engine.namespace.getPreviewEngine();
  await preview.preview(60,40);await preview.preview(62,73);
  assert.equal(timers.size,1);[...timers.values()][0]();
- assert.deepEqual(calls,[[1,'stop'],[1,'program',0,40],[1,'on',0,60,100],[1,'stop'],[1,'program',0,73],[1,'on',0,62,100],[1,'off',0,62]]);
+ assert.deepEqual(calls,[[1,'stop',false],[1,'program',0,40],[1,'on',0,60,100],[1,'stop',false],[1,'program',0,73],[1,'on',0,62,100],[1,'off',0,62]]);
+ calls.length=0;await preview.preview(109,73);[...timers.values()].at(-1)();
+ assert.deepEqual(calls,[[1,'stop',false],[1,'range',0,2],[1,'bend',0,12288],[1,'program',0,73],[1,'on',0,108,100],[1,'off',0,108]]);
  calls.length=0;await preview.preview(36,73,true);[...timers.values()].at(-1)();
- assert.deepEqual(calls,[[1,'stop'],[1,'program',9,0],[1,'on',9,36,100],[1,'off',9,36]]);
+ assert.deepEqual(calls,[[1,'stop',false],[1,'bend',0,8192],[1,'program',9,0],[1,'on',9,36,100],[1,'off',9,36]]);
  await engine.namespace.getEngine();assert.equal(nextSynth,2);assert.equal(contexts,2);
  assert.equal(await engine.namespace.getPreviewEngine(),preview);
 });

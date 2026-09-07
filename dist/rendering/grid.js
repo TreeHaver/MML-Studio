@@ -1,3 +1,4 @@
+import { palette } from '../appearance.js';
 import { ctx, view } from '../dom.js';
 import { state } from '../state.js';
 import { KEY, HEAD, ROW } from '../constants.js';
@@ -5,7 +6,7 @@ import { sharp } from '../music/pitch.js';
 export function drawGrid() {
     const step = 128 / state.project.grid, first = Math.floor(view.scrollLeft / (step * state.zoom));
     for (let i = first; i < (view.scrollLeft + state.width) / (step * state.zoom); i++) {
-        ctx.fillStyle = i % 2 ? '#3b3e42' : '#33363a';
+        ctx.fillStyle = i % 2 ? palette.gridA : palette.gridB;
         ctx.fillRect(KEY + i * step * state.zoom - view.scrollLeft, HEAD, step * state.zoom, state.height);
     }
     const startRow = Math.floor(view.scrollTop / ROW), endRow = Math.ceil((view.scrollTop + state.height) / ROW);
@@ -15,11 +16,11 @@ export function drawGrid() {
             ctx.fillStyle = '#00000024';
             ctx.fillRect(KEY, y, state.width, ROW);
         }
-        ctx.fillStyle = '#ffffff0d';
+        ctx.fillStyle = pitch % 12 === 0 ? palette.octave : palette.row;
         ctx.fillRect(KEY, y + ROW - 1, state.width, 1);
     }
     for (let t = Math.floor(view.scrollLeft / state.zoom / 32) * 32; t < (view.scrollLeft + state.width) / state.zoom; t += 32) {
-        ctx.fillStyle = t % 128 === 0 ? '#8d96915c' : '#80889026';
+        ctx.fillStyle = t % 128 === 0 ? palette.bar : palette.beat;
         ctx.fillRect(KEY + t * state.zoom - view.scrollLeft, HEAD, 1, state.height);
     }
 }
