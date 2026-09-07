@@ -1,5 +1,6 @@
 import type {Project,Note} from '../model/types.ts';
 import {tempoAt} from './tempo.ts';
+import {resolveVolumes} from './volume.ts';
 
 export function validSignature(value:string){return /^[1-9]\d*\/(1|2|4|8|16|32|64|128)$/.test(value)&&Number.isSafeInteger(Number(value.split('/')[0])*128);}
 export function validStructure(notes:Note[]){
@@ -45,12 +46,11 @@ export function measureLines(project:Project,from:number,to:number){
 }
 /** Rebase a segment, carrying the global tempo and each lane's inherited volume. */
 export function sliceProject(project:Project,start:number,end:number):Project{
- const volumes=new Map<number,number>(),notes:Note[]=[];
+ const volumes=resolveVolumes(project.notes),notes:Note[]=[];
  const sorted=[...project.notes].sort((a,b)=>a.start-b.start||a.id-b.id);
- for(let a=0;a<sorted.length;){let b=a;while(b<sorted.length&&sorted[b].start===sorted[a].start){const n=sorted[b++];if(n.volume!==null)volumes.set(n.instrument,n.volume);}
-  for(;a<b;a++){const n=sorted[a];if(project.instruments[n.instrument].isInstructions){if(n.start>=start&&n.start<end)notes.push({...n,start:n.start-start});}
-   else if(n.start<end&&n.start+n.length>start)notes.push({...n,start:Math.max(start,n.start)-start,length:Math.min(end,n.start+n.length)-Math.max(start,n.start),volume:volumes.get(n.instrument)??8,tempo:n.start>=start?n.tempo:null});
-  }
+ for(const n of sorted){
+  if(project.instruments[n.instrument].isInstructions){if(n.start>=start&&n.start<end)notes.push({...n,start:n.start-start});}
+  else if(n.start<end&&n.start+n.length>start)notes.push({...n,start:Math.max(start,n.start)-start,length:Math.min(end,n.start+n.length)-Math.max(start,n.start),volume:volumes.get(n.id)??8,tempo:n.start>=start?n.tempo:null});
  }
  const instruments=project.instruments.map(i=>({...i}));let index=instruments.findIndex(i=>i.isInstructions);
  if(index<0){index=instruments.length;instruments.push({name:'Instructions',color:'#f4d35e',isInstructions:true});}

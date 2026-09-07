@@ -72,8 +72,6 @@ export function importMml(text:string,name='MML'){
  }
  if(!project.notes.length&&!tempos.size)throw Error('No notes or tempo instructions found.');
  for(const [start,tempo] of tempos){const note=project.notes.find(n=>n.start===start);if(note)note.tempo=tempo;else project.notes.push({id:++id,instrument:ensureInstructions(project),start,length:1,pitch:60,volume:0,tempo});}
- const volumes=new Map<string,number>();
- for(const n of project.notes){if(project.instruments[n.instrument].isInstructions)continue;const key=n.instrument+':'+n.start;const prior=volumes.get(key);if(prior!==undefined&&prior!==n.volume)warnings.add('Simultaneous channels have different volumes. Notes retain explicit volumes, but this model resolves one volume per instrument/position for playback and export.');volumes.set(key,n.volume!);}
  if(!valid(project.notes))throw Error('Invalid imported timing or tempo.');
  return {project,warnings:[...warnings],noteCount:project.notes.filter(n=>!project.instruments[n.instrument].isInstructions).length,span};
 }

@@ -26,7 +26,7 @@ export function noteLabelColor(background:string){let color=labelColors.get(back
 export function drawNotes(){
  const visible=visibleNotes();
  const preview=state.gesture?.kind==='box'?new Set(boxIds(state.gesture.music,musical(state.gesture.current),visible)):null;
- for(const n of visible){if(isMuted(n.instrument))continue;const r=rect(n);if(r.x+r.w<=KEY||r.x>=state.width||r.y+r.h<=HEAD||r.y>=state.height)continue;
+ for(const n of visible){if(isMuted(n.instrument)||state.project.instruments[n.instrument].isInstructions)continue;const r=rect(n);if(r.x+r.w<=KEY||r.x>=state.width||r.y+r.h<=HEAD||r.y>=state.height)continue;
  const instructions=state.project.instruments[n.instrument].isInstructions;
  ctx.globalAlpha=n.instrument===state.active?1:.4;ctx.fillStyle=instructions?INSTRUCTIONS_COLOR:state.project.instruments[n.instrument].color;ctx.fillRect(r.x,r.y,r.w,r.h);
  if(!instructions&&sharp(n.pitch)){ctx.fillStyle='#00000022';ctx.fillRect(r.x,r.y,r.w,r.h);}

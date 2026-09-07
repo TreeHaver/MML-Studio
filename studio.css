@@ -34,3 +34,15 @@ dialog{max-width:620px;max-height:85vh;overflow:auto;padding:26px;background:var
 /* Each tool explains itself next to its own button, instead of one long paragraph. */
 /* Tools sits with the history actions: it edits the whole instrument, it is not a drawing mode. */
 .menu summary:has(svg:first-child){gap:8px}/* Sky is a sun, Night is a moon, and the summary shows whichever theme is on. */#theme-menu summary .icon-night,:root[data-theme=night] #theme-menu summary .icon-sky{display:none}:root[data-theme=night] #theme-menu summary .icon-night{display:block}#theme-menu .theme-option{display:flex;align-items:center;gap:9px}#theme-menu .theme-option svg{width:15px;height:15px;flex:0 0 15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.menu summary>svg{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}#tools-menu .menu-panel{left:auto;right:0}.tools-panel{width:296px;padding:4px}.tool-item{padding:11px 11px 12px}.tool-item+.tool-item{border-top:1px solid var(--line)}.tool-item h3{margin:0;font-size:12px;font-weight:600;color:var(--text)}.tool-item p{margin:5px 0 10px;font-size:10px;line-height:1.55;color:var(--secondary)}.tool-row{display:flex;align-items:center;gap:9px;margin-bottom:10px}.tool-row>label{flex:0 0 auto;font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--secondary)}.tool-row .select-control{flex:0 0 auto}.tool-row select{width:94px;margin:0}.tools-panel .tool-apply{width:100%;margin:0;padding:8px 12px;text-align:center;background:var(--control);border:1px solid var(--line);border-radius:6px}.tools-panel .tool-apply:hover{background:var(--soft);border-color:var(--accent)}.tool-footnote{display:block;padding:10px 11px 9px;border-top:1px solid var(--line);font-size:9px;line-height:1.55;color:var(--secondary)}
+
+.note-fields [hidden]{display:none!important} #loop-warning{color:#dba82f;font-size:11px;line-height:1.5}
+
+/* Scoped return stays below the sticky 30px measure ruler, aligned with the meter. */
+.roll-surface{position:relative;display:flex;flex:1;min-height:0;min-width:0}
+#return-project{position:absolute;z-index:3;top:36px;right:19px;padding:6px 10px;font-size:11px;white-space:nowrap;box-shadow:0 2px 6px #0003}
+#return-project[hidden]{display:none}
+/* Keep scoped names within the header column instead of spilling over transport. */
+.project-identity{flex:1;min-width:0}.segment-identity{flex:1;overflow:hidden}#segment-view-label{max-width:100%}
+.project-identity{flex-direction:column;align-items:flex-start;gap:2px}.project-name-label{width:100%;min-width:0}.project-name-label input{flex:1;min-width:0;width:100%}.segment-identity{flex:initial;max-width:100%}
+@media(max-width:980px){.project-name-label>span{display:none}}
+#file-menu #return-song-project[hidden]{display:none}

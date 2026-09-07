@@ -61,3 +61,16 @@ test('real MS2 sheets: chord attributes, repeated ties, pedal switches, measure 
  assert.throws(()=>importMml('c&d'));
  assert.throws(()=>importMml('cqe'));
 });
+
+test('MS2 +/- accidentals work on every letter and boundary notes use O0 C- / O8 B+',()=>{
+ const natural={c:0,d:2,e:4,f:5,g:7,a:9,b:11};
+ for(let octave=0;octave<=8;octave++)for(const [letter,offset] of Object.entries(natural))for(const accidental of ['','+','-']){
+  const p=importMml(`o${octave}${letter}${accidental}4`).project,pitch=(octave+1)*12+offset+(accidental==='+'?1:accidental==='-'?-1:0);
+  assert.equal(p.notes[0].pitch,pitch);const generated=generateMml(p,0);assert.ok(!generated.warnings.some(w=>w.startsWith('Pitch outside')));assert.ok(!/o(?:-|9)|#/.test(generated.channels.join('')));assert.equal(importMml(generated.channels[0]).project.notes[0].pitch,pitch);
+ }
+ assert.equal(importMml('o4d-').project.notes[0].pitch,importMml('o4c+').project.notes[0].pitch);
+ for(const pitch of [11,120]){const p=importMml(pitch===11?'o0c-1':'o8b+1').project;p.notes[0].length=300;const result=generateMml(p,0);assert.match(result.channels[0],pitch===11?/o0.*c-/:/o8.*b\+/);const back=importMml(result.channels[0]);assert.equal(back.project.notes[0].pitch,pitch);assert.equal(back.project.notes[0].length,300);}
+ const alias=importMml('o4c#4').project;assert.equal(alias.notes[0].pitch,61);const normalized=generateMml(alias,0).channels[0];assert.ok(!normalized.includes('#'));assert.match(normalized,/c\+/);
+ // Import remains permissive about out-of-target numeric pitches; export warns.
+ const outside=importMml('o9c+').project;assert.equal(outside.notes[0].pitch,121);assert.match(generateMml(outside,0).warnings.join(' '),/Pitch outside/);
+});

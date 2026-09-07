@@ -1,0 +1,15 @@
+# Instruction loops
+
+Instructions retain optional version-2 note fields `loopEntry`, `loopExit`, `loopTie` and `loopCount`. The flags are booleans; count is a positive safe integer, defaulting to 1 (total plays). Only Instructions events participate. Musical notes and project timing remain editable in their original positions.
+
+Each Exit closes the most recent unmatched Entry on the global timeline, across Instructions lanes. This supports nested loops. At a shared tick, Exits precede Entries; an event with both flags closes the preceding loop and opens the next. Loop Tie is effective only on an Exit; Loop Count is effective only on an Entry. Their inspector controls are hidden otherwise.
+
+Unmatched Entries/Exits are ignored with warnings, without rejecting edits, save, MML generation or playback. Complete children of an unmatched outer Entry still repeat. Complete regions paint their Entry instrument's color at 10% opacity, after the grid and before all other roll overlays. Nested backgrounds accumulate opacity. Instruction markers are 15 screen pixels wide, independent of pitch and zoom, behind musical notes. Both markers and their captions select the event; captions can select an Instructions lane from another instrument.
+
+`src/music/loops.ts` creates a temporary expanded performance project. It clips notes at source span boundaries, restores entry tempo and onset volume context on every pass, shifts following material, and retains arbitrary integer durations. At ordinary forward boundaries, pieces of the same note remain continuous. At an Exit-to-Entry jump, Loop Tie joins one matching instrument/pitch voice per boundary note when the Entry-side original starts before Entry or the Exit-side original ends after Exit. Exact Entry-start / Exit-end pairs retrigger. Untied continuations retrigger at repeat jumps. Nested loops apply their own Exit tie setting.
+
+MML generation, live counts and sheet planning use the expanded performance. Complete loop duration includes trailing rests. The real-time checkbox retains its existing behavior: disabled results remain stale until updated. Section-separated export expands before section slicing, retaining the existing section export trimming behavior. Scoped Song/Segment views loop only their local projection; missing partners outside a view produce the same non-blocking warning.
+
+Playback uses expanded MIDI note/tempo events, including held-note restoration after seeking/resuming. Elapsed seconds use performance time; the visible playhead maps back to original source ticks during each repeat. Clicking the ruler seeks to the first performance occurrence of that source position. Playback edits retain the existing Stop/Play snapshot behavior; real-time updating refers to MML generation.
+
+Validation: `tests/loops.test.mjs`, loop assertions in `tests/renderer.test.cjs`, and native `tests/electron-loops.cjs`. The native harness uses an isolated preference directory and captures Sky/Night screenshots. It checks native clicks and field visibility, not physical audio or in-game MS2 behavior.

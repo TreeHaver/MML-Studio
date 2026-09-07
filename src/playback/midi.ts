@@ -1,7 +1,12 @@
+import {samplePitch,tuningControllers,tuningWheel} from './sample-pitch.ts';
+import {partitionChannels} from '../music/channels.ts';
 import {playbackPitch} from './drums.ts';
+import {expandLoops} from '../music/loops.ts';
 import type {Project} from '../model/types.ts';
 import {tempoMap,secondsAtTick} from '../music/tempo.ts';
 import {valid} from '../model/validation.ts';
+import {resolveVolumes} from '../music/volume.ts';
+export type PlaybackChannel={instrument:number,channel:number,noteIds:number[],tuning?:number};
 type Event={tick:number,order:number,data:number[]};
 function variable(value:number):number[]{
  if(!Number.isSafeInteger(value)||value<0||value>0xfffffff)throw Error('Playback position exceeds the MIDI timing range.');
@@ -16,21 +21,20 @@ function track(events:Event[],end:number):number[]{
  data.push(...variable(Math.max(end,previous)-previous),255,47,0);
  return [77,84,114,107,...dword(data.length),...data];
 }
-export function heldPlaybackNotes(project:Project,channels:{instrument:number,channel:number}[],tick:number){
- const routing=new Map(channels.map(c=>[c.instrument,c.channel]));
- const notes=project.notes.filter(n=>routing.has(n.instrument)&&n.start<tick).sort((a,b)=>a.start-b.start||a.id-b.id);
- const volumes=new Map<number,number>(),held:{channel:number,pitch:number,velocity:number}[]=[];
- for(let a=0;a<notes.length;){
-  let b=a;while(b<notes.length&&notes[b].start===notes[a].start){const n=notes[b++];if(n.volume!==null)volumes.set(n.instrument,n.volume);}
-  for(;a<b;a++){
-   const n=notes[a];if(n.start+n.length<=tick)continue;
-   const pitch=playbackPitch(project.instruments[n.instrument],n.pitch),velocity=Math.round((volumes.get(n.instrument)??8)*127/15);
-   if(pitch>=0&&pitch<=127&&velocity>0)held.push({channel:routing.get(n.instrument)!,pitch,velocity});
-  }
+export function heldPlaybackNotes(project:Project,channels:PlaybackChannel[],tick:number){
+ const routing=new Map<number,number>();
+ for(const c of channels)for(const id of c.noteIds)routing.set(id,c.channel);
+ const notes=project.notes.filter(n=>routing.has(n.id)&&n.start<tick).sort((a,b)=>a.start-b.start||a.id-b.id);
+ const volumes=resolveVolumes(notes),held:{channel:number,pitch:number,velocity:number}[]=[];
+ for(const n of notes){
+   if(n.start+n.length<=tick)continue;
+   const pitch=playbackPitch(project.instruments[n.instrument],n.pitch),velocity=Math.round((volumes.get(n.id)??8)*127/15);
+   if(pitch>=0&&pitch<=127&&velocity>0){const instrument=project.instruments[n.instrument],sample=samplePitch(pitch,instrument.midiProgram??0,!!(instrument.isDrum||instrument.ms2Drum));held.push({channel:routing.get(n.id)!,pitch:sample.pitch,velocity,...(sample.tuning?{tuning:sample.tuning}:{})});}
  }
  return held;
 }
 export function compilePlayback(project:Project,minimumEnd=0){
+ const expanded=expandLoops(project,minimumEnd);project=expanded.project;minimumEnd=expanded.end;
  if(!valid(project.notes))throw Error('Invalid notes or conflicting tempo instructions.');
  const map=tempoMap(project.notes),end=project.notes.reduce((end,n)=>Math.max(end,n.start+n.length),minimumEnd);
  const conductor:Event[]=map.map(({tick,bpm})=>{const micros=Math.round(60000000/bpm);if(micros<1||micros>0xffffff)throw Error('This tempo cannot be represented by the MIDI preview engine. The project is unchanged.');return {tick,order:0,data:[255,81,3,(micros>>>16)&255,(micros>>>8)&255,micros&255]};});
@@ -38,37 +42,36 @@ export function compilePlayback(project:Project,minimumEnd=0){
  const byInstrument=new Map<number,Project['notes']>();
  for(const n of project.notes){if(project.instruments[n.instrument]?.isInstructions)continue;const notes=byInstrument.get(n.instrument)??[];notes.push(n);byInstrument.set(n.instrument,notes);}
  const used=[...byInstrument.keys()].sort((a,b)=>a-b);
- const channels:{instrument:number,channel:number}[]=[];
+ const channels:PlaybackChannel[]=[];
  let melodicSlot=0,drumSlot=0;
  used.forEach(instrument=>{
-  // Each drum lane gets channel 10 on its own port, so overlapping drum
-  // notes in separate editor instruments cannot cut each other off.
+  const notes=byInstrument.get(instrument)!;
+  const volumes=resolveVolumes(notes);
+  // Use the same monophonic allocation as MML, including within one Instrument.
+  const owner=project.instruments[instrument],groups=new Map<number,Project['notes']>();
+  for(const n of notes){const sample=samplePitch(playbackPitch(owner,n.pitch),owner.midiProgram??0,!!(owner.isDrum||owner.ms2Drum));const group=groups.get(sample.tuning)??[];group.push(n);groups.set(sample.tuning,group);}
+  // Tuning stays fixed for each route, including release tails and seek restoration.
+  for(const [tuning,group] of groups)for(const lane of partitionChannels(group)){
   const drums=project.instruments[instrument]?.isDrum===true||!!project.instruments[instrument]?.ms2Drum;
   const slot=drums?drumSlot++:melodicSlot++;
   const port=drums?slot:Math.floor(slot/15),local=slot%15,channel=drums?9:local>=9?local+1:local;
-  channels.push({instrument,channel:port*16+channel});
-  if(port>127)throw Error('Too many playback instruments.');
+  channels.push({instrument,channel:port*16+channel,noteIds:lane.map(n=>n.id),...(tuning?{tuning}:{})});
+  if(port>127)throw Error('The required playback channels exceed the MIDI port range. The project is unchanged.');
   const program=drums?0:project.instruments[instrument]?.midiProgram??0;
   if(!Number.isInteger(program)||program<0||program>127)throw Error('Invalid GM preset.');
   const events:Event[]=[{tick:0,order:-3,data:[255,33,1,port]},{tick:0,order:-2,data:[176+channel,0,0]},{tick:0,order:-1,data:[176+channel,32,0]},{tick:0,order:0,data:[192+channel,program]}];
-  const notes=byInstrument.get(instrument)!.sort((a,b)=>a.start-b.start||a.id-b.id);
-  let inherited=8;
-  for(let begin=0;begin<notes.length;){
-   let finish=begin+1;while(finish<notes.length&&notes[finish].start===notes[begin].start)finish++;
-   // Same-start V instructions use the highest ID, matching volumeAt.
-   for(let i=begin;i<finish;i++)if(notes[i].volume!==null)inherited=notes[i].volume!;
-   const velocity=Math.round(inherited*127/15);
-   for(let i=begin;i<finish;i++){const n=notes[i],pitch=playbackPitch(project.instruments[instrument],n.pitch);
+  for(const [cc,value] of tuningControllers())events.push({tick:0,order:0,data:[176+channel,cc,value]});
+  const wheel=tuningWheel(tuning);events.push({tick:0,order:0,data:[224+channel,wheel&127,(wheel>>7)&127]});
+  for(const n of lane){const pitch=playbackPitch(project.instruments[instrument],n.pitch),velocity=Math.round((volumes.get(n.id)??8)*127/15);
    if(pitch<0||pitch>127){skipped++;continue;}
    if(velocity===0)continue;
-   events.push({tick:n.start,order:2,data:[144+channel,pitch,velocity]},{tick:n.start+n.length,order:1,data:[128+channel,pitch,0]});
-   }
-   begin=finish;
+   events.push({tick:n.start,order:2,data:[144+channel,pitch-tuning,velocity]},{tick:n.start+n.length,order:1,data:[128+channel,pitch-tuning,0]});
   }
   tracks.push(track(events,end));
+  }
  });
  const data=[77,84,104,100,0,0,0,6,0,1,...word(tracks.length),0,32];
  // Avoid spreading a long song into a single function call.
  for(const t of tracks)for(const byte of t)data.push(byte);
- return {channels,binary:new Uint8Array(data).buffer,map,duration:secondsAtTick(map,end),end,skipped};
+ return {channels,binary:new Uint8Array(data).buffer,map,duration:secondsAtTick(map,end),end,skipped,project,warnings:expanded.warnings,sourceTick:expanded.sourceTick,performanceTick:expanded.performanceTick};
 }

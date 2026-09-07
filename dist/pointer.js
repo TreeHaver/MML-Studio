@@ -1,3 +1,4 @@
+import { instructionCaptionHit, instructionLineHit } from './rendering/tempo.js';
 import { playbackPitch } from './playback/drums.js';
 import { anchor, point, musical, hit, edge, boxIds } from './geometry.js';
 import { layout } from './viewport.js';
@@ -109,6 +110,14 @@ export function installPointer() {
                     return;
                 keyGesture = { pointerId: e.pointerId, pitch };
             }
+            return;
+        }
+        const marker = instructionCaptionHit(p) ?? (!hit(p) ? instructionLineHit(p) : undefined);
+        if (e.button === 0 && marker && marker.instrument !== state.active) {
+            state.active = marker.instrument;
+            state.selection = new Set([marker.id]);
+            refresh();
+            draw();
             return;
         }
         if (isMuted(state.active)) {

@@ -1,16 +1,19 @@
 import type {Project,Note} from '../model/types.ts';
 import {generateMml,type MmlResult} from './mml.ts';
 import {tempoMap} from './tempo.ts';
+import {expandLoops} from './loops.ts';
+import {resolveVolumes} from './volume.ts';
 
 export type MmlPart=MmlResult&{start:number,end:number};
 /** One shared clock for every channel; all emitted channels fill the part. */
 export function createSheetPlanner(project:Project,index:number,limit:number){
+ const expanded=expandLoops(project),looped=expanded.project!==project;project=expanded.project;
  if(!Number.isSafeInteger(limit)||limit<1)throw Error('Character limit must be a positive whole number.');
  const source=project.notes.filter(n=>n.instrument===index).sort((a,b)=>a.start-b.start||a.id-b.id);
- const end=source.reduce((end,n)=>Math.max(end,n.start+n.length),0),tempos=tempoMap(project.notes);
- const volumes=new Map<number,number>();let volume=8;
- for(let a=0;a<source.length;){let b=a;while(b<source.length&&source[b].start===source[a].start){if(source[b].volume!==null)volume=source[b].volume!;b++;}for(;a<b;a++)volumes.set(source[a].id,volume);}
- const whole=generateMml(project,index,source,tempos);
+ const end=source.reduce((end,n)=>Math.max(end,n.start+n.length),looped?expanded.end:0),tempos=tempoMap(project.notes);
+ const volumes=resolveVolumes(source);
+ const whole=generateMml(project,index,source,tempos,looped?{endTick:end}:{});
+ whole.warnings.push(...expanded.warnings);
  const render=(start:number,stop:number):MmlPart=>{
   const notes:Note[]=source.filter(n=>n.start<stop&&n.start+n.length>start).map(n=>({...n,start:Math.max(n.start,start)-start,length:Math.min(n.start+n.length,stop)-Math.max(n.start,start),tempo:null}));
   let bpm=120;for(const t of tempos){if(t.tick>start)break;bpm=t.bpm;}
@@ -37,7 +40,7 @@ export function createSheetPlanner(project:Project,index:number,limit:number){
   }
   return at(best);
  };
- return {whole,end,render,next,split:()=>{
+ return {whole,end,render,next,sourceTick:expanded.sourceTick,split:()=>{
   if(!whole.channels.length)return [];
   if(whole.bytes<=limit)return [{...whole,start:0,end}];
   const parts:MmlPart[]=[];let start=0;

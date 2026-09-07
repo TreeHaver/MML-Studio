@@ -1,3 +1,4 @@
+import { expandLoops } from './music/loops.js';
 import { exportSegments } from './music/structure.js';
 import { state } from './state.js';
 import { createSheetPlanner, ms2Xml } from './music/sheets.js';
@@ -38,7 +39,8 @@ export function installExport() {
             const project = structuredClone(state.project), limit = sheetSettings.limit;
             const indexes = projectExport ? project.instruments.map((_, i) => i) : [state.active];
             const files = [];
-            for (const segment of exportSegments(project, !state.segment && $('export-sections').checked))
+            const separate = !state.segment && $('export-sections').checked;
+            for (const segment of exportSegments(separate ? expandLoops(project).project : project, separate))
                 for (const index of indexes) {
                     if (segment.project.instruments[index].isInstructions || !segment.project.notes.some(n => n.instrument === index))
                         continue;

@@ -6,7 +6,8 @@ import { tickAtSeconds, tempoAt, secondsAtTick, tempoMap } from '../music/tempo.
 import { volumeAt } from '../music/volume.js';
 import { getEngine, setMasterVolume } from './engine.js';
 import { followPlayback } from '../viewport.js';
-export const playback = { tick: null };
+let position = null;
+export const playback = { get tick() { return position === null ? null : phase === 'idle' || !plan ? position : plan.sourceTick(position); }, set tick(value) { position = value; } };
 export const playbackSettings = { speed: 1, volume: 1 };
 let phase = 'idle', engine = null, plan = null;
 let snapshot = null, frame = 0, generation = 0, voiceRevision = 0, loadedVoiceRevision = 0;
@@ -15,18 +16,20 @@ let snapshot = null, frame = 0, generation = 0, voiceRevision = 0, loadedVoiceRe
 async function loadSnapshot(token) {
     engine = await getEngine();
     while (token === generation) {
-        const revision = voiceRevision, from = playback.tick ?? 0;
+        const revision = voiceRevision, from = position ?? 0;
         snapshot.instruments = structuredClone(state.project.instruments);
         const range = state.segment?.projection.range;
         const next = compilePlayback(snapshot, range ? range.end - range.start : 0);
         await engine.load(next.binary);
         if (token !== generation)
             return false;
-        if (revision !== voiceRevision || from !== (playback.tick ?? 0))
+        if (revision !== voiceRevision || from !== (position ?? 0))
             continue;
+        if (!plan)
+            position = next.performanceTick(position ?? 0);
         plan = next;
         engine.seq.playbackRate = playbackSettings.speed;
-        engine.seq.currentTime = Math.min(plan.duration, secondsAtTick(plan.map, from));
+        engine.seq.currentTime = Math.min(plan.duration, secondsAtTick(plan.map, position ?? 0));
         loadedVoiceRevision = revision;
         updatePlaybackMutes(true);
         return true;
@@ -50,7 +53,7 @@ async function preparePlayback(token, resume) {
         }
         // Set again after unpausing: the sequencer's paused seek may advance to the
         // next MIDI event. Playing seeks preserve leading rests and held-note time.
-        engine.seq.currentTime = Math.min(plan.duration, secondsAtTick(plan.map, playback.tick ?? 0));
+        engine.seq.currentTime = Math.min(plan.duration, secondsAtTick(plan.map, position ?? 0));
         restoreHeld();
         return true;
     } while (token === generation);
@@ -62,7 +65,7 @@ export async function updatePlaybackVoices() {
         return;
     const resume = phase === 'playing', token = ++generation;
     if (resume)
-        playback.tick = tickAtSeconds(plan.map, Math.max(0, engine.seq.currentHighResolutionTime));
+        position = tickAtSeconds(plan.map, Math.max(0, engine.seq.currentHighResolutionTime));
     cancelAnimationFrame(frame);
     engine.pause();
     phase = 'loading';
@@ -79,7 +82,7 @@ export async function updatePlaybackVoices() {
     }
     catch (error) {
         phase = 'idle';
-        playback.tick = null;
+        position = null;
         engine?.stop();
         status('Voice update failed: ' + error);
     }
@@ -94,7 +97,7 @@ export function updatePlaybackMutes(ready = false) { if (phase === 'loading' && 
     for (const item of plan.channels)
         engine.mute(item.channel, isMuted(item.instrument)); }
 const playable = () => state.project.notes.some(n => !state.project.instruments[n.instrument]?.isInstructions && n.pitch >= 0 && n.pitch <= 127 && volumeAt(state.project, n) > 0);
-function restoreHeld() { engine.restoreNotes(heldPlaybackNotes(snapshot, plan.channels, playback.tick ?? 0)); }
+function restoreHeld() { engine.restoreNotes(heldPlaybackNotes(plan.project, plan.channels, position ?? 0)); }
 function buttons() {
     const canPlay = playable();
     const play = $('play');
@@ -109,10 +112,10 @@ function buttons() {
         $(id).disabled = phase === 'idle' || phase === 'loading';
 }
 function positionLabel() {
-    const tick = playback.tick ?? 0, project = phase === 'idle' ? state.project : snapshot ?? state.project;
+    const tick = position ?? 0, project = phase === 'idle' ? state.project : plan?.project ?? snapshot ?? state.project;
     const bpm = tempoAt(project.notes, tick), effective = bpm * playbackSettings.speed;
     $('playback-bpm').textContent = `${bpm} BPM`;
-    $('playback-time').textContent = playback.tick === null ? '' : `${secondsAtTick(phase === 'idle' ? tempoMap(state.project.notes) : plan?.map ?? tempoMap(state.project.notes), tick).toFixed(1)} s · `;
+    $('playback-time').textContent = position === null ? '' : `${secondsAtTick(phase === 'idle' ? tempoMap(state.project.notes) : plan?.map ?? tempoMap(state.project.notes), tick).toFixed(1)} s · `;
     const label = $('effective-bpm');
     label.hidden = playbackSettings.speed === 1;
     // Reads as part of the line, not a footnote: whole numbers, same size, same baseline.
@@ -121,23 +124,23 @@ function positionLabel() {
 }
 export function syncPlaybackControls() { buttons(); positionLabel(); }
 function setPosition(seconds) { if (!engine || !plan)
-    return; const time = Math.max(0, Math.min(plan.duration, seconds)); engine.seq.currentTime = time; playback.tick = tickAtSeconds(plan.map, time); if (phase === 'playing')
+    return; const time = Math.max(0, Math.min(plan.duration, seconds)); engine.seq.currentTime = time; position = tickAtSeconds(plan.map, time); if (phase === 'playing')
     restoreHeld(); followPlayback(playback.tick); draw(); }
 // Idle seeks park the playhead so the next play() starts from there.
 export function seekToTick(tick) {
     const range = state.segment?.projection.range, target = Math.max(0, Math.min(tick, range ? range.end - range.start : Infinity));
     if (engine && plan && (phase === 'playing' || phase === 'paused')) {
-        setPosition(secondsAtTick(plan.map, target));
+        setPosition(secondsAtTick(plan.map, plan.performanceTick(target)));
         return;
     }
-    playback.tick = target;
+    position = target;
     draw();
 }
 function animate() {
     if (phase !== 'playing')
         return;
     const time = engine.seq.currentHighResolutionTime;
-    playback.tick = Math.min(plan.end, tickAtSeconds(plan.map, Math.max(0, time)));
+    position = Math.min(plan.end, tickAtSeconds(plan.map, Math.max(0, time)));
     followPlayback(playback.tick);
     draw();
     if (engine.seq.isFinished) {
@@ -150,7 +153,7 @@ export function stopPlayback(message = true) {
     generation++;
     cancelAnimationFrame(frame);
     engine?.stop();
-    playback.tick = null;
+    position = null;
     // Retain the loading lock until an in-flight initialization completes.
     if (phase !== 'loading')
         phase = 'idle';
@@ -163,7 +166,7 @@ export async function play() {
     if (phase === 'loading' || phase === 'playing')
         return;
     if (phase === 'paused') {
-        const token = generation, time = secondsAtTick(plan.map, playback.tick ?? 0);
+        const token = generation, time = secondsAtTick(plan.map, position ?? 0);
         updatePlaybackMutes(true);
         await engine.play();
         if (token !== generation) {
@@ -181,24 +184,25 @@ export async function play() {
         return;
     }
     const section = $('section-nav').value;
-    if (playback.tick === null && section !== '')
-        playback.tick = Number(section);
+    if (position === null && section !== '')
+        position = Number(section);
     const token = ++generation;
     phase = 'loading';
     buttons();
     status('Preparing General MIDI playback…');
     try {
         snapshot = structuredClone(state.project);
+        plan = null;
         if (!await preparePlayback(token, true))
             return;
         phase = 'playing';
         buttons();
-        status('Playing unmuted instruments.' + (plan.skipped ? ` ${plan.skipped} notes outside MIDI pitches 0–127 are silent.` : ''));
+        status('Playing unmuted instruments. ' + plan.warnings.join(' ') + (plan.skipped ? ` ${plan.skipped} notes outside MIDI pitches 0–127 are silent.` : ''));
         animate();
     }
     catch (error) {
         phase = 'idle';
-        playback.tick = null;
+        position = null;
         engine?.stop();
         status('Playback failed: ' + error);
     }
@@ -232,7 +236,7 @@ export function installPlayback() {
     };
     volume.oninput = () => { const percent = Math.max(0, Math.min(100, Number(volume.value) || 0)); volume.value = String(percent); playbackSettings.volume = percent / 100; $('playback-volume-value').textContent = `${percent}%`; setMasterVolume(playbackSettings.volume); };
     $('play').onclick = () => { if (phase === 'playing') {
-        playback.tick = tickAtSeconds(plan.map, Math.max(0, engine.seq.currentHighResolutionTime));
+        position = tickAtSeconds(plan.map, Math.max(0, engine.seq.currentHighResolutionTime));
         engine.pause();
         phase = 'paused';
         cancelAnimationFrame(frame);

@@ -15,7 +15,8 @@ export function refreshSegmentControls() {
     $('open-song').disabled = !!state.gesture || !rangeAt(state.project, tick, 'song', lastEnd);
     $('open-segment').disabled = !!state.gesture || !rangeAt(state.project, tick, 'segment', lastEnd);
     $('segment-view-label').hidden = !session;
-    $('return-project').hidden = !session;
+    $('return-project').hidden = session?.projection.range.kind !== 'segment';
+    $('return-song-project').hidden = session?.projection.range.kind !== 'song';
     $('segment-view-label').textContent = session ? `${session.projection.range.kind === 'song' ? 'Song' : 'Segment'}: ${session.projection.range.name}` : '';
     $('export-sections').disabled = !!session;
 }
@@ -82,4 +83,5 @@ export function installSegmentView() {
     $('open-song').onclick = () => openSegmentView('song');
     $('open-segment').onclick = () => openSegmentView('segment');
     $('return-project').onclick = () => returnToProject();
+    $('return-song-project').onclick = () => returnToProject();
 }

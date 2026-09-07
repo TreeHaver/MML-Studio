@@ -4,7 +4,7 @@
 
 The working folder is updated directly by development changes; patch ZIPs are optional backups/transfers. Restart the editor, click **Import MIDI**, and choose a `.mid` or `.midi` file. Import replaces the current project after confirmation if it has unsaved edits. Cancelling, declining replacement, or choosing an invalid file leaves the existing project untouched. The imported project is unsaved; use **Save JSON** to keep it. The source MIDI file is never changed.
 
-The import report lists approximations and unsupported events. Instrument names include the source track, MIDI channel, and GM preset. Different source tracks, ports, channels, and programs become separate editor instruments. Same-pitch overlaps are retained in extra instrument lanes, since version 2 forbids such overlaps within one instrument. Other chords remain together.
+The import report lists approximations and unsupported events. Instrument names include the source track, MIDI channel, and GM preset. Different source tracks, ports, channels, and programs become separate editor instruments. Same-pitch overlaps stay in their original instrument and remain editable/saveable. Only identical start, pitch and instrument produce the overlap warning. Other chords remain together. Each stored explicit MIDI note volume controls its own onset, including simultaneous notes with different velocities; see BEHAVIOR_AUDIT.md for the volume fix and remaining findings.
 
 ## Export limits belong to export planning
 

@@ -1,4 +1,6 @@
-/** Warning definition: identical onset, pitch and owner, regardless of length. */
+/** Warning definition: identical onset, pitch and owner, regardless of length.
+ * Use current view/performance onsets: clipped or restarted continuations
+ * are intentionally not exempt. Report only; never alter the notes. */
 export function hasOverlappingNotes(notes) {
     const seen = new Set();
     for (const n of notes) {

@@ -2,7 +2,7 @@ import { mmlControls, updateMml } from './mml.js';
 import { instrumentActions, removeInstrument } from './instrument-actions.js';
 import { GM_PROGRAMS } from './playback/gm-programs.js';
 import { DRUM_KIT_NAME, MS2_DRUMS } from './playback/drums.js';
-import { INSTRUCTIONS_NAME } from './model/instructions.js';
+import { INSTRUCTIONS_NAME, INSTRUCTIONS_COLOR } from './model/instructions.js';
 import { draw } from './painting.js';
 import { info } from './inspector.js';
 import { checkpoint } from './history.js';
@@ -43,10 +43,6 @@ export function instruments() {
             document.querySelectorAll('.instrument-name').forEach((el, j) => el.classList.toggle('active', j === index));
             document.querySelectorAll('.instrument').forEach((el, j) => el.classList.toggle('selected', j === index));
             $('editing-instrument').textContent = i.name;
-            if (i.isInstructions) {
-                const event = state.project.notes.find(n => n.instrument === index);
-                view.scrollTop = Math.max(0, pitchTop(state.topPitch, (event?.pitch ?? 60) + 5));
-            }
             info();
             draw();
         };
@@ -90,8 +86,10 @@ export function instruments() {
         preset.append(instructions);
         preset.value = i.isInstructions ? 'instructions' : i.isDrum ? 'drums' : i.ms2Drum ?? String(i.midiProgram ?? 0);
         preset.onchange = () => { checkpoint(); delete i.ms2Drum; if (preset.value in MS2_DRUMS)
-            i.ms2Drum = preset.value; i.isDrum = preset.value === 'drums'; i.isInstructions = preset.value === 'instructions'; i.midiProgram = i.isDrum || i.isInstructions || i.ms2Drum ? 0 : Number(preset.value); if (i.isInstructions)
-            i.name = INSTRUCTIONS_NAME; if (i.ms2Drum)
+            i.ms2Drum = preset.value; i.isDrum = preset.value === 'drums'; i.isInstructions = preset.value === 'instructions'; i.midiProgram = i.isDrum || i.isInstructions || i.ms2Drum ? 0 : Number(preset.value); if (i.isInstructions) {
+            i.name = INSTRUCTIONS_NAME;
+            i.color = INSTRUCTIONS_COLOR;
+        } if (i.ms2Drum)
             i.name = MS2_DRUMS[i.ms2Drum].name; void updatePlaybackVoices(); instruments(); updateMml(true); info(); draw(); };
         row.append(color, button, preset);
         $('instruments').append(row);

@@ -29,6 +29,7 @@ test('preview releases notes, replaces rapid clicks, and uses a synth separate f
  class Synth{
   constructor(){this.id=++nextSynth;this.soundBankManager={addSoundBank:async()=>{}};this.isReady=Promise.resolve();}
   connect(){}stopAll(force){calls.push([this.id,'stop',force]);}
+  controllerChange(c,cc,v){calls.push([this.id,'cc',c,cc,v]);}
   programChange(c,p){calls.push([this.id,'program',c,p]);}
   pitchWheelRange(c,r){calls.push([this.id,'range',c,r]);}
   pitchWheel(c,v){calls.push([this.id,'bend',c,v]);}
@@ -41,15 +42,15 @@ test('preview releases notes, replaces rapid clicks, and uses a synth separate f
  await lib.link(()=>{});await lib.evaluate();
  const engine=new vm.SourceTextModule(transpile(fs.readFileSync('src/playback/engine.ts','utf8'),'engine.ts'),{
   context,initializeImportMeta:meta=>{meta.url='file:///studio/dist/playback/engine.js';},importModuleDynamically:()=>lib
- });await engine.link(()=>{});await engine.evaluate();
+ });const samples=new vm.SourceTextModule(transpile(fs.readFileSync('src/playback/sample-pitch.ts','utf8'),'sample-pitch.ts'),{context});await samples.link(()=>{});await samples.evaluate();await engine.link(()=>samples);await engine.evaluate();
  const preview=await engine.namespace.getPreviewEngine();
  await preview.preview(60,40);await preview.preview(62,73);
  assert.equal(timers.size,1);[...timers.values()][0]();
- assert.deepEqual(calls,[[1,'stop',false],[1,'program',0,40],[1,'on',0,60,100],[1,'stop',false],[1,'program',0,73],[1,'on',0,62,100],[1,'off',0,62]]);
+ assert.deepEqual(calls.filter(c=>!['cc','bend'].includes(c[1])),[[1,'stop',false],[1,'program',0,40],[1,'on',0,60,100],[1,'stop',false],[1,'program',0,73],[1,'on',0,62,100],[1,'off',0,62]]);
  calls.length=0;await preview.preview(109,73);[...timers.values()].at(-1)();
- assert.deepEqual(calls,[[1,'stop',false],[1,'range',0,2],[1,'bend',0,12288],[1,'program',0,73],[1,'on',0,108,100],[1,'off',0,108]]);
+ assert.deepEqual(calls.filter(c=>c[1]!=='cc'),[[1,'stop',false],[1,'bend',0,9741],[1,'program',0,73],[1,'on',0,97,100],[1,'off',0,97]]);assert.ok(calls.some(c=>c[1]==='cc'&&c[3]===6&&c[4]===64));
  calls.length=0;await preview.preview(36,73,true);[...timers.values()].at(-1)();
- assert.deepEqual(calls,[[1,'stop',false],[1,'bend',0,8192],[1,'program',9,0],[1,'on',9,36,100],[1,'off',9,36]]);
+ assert.deepEqual(calls.filter(c=>c[1]!=='cc'),[[1,'stop',false],[1,'bend',9,8192],[1,'program',9,0],[1,'on',9,36,100],[1,'off',9,36]]);
  await engine.namespace.getEngine();assert.equal(nextSynth,2);assert.equal(contexts,2);
  engine.namespace.setMasterVolume(.35);assert.deepEqual(gains.map(g=>g.gain.value),[.35,.35]);
  engine.namespace.setMasterVolume(0);assert.deepEqual(gains.map(g=>g.gain.value),[0,0]);

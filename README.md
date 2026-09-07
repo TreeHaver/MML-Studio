@@ -40,8 +40,8 @@ For staging only, after compilation: `powershell -NoProfile -ExecutionPolicy Byp
 - Scroll vertically/horizontally using the scrollbars/trackpad. Piano keys stay fixed horizontally; measure labels stay fixed vertically. Measures use 4/4 and start at 1.
 - Keyboard clicks report a placeholder pitch preview; no audio yet.
 - Instrument + adds a named instrument. Double-click its name to rename inline; Enter/blur commits, Escape cancels. Color swatches edit instrument colors.
-- Note inspector edits pitch, exact length and optional V0–V15. Empty V inherits the preceding instruction within that instrument. Moving or deleting a note carries/removes its V change.
-- Different pitches may overlap as chords; overlapping notes at the same pitch within one instrument are rejected. Instruments are independent.
+- Note inspector edits pitch, exact length and optional V0–V15. Each explicit V applies to its own note immediately, including chords. Empty V inherits the latest instruction within that Instrument; simultaneous changes use the most recently created explicit-V note for inheritance only. Default V8, V0 silent. Moving or deleting a note carries/removes its V change.
+- Different pitches may overlap as chords; same-pitch overlaps are editable and saveable. Warnings require the same start, pitch and Instrument instance. Instruments using the same preset remain independent. See BEHAVIOR_AUDIT.md for current view/volume findings and user-confirmed behavior.
 
 ## Timing and files
 

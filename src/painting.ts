@@ -12,7 +12,7 @@ import {drawGrid} from './rendering/grid.ts';
 import {drawNotes} from './rendering/notes.ts';
 import {drawRuler} from './rendering/ruler.ts';
 import {drawKeyboard} from './rendering/keyboard.ts';
-import {drawTempoMarkers} from './rendering/tempo.ts';
+import {drawInstructionLines,drawLoopRegions,drawTempoMarkers} from './rendering/tempo.ts';
 
 export function draw(){
  syncPlaybackControls();
@@ -27,6 +27,8 @@ export function draw(){
  ctx.rect(KEY,HEAD,width-KEY,height-HEAD);
  ctx.clip();
  drawGrid();
+ drawLoopRegions();
+ drawInstructionLines();
  drawCrowdedRegions();
  drawNotes();
  ctx.restore();

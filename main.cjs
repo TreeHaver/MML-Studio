@@ -9,7 +9,17 @@ app.setAppUserModelId('com.mmlstudio.editor');
 app.commandLine.appendSwitch('disable-http-cache');
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 function safeFileStem(value){let name=(typeof value==='string'?value:'Untitled').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').replace(/[. ]+$/,'').trim()||'Untitled';if(/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name))name='_'+name;return name;}
-let win;
+let win,closeReady=false,closePending=false,closeAllowed=false,closeRequest=0;
+ipcMain.on('editor-close-ready',event=>{if(win&&event.sender===win.webContents)closeReady=true;});
+ipcMain.on('editor-close-response',(event,id,allowed)=>{
+ if(!win||win.isDestroyed()||event.sender!==win.webContents||!closePending||id!==closeRequest)return;
+ closePending=false;if(allowed===true){closeAllowed=true;win.close();}
+});
+ipcMain.handle('close-choice',async event=>{
+ if(!win||win.isDestroyed()||event.sender!==win.webContents)return 'cancel';
+ const result=await fileDialog('showMessageBox',{type:'question',title:'Unsaved changes',message:'Save changes before closing?',buttons:['Save','Discard','Cancel'],defaultId:0,cancelId:2,noLink:true});
+ return ['save','discard','cancel'][result.response]??'cancel';
+});
 function restoreEditorFocus(){if(win&&!win.isDestroyed()){win.focus();win.webContents.focus();}}
 async function fileDialog(kind,options){try{return await dialog[kind](win,options);}finally{restoreEditorFocus();}}
 ipcMain.on('confirm-action',(event,message)=>{
@@ -20,6 +30,10 @@ ipcMain.on('confirm-action',(event,message)=>{
 });
 app.whenReady().then(()=>{
  win=new BrowserWindow({width:1320,height:850,minWidth:900,minHeight:560,icon:path.join(__dirname,'assets','logo.png'),backgroundColor:'#171d21',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+ win.on('close',event=>{
+  if(closeAllowed||!closeReady)return;event.preventDefault();if(closePending)return;
+  closePending=true;win.webContents.send('editor-close-request',++closeRequest);
+ });
  // Stay hidden until the module script has run, so the empty skeleton is never shown.
  win.webContents.once('did-finish-load',()=>win.show());
  win.setMenuBarVisibility(false);win.setClosable(true);win.loadFile(path.join(__dirname,'index.html'));win.on('closed',()=>{if(mmlWindow&&!mmlWindow.isDestroyed())mmlWindow.close();mmlWindow=null;mmlData=null;});

@@ -14,6 +14,30 @@ import { fullProject, resetSegment } from './segment-session.js';
 const snapshot = () => JSON.stringify(fullProject());
 export function markSaved() { state.saved = snapshot(); state.dirty = false; }
 export function unsaved() { return state.dirty && snapshot() !== state.saved; }
+let saving = null;
+export function saveProject() {
+    if (saving)
+        return saving;
+    saving = (async () => {
+        try {
+            const saved = snapshot();
+            if (!await window.files.save(JSON.stringify(JSON.parse(saved), null, 2)))
+                return false;
+            state.saved = saved;
+            state.dirty = snapshot() !== saved;
+            status('Project saved.');
+            return true;
+        }
+        catch (error) {
+            status('Save failed: ' + error);
+            return false;
+        }
+        finally {
+            saving = null;
+        }
+    })();
+    return saving;
+}
 export function installFiles() {
     markSaved();
     $('project-name').onchange = () => { const name = $('project-name').value.trim() || 'Untitled'; if (name !== (state.project.name || 'Untitled')) {
@@ -81,15 +105,7 @@ export function installFiles() {
         }
     };
     $('midi-report-close').onclick = () => $('midi-report').close();
-    $('save').onclick = async () => { try {
-        if (await window.files.save(JSON.stringify(fullProject(), null, 2))) {
-            markSaved();
-            status('Project saved.');
-        }
-    }
-    catch (e) {
-        status('Save failed: ' + e);
-    } };
+    $('save').onclick = () => saveProject();
     $('open').onclick = async () => { try {
         if (unsaved() && !confirm('Discard unsaved changes and open a project?'))
             return;
@@ -132,6 +148,16 @@ export function installFiles() {
         name.focus({ preventScroll: true });
         name.select();
     };
+    window.editorClose?.onRequest(async () => {
+        if (!unsaved())
+            return true;
+        const before = snapshot(), choice = await window.nativeDialogs.closeChoice();
+        if (choice === 'discard')
+            return snapshot() === before;
+        if (choice === 'save')
+            return await saveProject() && !unsaved();
+        return false;
+    });
     // Electron owns the native close lifecycle. Do not cancel beforeunload here:
     // after MIDI import, Chromium can otherwise keep the main window alive when
     // the user clicks its native X button.

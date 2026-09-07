@@ -12,7 +12,7 @@ import { drawGrid } from './rendering/grid.js';
 import { drawNotes } from './rendering/notes.js';
 import { drawRuler } from './rendering/ruler.js';
 import { drawKeyboard } from './rendering/keyboard.js';
-import { drawTempoMarkers } from './rendering/tempo.js';
+import { drawInstructionLines, drawLoopRegions, drawTempoMarkers } from './rendering/tempo.js';
 export function draw() {
     syncPlaybackControls();
     refreshSignature();
@@ -26,6 +26,8 @@ export function draw() {
     ctx.rect(KEY, HEAD, width - KEY, height - HEAD);
     ctx.clip();
     drawGrid();
+    drawLoopRegions();
+    drawInstructionLines();
     drawCrowdedRegions();
     drawNotes();
     ctx.restore();

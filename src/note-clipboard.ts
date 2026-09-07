@@ -7,6 +7,7 @@ import {status} from './dom.ts';
 import {valid} from './model/validation.ts';
 import type {Note} from './model/types.ts';
 import {fitsCurrentView} from './segment-session.ts';
+import {resolveVolumes} from './music/volume.ts';
 
 let clipboard:{notes:Note[],instructions:boolean,span:number}|null=null;
 let position:number|null=null;
@@ -16,8 +17,7 @@ export function copyNotes(){
  const selected=state.project.notes.filter(n=>n.instrument===state.active&&state.selection.has(n.id));
  if(!selected.length){status('Select notes to copy.');return;}
  const start=selected.reduce((min,n)=>Math.min(min,n.start),Infinity),end=selected.reduce((max,n)=>Math.max(max,n.start+n.length),0);
- const lane=state.project.notes.filter(n=>n.instrument===state.active).sort((a,b)=>a.start-b.start||a.id-b.id),volumes=new Map<number,number>();let volume=8;
- for(let a=0;a<lane.length;){let b=a;while(b<lane.length&&lane[b].start===lane[a].start){if(lane[b].volume!==null)volume=lane[b].volume!;b++;}for(;a<b;a++)volumes.set(lane[a].id,volume);}
+ const volumes=resolveVolumes(state.project.notes.filter(n=>n.instrument===state.active));
  clipboard={notes:selected.map(n=>({...n,start:n.start-start,volume:volumes.get(n.id)!})),instructions:!!state.project.instruments[state.active].isInstructions,span:end-start};
  position=end;status(`Copied ${selected.length} notes/events. Ctrl+V pastes after this group, or click empty space in Select mode to choose a position.`);
 }

@@ -1,3 +1,4 @@
+import { samplePitch, tuningControllers, tuningWheel } from './sample-pitch.js';
 // Independent lazy synths keep keyboard previews from changing song channels.
 let masterVolume = 1;
 const outputs = new Set();
@@ -38,7 +39,6 @@ export function getPreviewEngine() {
             const { context, synth } = await createSynth();
             let timer;
             let generation = 0;
-            let previewBend = false;
             return { context,
                 async preview(pitch, program, isDrum = false) {
                     const token = ++generation;
@@ -48,17 +48,10 @@ export function getPreviewEngine() {
                     clearTimeout(timer);
                     synth.stopAll(false);
                     const channel = isDrum ? 9 : 0;
-                    const sourcePitch = !isDrum && pitch > 108 ? 108 : pitch;
-                    if (sourcePitch !== pitch) {
-                        const range = Math.max(2, pitch - sourcePitch);
-                        synth.pitchWheelRange(channel, range);
-                        synth.pitchWheel(channel, Math.round(8192 + (pitch - sourcePitch) * 8191 / range));
-                        previewBend = true;
-                    }
-                    else if (previewBend) {
-                        synth.pitchWheel(0, 8192);
-                        previewBend = false;
-                    }
+                    const sample = samplePitch(pitch, program, isDrum), sourcePitch = sample.pitch;
+                    for (const [cc, value] of tuningControllers())
+                        synth.controllerChange(channel, cc, value);
+                    synth.pitchWheel(channel, tuningWheel(sample.tuning));
                     synth.programChange(channel, isDrum ? 0 : program);
                     synth.noteOn(channel, sourcePitch, 100);
                     timer = setTimeout(() => synth.noteOff(channel, sourcePitch), 500);
@@ -86,8 +79,12 @@ export function getEngine() {
             seq.loopCount = 0;
             return {
                 seq, context,
-                restoreNotes(notes) { for (const n of notes)
-                    synth.noteOn(n.channel, n.pitch, n.velocity); },
+                restoreNotes(notes) { for (const n of notes) {
+                    for (const [cc, value] of tuningControllers())
+                        synth.controllerChange(n.channel, cc, value);
+                    synth.pitchWheel(n.channel, tuningWheel(n.tuning ?? 0));
+                    synth.noteOn(n.channel, n.pitch, n.velocity);
+                } },
                 mute(channel, muted) { synth.midiChannels[channel].setSystemParameter('isMuted', muted); },
                 async load(binary) {
                     seq.pause();

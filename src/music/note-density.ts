@@ -1,5 +1,7 @@
 import type {Note} from '../model/types.ts';
-/** Warning definition: identical onset, pitch and owner, regardless of length. */
+/** Warning definition: identical onset, pitch and owner, regardless of length.
+ * Use current view/performance onsets: clipped or restarted continuations
+ * are intentionally not exempt. Report only; never alter the notes. */
 export function hasOverlappingNotes(notes:Note[]):boolean{
  const seen=new Set<string>();
  for(const n of notes){const key=`${n.instrument}:${n.start}:${n.pitch}`;if(seen.has(key))return true;seen.add(key);}

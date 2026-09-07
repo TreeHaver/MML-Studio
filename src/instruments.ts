@@ -2,7 +2,7 @@ import {mmlControls,updateMml} from './mml.ts';
 import {instrumentActions,removeInstrument} from './instrument-actions.ts';
 import {GM_PROGRAMS} from './playback/gm-programs.ts';
 import {DRUM_KIT_NAME,MS2_DRUMS,type Ms2Drum} from './playback/drums.ts';
-import {INSTRUCTIONS_NAME} from './model/instructions.ts';
+import {INSTRUCTIONS_NAME,INSTRUCTIONS_COLOR} from './model/instructions.ts';
 import {draw} from './painting.ts';
 import {info} from './inspector.ts';
 import {checkpoint} from './history.ts';
@@ -25,7 +25,7 @@ export function instruments(){
  button.title=i.name+' · click again to collapse';button.setAttribute('aria-expanded',String(!collapsed));
  const select=()=>{
   if(index===state.active)return;
-  state.active=index;state.selection.clear();document.querySelectorAll('.instrument-name').forEach((el,j)=>el.classList.toggle('active',j===index));document.querySelectorAll('.instrument').forEach((el,j)=>el.classList.toggle('selected',j===index));$('editing-instrument').textContent=i.name;if(i.isInstructions){const event=state.project.notes.find(n=>n.instrument===index);view.scrollTop=Math.max(0,pitchTop(state.topPitch,(event?.pitch??60)+5));}info();draw();
+  state.active=index;state.selection.clear();document.querySelectorAll('.instrument-name').forEach((el,j)=>el.classList.toggle('active',j===index));document.querySelectorAll('.instrument').forEach((el,j)=>el.classList.toggle('selected',j===index));$('editing-instrument').textContent=i.name;info();draw();
  };
  button.onclick=()=>{
   const collapse=index===state.active&&!instrumentView.collapsed.has(index);
@@ -39,7 +39,7 @@ export function instruments(){
  const drums=document.createElement('option');drums.value='drums';drums.textContent=`${DRUM_KIT_NAME} (not valid in MS2)`;preset.append(drums);
  for(const [key,drum] of Object.entries(MS2_DRUMS)){const option=document.createElement('option');option.value=key;option.textContent=drum.name;preset.append(option);}
  const instructions=document.createElement('option');instructions.value='instructions';instructions.textContent='Instructions (silent)';preset.append(instructions);
- preset.value=i.isInstructions?'instructions':i.isDrum?'drums':i.ms2Drum??String(i.midiProgram??0);preset.onchange=()=>{checkpoint();delete i.ms2Drum;if(preset.value in MS2_DRUMS)i.ms2Drum=preset.value as Ms2Drum;i.isDrum=preset.value==='drums';i.isInstructions=preset.value==='instructions';i.midiProgram=i.isDrum||i.isInstructions||i.ms2Drum?0:Number(preset.value);if(i.isInstructions)i.name=INSTRUCTIONS_NAME;if(i.ms2Drum)i.name=MS2_DRUMS[i.ms2Drum].name;void updatePlaybackVoices();instruments();updateMml(true);info();draw();};
+ preset.value=i.isInstructions?'instructions':i.isDrum?'drums':i.ms2Drum??String(i.midiProgram??0);preset.onchange=()=>{checkpoint();delete i.ms2Drum;if(preset.value in MS2_DRUMS)i.ms2Drum=preset.value as Ms2Drum;i.isDrum=preset.value==='drums';i.isInstructions=preset.value==='instructions';i.midiProgram=i.isDrum||i.isInstructions||i.ms2Drum?0:Number(preset.value);if(i.isInstructions){i.name=INSTRUCTIONS_NAME;i.color=INSTRUCTIONS_COLOR;}if(i.ms2Drum)i.name=MS2_DRUMS[i.ms2Drum].name;void updatePlaybackVoices();instruments();updateMml(true);info();draw();};
  row.append(color,button,preset);$('instruments').append(row);
  if(i.isInstructions){const help=document.createElement('small');help.className='instrument-help';help.textContent='Silent events. Draw a marker, then edit tempo, time signature or section in the inspector.';row.append(help);}
  const controls=document.createElement('div');controls.className='instrument-controls';
@@ -69,3 +69,4 @@ $('add').onclick=()=>{checkpoint();state.project.instruments.push({name:`Instrum
 
 
 }
+

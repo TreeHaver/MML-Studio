@@ -6,6 +6,7 @@ import { refresh } from './commands.js';
 import { status } from './dom.js';
 import { valid } from './model/validation.js';
 import { fitsCurrentView } from './segment-session.js';
+import { resolveVolumes } from './music/volume.js';
 let clipboard = null;
 let position = null;
 export function setPastePosition(tick) { position = tick; status('Paste position set. Ctrl+V pastes into the active instrument.'); }
@@ -18,18 +19,7 @@ export function copyNotes() {
         return;
     }
     const start = selected.reduce((min, n) => Math.min(min, n.start), Infinity), end = selected.reduce((max, n) => Math.max(max, n.start + n.length), 0);
-    const lane = state.project.notes.filter(n => n.instrument === state.active).sort((a, b) => a.start - b.start || a.id - b.id), volumes = new Map();
-    let volume = 8;
-    for (let a = 0; a < lane.length;) {
-        let b = a;
-        while (b < lane.length && lane[b].start === lane[a].start) {
-            if (lane[b].volume !== null)
-                volume = lane[b].volume;
-            b++;
-        }
-        for (; a < b; a++)
-            volumes.set(lane[a].id, volume);
-    }
+    const volumes = resolveVolumes(state.project.notes.filter(n => n.instrument === state.active));
     clipboard = { notes: selected.map(n => ({ ...n, start: n.start - start, volume: volumes.get(n.id) })), instructions: !!state.project.instruments[state.active].isInstructions, span: end - start };
     position = end;
     status(`Copied ${selected.length} notes/events. Ctrl+V pastes after this group, or click empty space in Select mode to choose a position.`);

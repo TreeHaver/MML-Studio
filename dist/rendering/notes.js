@@ -29,7 +29,7 @@ export function drawNotes() {
     const visible = visibleNotes();
     const preview = state.gesture?.kind === 'box' ? new Set(boxIds(state.gesture.music, musical(state.gesture.current), visible)) : null;
     for (const n of visible) {
-        if (isMuted(n.instrument))
+        if (isMuted(n.instrument) || state.project.instruments[n.instrument].isInstructions)
             continue;
         const r = rect(n);
         if (r.x + r.w <= KEY || r.x >= state.width || r.y + r.h <= HEAD || r.y >= state.height)

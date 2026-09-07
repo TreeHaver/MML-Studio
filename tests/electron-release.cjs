@@ -1,6 +1,7 @@
 // Native smoke check of packaged app assets using the identical installed runtime.
 const {app}=require('electron'),path=require('node:path'),fs=require('node:fs'),assert=require('node:assert/strict');
 const output=path.resolve('.validation/electron-release.json');fs.mkdirSync(path.dirname(output),{recursive:true});
+app.setPath('userData',fs.mkdtempSync(path.resolve('.validation/release-profile-')));
 const deadline=setTimeout(()=>finish(Error('Packaged app startup timed out')),30000);
 function finish(error){clearTimeout(deadline);fs.writeFileSync(output,JSON.stringify({passed:!error,error:error?String(error.stack??error):null},null,2));app.exit(error?1:0);}
 app.on('browser-window-created',(_,win)=>{

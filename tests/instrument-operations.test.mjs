@@ -24,9 +24,10 @@ test('merge preserves timing, IDs, global tempo, inherited volumes and destinati
   assert.deepEqual(parse(JSON.stringify(r)),r);assert.equal(JSON.stringify(p),before);
  }
 });
-test('merge flags simultaneous volume differences, retains overlaps and protects silent event roles',()=>{
+test('merge preserves simultaneous volume differences, retains overlaps and protects silent event roles',()=>{
  const p=fixture();p.notes[1].start=0;p.notes[1].pitch=60;
- const result=mergeInstruments(p,0,1);assert.equal(result.volumeConflict,true);assert.equal(result.project.notes.length,4);
+ const result=mergeInstruments(p,0,1);assert.equal(result.volumeConflict,false);assert.equal(result.project.notes.length,4);
+ assert.deepEqual(result.project.notes.slice(0,2).map(n=>volumeAt(result.project,n)),[12,8]);
  p.instruments[0].isInstructions=true;assert.throws(()=>mergeInstruments(p,0,1),/silent Instructions/);
  p.instruments[1].isInstructions=true;assert.equal(mergeInstruments(p,0,1).project.instruments[0].isInstructions,true);
  assert.throws(()=>mergeInstruments(p,0,0),/different/);assert.throws(()=>deleteInstrument(p,-1),/existing/);
@@ -56,7 +57,7 @@ test('split exact pitch preserves source and destination inheritance, tempos, ID
  for(const n of r.project.notes){const original=p.notes.find(o=>o.id===n.id);assert.deepEqual([n.start,n.length,n.pitch,n.tempo],[original.start,original.length,original.pitch,original.tempo]);assert.equal(volumeAt(r.project,n),volumeAt(p,original));}
  assert.equal(JSON.stringify(p),before);assert.equal(splitNotes(p,0,1,35).project,p);
  assert.equal(parseSplitPitch('B1'),35);assert.equal(parseSplitPitch(' C#3 '),49);assert.throws(()=>parseSplitPitch('wat'));
- p.notes[1].start=0;assert.equal(splitNotes(p,0,1,60).volumeConflict,true);
+ p.notes[1].start=0;assert.equal(splitNotes(p,0,1,60).volumeConflict,false);
 });
 test('Split Drumkit categorizes kicks, snares and all cymbals; retains other percussion and skips empty categories',()=>{
  const p=fixture();p.instruments[0].isDrum=true;

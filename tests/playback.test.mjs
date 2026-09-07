@@ -23,7 +23,7 @@ test('seek restoration retains original onset volume, mapped drums and exact not
  const p=fresh();p.instruments.push({name:'Snare',color:'#ff9900',ms2Drum:'snare'},{name:'Instructions',color:'#f4d35e',isInstructions:true});
  p.notes=[{...note(1,0,128),volume:5},{...note(2,0,8,62),volume:9},{...note(3,8,2,64),volume:0},note(4,32,32,65),{...note(5,0,128),instrument:1,volume:12},{...note(6,0,128),instrument:2,volume:15}];
  const channels=compilePlayback(p).channels;
- assert.deepEqual(heldPlaybackNotes(p,channels,32),[{channel:0,pitch:60,velocity:76},{channel:9,pitch:38,velocity:102}]);
+ assert.deepEqual(heldPlaybackNotes(p,channels,32),[{channel:0,pitch:60,velocity:42},{channel:9,pitch:38,velocity:102}]);
  assert.deepEqual(heldPlaybackNotes(p,channels,128),[]);assert.deepEqual(heldPlaybackNotes(p,channels,0),[]);
 });
 test('tempo boundaries, conflicts, default and exact held-note timing',()=>{
@@ -98,4 +98,72 @@ test('C#8 preview fallback transposes C8 instead of using the silent high bank z
  const synth=new SpessaSynthProcessor(22050);await synth.processorInitialized;synth.soundBankManager.addSoundBank(bank,'gm');synth.programChange(0,0);synth.midiChannels[0].setMIDIParameter('pitchWheelRange',2);synth.pitchWheel(0,12288);synth.noteOn(0,108,100);
  const left=new Float32Array(128),right=new Float32Array(128);let peak=0;for(let block=0;block<80;block++){left.fill(0);right.fill(0);synth.process(left,right);for(let i=0;i<128;i++)peak=Math.max(peak,Math.abs(left[i]),Math.abs(right[i]));}
  assert.ok(peak>0.001,`C#8 fallback was silent: ${peak}`);synth.stopAllChannels(true);
+});
+
+ test('nested same-pitch notes keep their own synth voices through each original end',async()=>{
+ const p=fresh();p.notes=[{...note(1,0,128),volume:13},{...note(2,16,16),volume:5}];const before=JSON.stringify(p);
+ const plan=compilePlayback(p),events=readSMF(new Uint8Array(plan.binary)).events.filter(e=>[8,9].includes(e.status>>4));
+ assert.deepEqual(events.map(e=>[e.tick,e.status>>4,e.port*16+(e.status&15),...e.data]),[[0,9,0,60,110],[16,9,1,60,42],[32,8,1,60,0],[128,8,0,60,0]]);
+ assert.deepEqual(heldPlaybackNotes(plan.project,plan.channels,24),[{channel:0,pitch:60,velocity:110},{channel:1,pitch:60,velocity:42}]);
+ assert.deepEqual(heldPlaybackNotes(plan.project,plan.channels,32),[{channel:0,pitch:60,velocity:110}]);
+ const bytes=fs.readFileSync('assets/TimGM6mb.sf2'),bank=SoundBankLoader.fromArrayBuffer(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
+ const synth=new SpessaSynthProcessor(22050);await synth.processorInitialized;synth.soundBankManager.addSoundBank(bank,'gm');
+ const left=new Float32Array(128),right=new Float32Array(128),render=blocks=>{for(let i=0;i<blocks;i++){left.fill(0);right.fill(0);synth.process(left,right);}};
+ const held=()=>synth.synthCore.voices.filter(v=>v.isActive&&!v.isInRelease&&v.releaseStartTime===Infinity);
+ let previous=0,longVoices;
+ for(const e of events){render(Math.round((e.tick-previous)/64*22050/128));previous=e.tick;const ch=e.port*16+(e.status&15);if(e.status>>4===9)synth.noteOn(ch,...e.data);else synth.noteOff(ch,e.data[0]);render(2);
+  if(e.tick===0){longVoices=held().slice();assert.ok(longVoices.length);}
+  if(e.tick===16)assert.ok(held().length>longVoices.length);
+  if(e.tick===32){assert.equal(held().length,longVoices.length);assert.ok(held().every(v=>longVoices.includes(v)));}
+  if(e.tick===128)assert.equal(held().length,0);
+ }
+ synth.stopAllChannels(true);assert.equal(JSON.stringify(p),before);
+});
+
+test('polyphonic preview allocates ports, preserves presets and reuses ended MML channels',async()=>{
+ const {generateMml}=await import('../dist/music/mml.js');
+ for(const preset of [{midiProgram:40},{isDrum:true},{ms2Drum:'snare'}]){
+  const p=fresh();Object.assign(p.instruments[0],preset);p.notes=Array.from({length:17},(_,i)=>({...note(i+1,0,32,60),volume:i%16}));p.notes.push({...note(18,32,16,60),volume:13});
+  const plan=compilePlayback(p),events=readSMF(new Uint8Array(plan.binary)).events;
+  assert.equal(plan.channels.length,17);assert.equal(generateMml(p,0).channels.length,17);assert.equal(new Set(plan.channels.map(c=>c.channel)).size,17);
+  const isDrum=!!(preset.isDrum||preset.ms2Drum);assert.ok(plan.channels.every(c=>(c.channel%16===9)===isDrum));
+  assert.equal(events.filter(e=>e.status>>4===12).length,17);assert.ok(events.filter(e=>e.status>>4===12).every(e=>e.data[0]===(isDrum?0:40)));
+  for(const c of plan.channels){const lane=c.noteIds.map(id=>p.notes.find(n=>n.id===id));for(let i=1;i<lane.length;i++)assert.ok(lane[i-1].start+lane[i-1].length<=lane[i].start);}
+  assert.equal(heldPlaybackNotes(plan.project,plan.channels,16).length,15);
+  assert.deepEqual(heldPlaybackNotes(plan.project,plan.channels,48),[]);
+  const next=events.filter(e=>e.tick===32&&[8,9].includes(e.status>>4));const on=next.find(e=>e.status>>4===9),off=next.find(e=>e.status>>4===8&&e.port===on.port&&(e.status&15)===(on.status&15));assert.ok(next.indexOf(off)<next.indexOf(on));
+ }
+});
+
+test('every melodic preset sounds across C-flat 0 through B-sharp 8 at V1, V8 and V15',async()=>{
+ const {samplePitch,tuningControllers,tuningWheel}=await import('../dist/playback/sample-pitch.js');
+ const bytes=fs.readFileSync('assets/TimGM6mb.sf2'),bank=SoundBankLoader.fromArrayBuffer(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
+ const synth=new SpessaSynthProcessor(22050);await synth.processorInitialized;synth.soundBankManager.addSoundBank(bank,'gm');synth.setSystemParameter('effectsEnabled',false);
+ const left=new Float32Array(128),right=new Float32Array(128),silent=[];
+ for(const [cc,value] of tuningControllers())synth.controllerChange(0,cc,value);
+ for(let program=0;program<128;program++){synth.programChange(0,program);for(let pitch=11;pitch<=120;pitch++)for(const volume of [1,8,15]){
+  synth.stopAllChannels(true);const sample=samplePitch(pitch,program);assert.equal(sample.pitch+sample.tuning,pitch);
+  synth.pitchWheel(0,tuningWheel(sample.tuning));synth.noteOn(0,sample.pitch,Math.round(volume*127/15));let peak=0;
+  for(let block=0;block<45;block++){left.fill(0);right.fill(0);synth.process(left,right);for(let i=0;i<128;i++)peak=Math.max(peak,Math.abs(left[i]),Math.abs(right[i]));}
+  if(peak<1e-10)silent.push({program,pitch,volume});
+ }}
+ assert.deepEqual(silent,[]);
+ // Measure actual sample frequency: octave offsets stay within wheel quantization.
+ synth.programChange(0,0);const ratios=[];
+ for(const tuning of [0,12,-12]){synth.stopAllChannels(true);synth.pitchWheel(0,tuningWheel(tuning));synth.noteOn(0,97,100);synth.process(left,right);ratios.push(synth.synthCore.voices.find(v=>v.isActive).tuningRatio);}
+ assert.ok(Math.abs(1200*Math.log2(ratios[1]/ratios[0])-1200)<.4);assert.ok(Math.abs(1200*Math.log2(ratios[2]/ratios[0])+1200)<.4);synth.stopAllChannels(true);
+});
+
+test('compiled fallback routes have fixed pitch offsets, original velocities and seek restoration',async()=>{
+ const {samplePitch,tuningWheel}=await import('../dist/playback/sample-pitch.js');
+ for(const program of [0,67,68,78,122]){
+  const p=fresh();p.instruments[0].midiProgram=program;p.notes=[11,12,60,79,90,108,109,119,120].map((pitch,i)=>({...note(i+1,i*32,32,pitch),volume:13}));const before=JSON.stringify(p),plan=compilePlayback(p),events=readSMF(new Uint8Array(plan.binary)).events;
+  for(const n of p.notes){const sample=samplePitch(n.pitch,program),on=events.find(e=>e.status>>4===9&&e.tick===n.start),channel=on.port*16+(on.status&15);assert.deepEqual([...on.data],[sample.pitch,110]);
+   const route=events.filter(e=>e.port===on.port&&(e.status&15)===(on.status&15));const wheel=route.find(e=>e.status>>4===14);assert.equal((wheel.data[1]<<7)+wheel.data[0],tuningWheel(sample.tuning));
+   assert.ok(route.some(e=>e.status>>4===11&&e.data[0]===6&&e.data[1]===64));
+   assert.deepEqual(heldPlaybackNotes(plan.project,plan.channels,n.start+1),[{channel,pitch:sample.pitch,velocity:110,...(sample.tuning?{tuning:sample.tuning}:{})}]);
+   assert.ok(route.some(e=>e.status>>4===8&&e.tick===n.start+n.length&&e.data[0]===sample.pitch));
+  }
+  assert.equal(JSON.stringify(p),before);
+ }
 });

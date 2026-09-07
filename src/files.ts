@@ -17,6 +17,16 @@ import {fullProject,resetSegment} from './segment-session.ts';
 const snapshot=()=>JSON.stringify(fullProject());
 export function markSaved(){state.saved=snapshot();state.dirty=false;}
 export function unsaved(){return state.dirty&&snapshot()!==state.saved;}
+let saving:Promise<boolean>|null=null;
+export function saveProject():Promise<boolean>{
+ if(saving)return saving;
+ saving=(async()=>{try{
+  const saved=snapshot();
+  if(!await (window as any).files.save(JSON.stringify(JSON.parse(saved),null,2)))return false;
+  state.saved=saved;state.dirty=snapshot()!==saved;status('Project saved.');return true;
+ }catch(error){status('Save failed: '+error);return false;}
+ finally{saving=null;}})();return saving;
+}
 export function installFiles(){
  markSaved();
 $('project-name').onchange=()=>{const name=($('project-name') as HTMLInputElement).value.trim()||'Untitled';if(name!==(state.project.name||'Untitled')){checkpoint();state.project.name=name;}($('project-name') as HTMLInputElement).value=name;refreshTitle();};
@@ -52,11 +62,18 @@ $('import-midi').onclick=async()=>{
  finally{importing=false;($('import-midi') as HTMLButtonElement).disabled=false;}
 };
 $('midi-report-close').onclick=()=>($('midi-report') as HTMLDialogElement).close();
-$('save').onclick=async()=>{try{if(await (window as any).files.save(JSON.stringify(fullProject(),null,2))){markSaved();status('Project saved.');}}catch(e){status('Save failed: '+e);}};
+$('save').onclick=()=>saveProject();
 $('open').onclick=async()=>{try{if(unsaved()&&!confirm('Discard unsaved changes and open a project?'))return;const text=await (window as any).files.open();if(text===null)return;const loaded=parse(text);stopPlayback(false);resetInstrumentView();resetSegment();state.project=loaded;state.selection.clear();state.active=0;state.history=[];state.future=[];view.scrollLeft=0;refresh();markSaved();status('Project opened.');}catch(e){status('Open failed: '+e);}};
 $('new').onclick=()=>{if(unsaved()&&!confirm('Discard unsaved changes?'))return;stopPlayback(false);resetInstrumentView();resetSegment();state.project=fresh();state.selection.clear();state.active=0;state.history=[];state.future=[];view.scrollLeft=0;refresh();markSaved();
  status('New project. Type a name, or start drawing.');
  const name=input('project-name');name.focus({preventScroll:true});name.select();};
+(window as any).editorClose?.onRequest(async()=>{
+ if(!unsaved())return true;
+ const before=snapshot(),choice=await (window as any).nativeDialogs.closeChoice();
+ if(choice==='discard')return snapshot()===before;
+ if(choice==='save')return await saveProject()&&!unsaved();
+ return false;
+});
 // Electron owns the native close lifecycle. Do not cancel beforeunload here:
 // after MIDI import, Chromium can otherwise keep the main window alive when
 // the user clicks its native X button.

@@ -8,11 +8,45 @@ import {tempoAt} from '../dist/music/tempo.js';
 import {signatureAt,measureLines} from '../dist/music/structure.js';
 import {parse} from '../dist/model/serialization.js';
 import {compilePlayback} from '../dist/playback/midi.js';
+import {volumeAt} from '../dist/music/volume.js';
+import {readSMF} from '../dist/import/smf.js';
+import {importMml} from '../dist/import/mml.js';
 const marker=(id,start,section,resetMeasures=false,extra={})=>({id,start,section,resetMeasures,instrument:1,pitch:60,length:1,volume:0,...extra});
 const note=(id,start,length,extra={})=>({id,start,length,instrument:0,pitch:60,volume:null,...extra});
 const album=()=>({...fresh(),name:'Album',instruments:[{name:'Piano',color:'#abcdef',midiProgram:0},{name:'Instructions',color:'#f4d35e',isInstructions:true}],notes:[
  note(1,0,16,{volume:5,tempo:90}),note(2,70,150),note(3,110,12,{pitch:64}),note(4,230,100,{pitch:67}),marker(5,0,'First song',true,{timeSignature:'6/8'}),marker(6,96,'Solo'),marker(7,160,'Chorus',false,{tempo:150}),marker(8,256,'Second song',true,{timeSignature:'3/4'}),marker(9,400,'Ending tempo',false,{tempo:100})]});
 const indexes=p=>p.instruments.map((_,i)=>i);
+
+test('view carries the last pre-boundary V past ended notes and explicit held-note volumes',()=>{
+ for(const inherited of [0,5]){
+  const p={...album(),notes:[note(1,0,128,{volume:13}),note(2,16,16,{pitch:64,volume:inherited}),note(3,64,8,{pitch:67}),note(4,72,8,{pitch:69,volume:11}),note(5,80,8,{pitch:71}),marker(100,32,'View'),marker(101,96,'Next')]};
+  const before=structuredClone(p),range=rangeAt(p,32,'segment'),projection=projectSegment(p,range),v=projection.project;
+  assert.deepEqual(v.notes.filter(n=>n.instrument===0).map(n=>volumeAt(v,n)),[13,inherited,11,11]);
+  const parsed=generateMml(v,0).channels.flatMap(c=>importMml(c).project.notes);
+  assert.equal(parsed.find(n=>n.pitch===67).volume,inherited);
+  const ons=readSMF(new Uint8Array(compilePlayback(v).binary)).events.filter(e=>(e.status>>4)===9&&e.data[0]===67);
+  assert.deepEqual(ons.map(e=>e.data[1]),inherited===0?[]:[42]);
+  assert.deepEqual(mergeSegment(p,projection,v,indexes(v)),p);assert.deepEqual(p,before);
+  const edited=structuredClone(v);edited.notes.find(n=>n.id===3).pitch=68;
+  const saved=mergeSegment(p,projection,edited,indexes(v));assert.equal(saved.notes.find(n=>n.id===3).volume,null,'automatic copied V is not saved by an unrelated edit');
+  const savedView=projectSegment(saved,range).project;assert.equal(volumeAt(savedView,savedView.notes.find(n=>n.id===3)),inherited);
+  edited.notes.find(n=>n.id===3).volume=7;assert.equal(mergeSegment(p,projection,edited,indexes(v)).notes.find(n=>n.id===3).volume,7);
+  const cleared=structuredClone(v);cleared.notes.find(n=>n.id===1).volume=null;
+  const inheritedParent=mergeSegment(p,projection,cleared,indexes(v)),inside=inheritedParent.notes.find(n=>n.instrument===0&&n.pitch===60&&n.start===32);
+  assert.equal(inside.volume,null);assert.equal(volumeAt(inheritedParent,inside),inherited);
+  const added=structuredClone(v);added.notes.push(note(102,8,8,{pitch:75}));
+  const addedParent=mergeSegment(p,projection,added,indexes(v)),addedView=projectSegment(addedParent,range).project;
+  assert.equal(volumeAt(addedView,addedView.notes.find(n=>n.pitch===75)),inherited,'new notes before the first seed inherit the parent context after commit');
+ }
+});
+
+test('view uses prior V for implicit crossing notes and respects explicit changes at the boundary',()=>{
+ const p={...album(),notes:[note(90,0,128),note(3,16,8,{volume:5}),note(2,16,8,{volume:13}),note(4,32,8,{pitch:64,volume:9}),note(5,40,8,{pitch:67}),marker(100,32,'View'),marker(101,96,'Next')]};
+ const v=projectSegment(p,rangeAt(p,32,'segment')).project;
+ assert.equal(v.notes.find(n=>n.id===90).volume,5,'highest ID at latest pre-boundary onset supplies the copied V');
+ assert.equal(volumeAt(v,v.notes.find(n=>n.id===4)),9);
+ assert.equal(volumeAt(v,v.notes.find(n=>n.id===5)),9,'older held note with higher ID cannot reset later inheritance');
+});
 
 test('view generation and later edits rebuild compact L/V instructions and limit counts',()=>{
  const p={...album(),notes:[marker(100,0,'Song',true),marker(101,256,'Solo'),

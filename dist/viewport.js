@@ -13,9 +13,12 @@ export function layout() {
     const notes = state.project.notes;
     let nt = 127, nb = 0, end = 4096;
     for (const n of notes) {
-        nt = Math.max(nt, n.pitch + 12);
-        nb = Math.min(nb, n.pitch - 12);
-        end = Math.max(end, n.start + n.length + 512);
+        const instructions = state.project.instruments[n.instrument]?.isInstructions;
+        if (!instructions) {
+            nt = Math.max(nt, n.pitch + 12);
+            nb = Math.min(nb, n.pitch - 12);
+        }
+        end = Math.max(end, n.start + (instructions ? 1 : n.length) + 512);
     }
     if (state.segment)
         end = state.segment.projection.range.end - state.segment.projection.range.start;

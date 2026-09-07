@@ -2,6 +2,7 @@ import { ensureInstructions } from './instructions.js';
 import { tempoAt } from '../music/tempo.js';
 import { signatureAt } from '../music/structure.js';
 import { valid } from './validation.js';
+import { resolveVolumes } from '../music/volume.js';
 export function projectEnd(project) { return project.notes.reduce((end, n) => Math.max(end, n.start + n.length), 0); }
 export function sectionMarkers(project) {
     const markers = new Map();
@@ -20,42 +21,50 @@ export function rangeAt(project, tick, kind, lastEnd = projectEnd(project)) {
     const marker = markers[index], end = markers[index + 1]?.start ?? lastEnd;
     return end > marker.start && tick < end ? { kind, name: marker.name, start: marker.start, end } : null;
 }
-function resolvedVolumes(project) {
-    const values = new Map(), volumes = new Map(), sorted = [...project.notes].sort((a, b) => a.start - b.start || a.id - b.id);
-    for (let a = 0; a < sorted.length;) {
-        let b = a;
-        while (b < sorted.length && sorted[b].start === sorted[a].start) {
-            const n = sorted[b++];
-            if (n.volume !== null)
-                volumes.set(n.instrument, n.volume);
-        }
-        for (; a < b; a++)
-            values.set(sorted[a].id, volumes.get(sorted[a].instrument) ?? 8);
-    }
-    return values;
-}
 /** Editable local projection. Baseline remembers every automatic clip/context value. */
 export function projectSegment(root, range) {
-    const { start, end } = range, volumes = resolvedVolumes(root), project = { ...root, instruments: root.instruments.map(i => ({ ...i })), notes: [] };
+    const { start, end } = range, volumes = resolveVolumes(root.notes), project = { ...root, instruments: root.instruments.map(i => ({ ...i })), notes: [] };
+    // A setting still applies after the note carrying it has ended. Keep this
+    // boundary inheritance separate from explicit V on older held notes.
+    const prior = new Map();
+    for (const n of root.notes)
+        if (n.start < start && n.volume !== null) {
+            const previous = prior.get(n.instrument);
+            if (!previous || n.start > previous.start || n.start === previous.start && n.id > previous.id)
+                prior.set(n.instrument, n);
+        }
     for (const n of root.notes) {
         if (root.instruments[n.instrument].isInstructions) {
             if (n.start >= start && n.start < end)
                 project.notes.push({ ...n, start: n.start - start, length: Math.min(n.length, end - n.start) });
         }
         else if (n.start < end && n.start + n.length > start)
-            project.notes.push({ ...n, start: Math.max(n.start, start) - start, length: Math.min(n.start + n.length, end) - Math.max(n.start, start), ...(n.start < start ? { tempo: null, volume: volumes.get(n.id) } : {}) });
+            project.notes.push({ ...n, start: Math.max(n.start, start) - start, length: Math.min(n.start + n.length, end) - Math.max(n.start, start), ...(n.start < start ? { tempo: null, volume: n.volume ?? prior.get(n.instrument)?.volume ?? 8 } : {}) });
     }
-    // Seed the first onset per lane, leaving subsequent inherited V values editable.
+    // Seed only unset onsets whose inheritance was changed by clipping. These
+    // automatic values belong to the projection baseline, not the saved parent.
     for (let instrument = 0; instrument < project.instruments.length; instrument++) {
         if (project.instruments[instrument].isInstructions)
             continue;
         const lane = project.notes.filter(n => n.instrument === instrument).sort((a, b) => a.start - b.start || a.id - b.id);
         if (!lane.length)
             continue;
-        const first = lane.filter(n => n.start === lane[0].start);
-        if (first.every(n => n.volume === null)) {
-            const last = first[first.length - 1];
-            last.volume = volumes.get(last.id);
+        let inherited = 8;
+        for (let a = 0; a < lane.length;) {
+            let b = a;
+            while (b < lane.length && lane[b].start === lane[a].start) {
+                if (lane[b].volume !== null)
+                    inherited = lane[b].volume;
+                b++;
+            }
+            for (let i = a; i < b; i++) {
+                const n = lane[i], expected = volumes.get(n.id) ?? 8;
+                if (n.volume === null && inherited !== expected)
+                    n.volume = expected;
+            }
+            for (; a < b; a++)
+                if (lane[a].volume !== null)
+                    inherited = lane[a].volume;
         }
     }
     let context = project.notes.find(n => project.instruments[n.instrument].isInstructions && n.start === 0);
@@ -73,13 +82,13 @@ export function fitsSegment(project, range) {
     const duration = range.end - range.start;
     return project.notes.every(n => n.start >= 0 && n.start < duration && (project.instruments[n.instrument].isInstructions || n.start + n.length <= duration));
 }
-const keys = ['start', 'length', 'pitch', 'volume', 'tempo', 'timeSignature', 'section', 'resetMeasures'];
+const keys = ['start', 'length', 'pitch', 'volume', 'tempo', 'timeSignature', 'section', 'resetMeasures', 'loopEntry', 'loopExit', 'loopTie', 'loopCount'];
 /** Apply explicit view changes to the parent, preserving untouched source notes verbatim. */
 export function mergeSegment(root, projection, edited, sourceIndices, ids = new Map()) {
     if (!fitsSegment(edited, projection.range))
         throw Error('This edit extends beyond the current view. Return to Project to edit across its boundary.');
     const { start, end } = projection.range, baseline = new Map(projection.baseline.notes.map(n => [n.id, n])), current = new Map(edited.notes.map(n => [n.id, n]));
-    const originals = new Map(root.notes.map(n => [n.id, n])), volumes = resolvedVolumes(root);
+    const originals = new Map(root.notes.map(n => [n.id, n])), volumes = resolveVolumes(root.notes);
     const instruments = root.instruments.map(i => ({ ...i })), routing = edited.instruments.map((instrument, index) => {
         const source = sourceIndices[index] ?? -1;
         if (source >= 0) {
@@ -123,7 +132,7 @@ export function mergeSegment(root, projection, edited, sourceIndices, ids = new 
             updated.length = n.length;
             if (left) {
                 updated.tempo = n.tempo;
-                updated.volume = n.volume === null ? volumes.get(original.id) : n.volume;
+                updated.volume = n.volume;
             }
             notes.push(updated);
             ids.set(n.id, updated.id);
@@ -138,7 +147,7 @@ export function mergeSegment(root, projection, edited, sourceIndices, ids = new 
                 continue; // automatic inherited context is view-only
             const added = { ...n, id: ++id, start: n.start + start, instrument: routing[n.instrument] };
             if (base) {
-                for (const key of ['tempo', 'timeSignature', 'section', 'resetMeasures'])
+                for (const key of ['tempo', 'timeSignature', 'section', 'resetMeasures', 'loopEntry', 'loopExit', 'loopTie', 'loopCount'])
                     if (base[key] === n[key])
                         delete added[key];
             }

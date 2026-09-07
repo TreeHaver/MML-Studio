@@ -37,9 +37,8 @@ export function mergeInstrument(source:number,target:number){
  try{
   const result=mergeInstruments(state.project,source,target),from=state.project.instruments[source],to=state.project.instruments[target];
   const count=state.project.notes.filter(n=>n.instrument===source).length;
-  const warning=result.volumeConflict?'\nSome simultaneous notes have different volumes. After merging, they will share one volume at each position, so their loudness may change.':'';
   const scope=state.segment?' inside this view? Notes outside the view and the shared source instrument remain.':`, then delete “${from.name}”?`;
-  if(!confirm(`Move all ${count} notes/events and their tempo instructions from “${from.name}” into “${to.name}”${scope}\nThe destination keeps its name, color, playback preset and mute state.${warning}\nYou can undo this.`))return;
+  if(!confirm(`Move all ${count} notes/events and their tempo instructions from “${from.name}” into “${to.name}”${scope}\nThe destination keeps its name, color, playback preset and mute state.\nYou can undo this.`))return;
   apply(result.project,source,target>source?target-1:target);status(`Merged “${from.name}” into “${to.name}”. Undo to restore both.`);
  }catch(error){status(String(error));}
 }
@@ -76,7 +75,6 @@ function applySplit(project:Project,count:number){
 }
 export function splitInstrumentNote(source:number,target:number,text:string){
  try{const result=splitNotes(state.project,source,target,parseSplitPitch(text));
- if(result.volumeConflict&&!confirm('Some simultaneous destination notes have different volumes and will share one volume after splitting. Continue?'))return;
  applySplit(result.project,result.count);
  }catch(error){status(String(error));}
 }

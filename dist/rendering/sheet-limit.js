@@ -15,7 +15,7 @@ export function drawSheetLimit() {
         previousNotes = state.project.notes;
         count = previousNotes.length;
         settings = nextSettings;
-        signature = JSON.stringify([settings, previousNotes.filter(n => n.instrument === state.active || n.tempo != null)]);
+        signature = JSON.stringify([settings, previousNotes.filter(n => n.instrument === state.active || n.tempo != null || n.loopEntry || n.loopExit)]);
     }
     if (signature !== previous) {
         previous = signature;
@@ -24,10 +24,10 @@ export function drawSheetLimit() {
         try {
             const plan = createSheetPlanner(state.project, state.active, sheetSettings.limit);
             if (plan.whole.bytes === sheetSettings.limit)
-                boundary = plan.end;
+                boundary = plan.sourceTick(plan.end);
             else if (plan.whole.bytes > sheetSettings.limit) {
                 try {
-                    boundary = plan.next(0).end;
+                    boundary = plan.sourceTick(plan.next(0).end);
                 }
                 catch {
                     boundary = 0;

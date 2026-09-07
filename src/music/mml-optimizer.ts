@@ -3,10 +3,10 @@
  * Each channel starts with the MML defaults L4 and V8.
  */
 export function optimizeInstructions(text:string):string {
- const tokens=text.match(/[tov]-?\d+|&?[a-gr]\+?\d+\.?/g)??[];
+ const tokens=text.match(/[tov]-?\d+|&?[a-gr][+-]?\d+\.?/g)??[];
  if(tokens.join('')!==text)throw Error('Unexpected compiler MML syntax.');
  const events=tokens.map(token=>{
-  const match=token.match(/^(&?[a-gr]\+?)(\d+)(\.?)$/);
+  const match=token.match(/^(&?[a-gr][+-]?)(\d+)(\.?)$/);
   return match?{symbol:match[1],length:match[2],dot:match[3]}:null;
  });
  // MS2 accepts explicit c128/r128, but default-length L stops at L64.

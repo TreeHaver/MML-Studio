@@ -1,5 +1,7 @@
 # Project map — MML Music Studio 0.3.0
 
+Instruction loops: `src/music/loops.ts` owns nesting, expansion and boundary ties; `src/rendering/instructions.ts` owns 15px lines, clickable captions and nested 10% shading (re-exported by `rendering/tempo.ts`). Inspector fields are in `src/inspector.ts`/`index.html`. Shared expansion feeds MML, sheet planning and playback; transport maps performance time back to the source playhead. See `LOOPS.md`; tests: `tests/loops.test.mjs`, `tests/renderer.test.cjs`, `tests/electron-loops.cjs`.
+
 Read this file first when continuing development. This is the Electron/TypeScript editor; the earlier web and Avalonia prototypes are not the active codebase.
 
 ## Locate a change
@@ -14,6 +16,8 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Note names and sharp pitches | `src/music/pitch.ts` |
 | Collision validation | `src/model/validation.ts` |
 | Group movement and resizing math | `src/music/note-operations.ts` |
+| Melodic sample gaps, fixed playback tuning | `src/playback/sample-pitch.ts`, `src/playback/midi.ts`, `src/playback/engine.ts`; see `PLAYBACK_UPDATE.md` |
+| Shared MML/preview monophonic channel allocation | `src/music/channels.ts`; MIDI routes and held restoration: `src/playback/midi.ts` |
 | V inheritance | `src/music/volume.ts` |
 | Project JSON validation | `src/model/serialization.ts` |
 | Mouse hit testing, coordinates, selection anchor | `src/geometry.ts` |
@@ -35,7 +39,7 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Draw/select tool, grid and zoom controls | `src/toolbar.ts` |
 | Undo/redo snapshots | `src/history.ts` |
 | Shared edit commit and UI refresh | `src/commands.ts` |
-| Save/open/new and unsaved changes prompts | `src/files.ts` |
+| Save/open/new and unsaved changes prompts | `src/files.ts`; native close handshake: `main.cjs`, `preload.cjs`; native tests: `tests/electron-close.cjs` |
 | MS2MML export and overlap warnings | `src/export.ts`, `src/music/mml.ts`, `src/import/midi.ts` |
 | Automatic MML L/V compaction, shared by views, counts and exports | `src/music/mml-optimizer.ts`, `src/music/mml.ts` |
 | MIDI binary reader and pure project conversion | `src/import/smf.ts`, `src/import/midi.ts` |
@@ -45,6 +49,7 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Startup wiring only | `src/renderer.ts` |
 | Windows runtime-only staging and portable releases | `build.bat`, `package-release.ps1`, `build-icon.cs`; checks: `tests/release.test.cjs`, `tests/electron-release.cjs` |
 | Native Electron window and file-dialog IPC | `main.cjs`, `preload.cjs` |
+| Segment-only floating Return to Project and Song File-menu return | `src/segment-view.ts`, `index.html`, `studio.css`; `tests/electron-segment-view.cjs` |
 | Main editor structure and styles | `index.html`, `studio.css` |
 | File/Tools/theme/Export menu dismissal, including clicks inside a custom select list | `src/chrome.ts` |
 | Sky/Night palettes, custom select lists, panels resized or closed by dragging, saved workspace | `src/appearance.ts`, `themes.css` |
@@ -80,7 +85,7 @@ No need to rewrite the whole app or read every module for each change. Tests sim
 - Draw tool click/drag creates notes; Select tool or Shift-drag box-selects.
 - Body movement requires prior selection and a four-pixel threshold. First selected note anchors group snapping. Group edits preserve relative offsets and pitches.
 - Edge resizing snaps duration. Delete/Backspace and right-click delete notes.
-- V instructions follow their notes, inheriting across an instrument until changed.
+- V instructions move with their attached notes and apply at the note onset; each explicit V is respected even in a simultaneous chord. Missing V inherits within the instrument from the most recent onset; its highest-ID explicit note wins any inheritance tie. User controls ambiguous velocities; no conflict prompt. Shared resolver: src/music/volume.ts. See BEHAVIOR_AUDIT.md for confirmed intent and fix status.
 - JSON format `mml-studio`, version 2; unchanged by modularization.
 
 ## Known limitations / next work
@@ -118,7 +123,7 @@ Pure compiler: `src/music/mml.ts`. Session cache and instrument controls: `src/m
 
 ## Instrument deletion and merging
 
-Expanded panels expose Delete and a Merge into destination selector. Delete confirms owned notes/events and tempo removal; deleting the final instrument leaves an empty Piano because version-2 projects require an instrument. Merge retains destination settings and transfers all source notes/events, then removes the source. Silent Instructions can merge only with other Instructions; musical lanes can merge with other musical lanes, adopting the destination preset. Timing, IDs, pitches and tempo values are retained. Original inherited volumes are materialized before merging; differing volumes at the same position produce an explicit confirmation warning because the current model has one V value per instrument/position.
+Expanded panels expose Delete and a Merge into destination selector. Delete confirms owned notes/events and tempo removal; deleting the final instrument leaves an empty Piano because version-2 projects require an instrument. Merge retains destination settings and transfers all source notes/events, then removes the source. Silent Instructions can merge only with other Instructions; musical lanes can merge with other musical lanes, adopting the destination preset. Timing, IDs, pitches and tempo values are retained. Original inherited volumes are materialized before merging; simultaneous explicit volumes remain independent without a volume-conflict prompt. Splitting uses the same resolver to preserve both affected lanes' dynamics.
 
 Both actions stop playback, checkpoint once, clear selection/gestures and invalidate MML caches/pop-out. Surviving mute/collapse indexes are remapped and the Solo indicator is cleared. Undo/redo restores project data; instrument-count changes stop playback and reset session-only lane preferences so they cannot attach to the wrong lane. Tests: `tests/instrument-operations.test.mjs`, `tests/renderer.test.cjs`, `tests/electron-instrument-actions.cjs`.
 
@@ -140,12 +145,18 @@ Saved character-limit preference: src/sheet-settings.ts. DOM-free synchronized s
 
 ## Overlap warnings and channel-density regions
 
+Confirmed A2 (2026-09-08): warnings use current view/performance onsets. Segment/Song clipping and untied loop restarts that bring same-pitch notes in one Instrument to the same start intentionally warn. Keep music intact and the warning non-blocking; do not exempt original distinct starts or automatically repair them. Regression: tests/note-density.test.mjs.
+
 src/music/note-density.ts owns identical-onset/pitch/instrument warnings and the sweep of sounding note intervals. Used by src/music/mml.ts and src/import/midi.ts. src/rendering/note-density.ts paints yellow boxes behind notes for active-instrument intervals with strictly more than ten simultaneous notes, wired in src/painting.ts. Tests: tests/note-density.test.mjs and existing MIDI/renderer tests. Sustained notes with different start times do not cause overlap warnings.
+
+Behavior audit (2026-09-07): BEHAVIOR_AUDIT.md records confirmed overlap/explicit-volume semantics, reproducible findings and decisions still needed. Standalone diagnostics: tests/behavior-audit.mjs and tests/electron-behavior-audit.cjs. These diagnostics are not included in the normal regression runner and do not endorse the current failures as intended behavior.
 
 ## Project names and visual song structure
 
 Project naming: src/files.ts, src/model/project.ts, main.cjs. Optional version-2 fields: name on Project; timeSignature, section and resetMeasures on Instructions events. Pure measure/section math and export slicing: src/music/structure.ts. Inspector editing: src/inspector.ts; toolbar navigation: src/toolbar.ts; rendering: src/rendering/grid.ts and src/rendering/ruler.ts; section export: src/export.ts. See PROJECT_STRUCTURE.md for exact-start signature changes, measure reset semantics, opening segments and inherited tempo/volume. Tests: tests/structure.test.mjs, tests/renderer.test.cjs, tests/electron-structure.cjs.
 
 ## Temporary Song / Segment views
+
+Confirmed A3 (2026-09-08): copy the last pre-boundary V per Instrument, including ended carriers and V0. Explicit crossing-note V remains explicit; implicit crossing notes use the copied boundary V. projectSegment seeds only inherited onsets displaced by clipping, so older held-note values cannot reset later inheritance. Automatic seeds are projection baseline data, not parent edits. Tests: tests/segment-view.test.mjs and tests/electron-segment-view.cjs.
 
 Pure bounds/projection/reconciliation: src/model/segment-view.ts. State session/save/history helpers: src/segment-session.ts, src/state.ts. View buttons, return and end boundary: src/segment-view.ts (wired by renderer.ts). The active state.project is the local editable projection; fullProject() returns the parent with explicit edits applied. Save and history must use fullProject/historySnapshot, and replacement workflows must resetSegment. Automatic clips/inherited context must never be serialized into the parent merely because a view was opened. MML, playback, exports and sheet limits read the local project; exports disable the extra section-splitting option while scoped. See SEGMENT_VIEW.md. Tests: tests/segment-view.test.mjs, tests/renderer.test.cjs, tests/electron-segment-view.cjs.

@@ -11,13 +11,13 @@ export function drawSheetLimit(){
  let signature=previous;
  if(previousNotes!==state.project.notes||count!==state.project.notes.length||settings!==nextSettings){
   previousNotes=state.project.notes;count=previousNotes.length;settings=nextSettings;
-  signature=JSON.stringify([settings,previousNotes.filter(n=>n.instrument===state.active||n.tempo!=null)]);
+  signature=JSON.stringify([settings,previousNotes.filter(n=>n.instrument===state.active||n.tempo!=null||n.loopEntry||n.loopExit)]);
  }
  if(signature!==previous){
   previous=signature;boundary=null;tooSmall=false;
   try{const plan=createSheetPlanner(state.project,state.active,sheetSettings.limit);
-   if(plan.whole.bytes===sheetSettings.limit)boundary=plan.end;
-   else if(plan.whole.bytes>sheetSettings.limit){try{boundary=plan.next(0).end;}catch{boundary=0;tooSmall=true;}}
+   if(plan.whole.bytes===sheetSettings.limit)boundary=plan.sourceTick(plan.end);
+   else if(plan.whole.bytes>sheetSettings.limit){try{boundary=plan.sourceTick(plan.next(0).end);}catch{boundary=0;tooSmall=true;}}
   }catch{/* A transient invalid gesture should not interrupt drawing. */}
  }
  if(boundary===null)return;

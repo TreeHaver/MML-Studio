@@ -2,7 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 test('renderer handles click, edge resize, group box/delete, rename, grid and scroll without text nodes on notes',async()=>{
  const elements=new Map();class El{constructor(){this.value='';this.children=[];this.style={};this.clientWidth=900;this.clientHeight=600;this.scrollLeft=0;this.scrollTop=0;this.classList={toggle(){}};}append(...e){this.children.push(...e)}replaceChildren(){this.children=[]}replaceWith(e){this.replacement=e}after(e){this.replacement=e}querySelector(){return null}set innerHTML(value){this._html=value;const match=/<span>(.*?)<\/span>/.exec(value);if(match)this.textContent=match[1]}get innerHTML(){return this._html}setAttribute(name,value){(this.attributes??={})[name]=String(value)}getAttribute(name){return this.attributes?.[name]??null}focus(){}select(){}matches(){return false}getBoundingClientRect(){return {left:0,top:0}}setPointerCapture(){this.capture=true}hasPointerCapture(){return this.capture}releasePointerCapture(){this.capture=false}}
  const doc={getElementById:id=>{if(!elements.has(id))elements.set(id,new El());return elements.get(id)},createElement:()=>new El(),querySelectorAll:()=>[]};
- const fills=[],texts=[];const ctx=new Proxy({measureText(text){return {width:text.length*6}},fillText(text,x,y){texts.push({text,x,y})},fillRect(x,y,w,h){fills.push({x,y,w,h,color:this.fillStyle});}},{get:(target,key)=>key in target?target[key]:()=>{}});doc.getElementById('canvas').getContext=()=>ctx;
+ const fills=[],texts=[];const ctx=new Proxy({measureText(text){return {width:text.length*6}},fillText(text,x,y){texts.push({text,x,y})},fillRect(x,y,w,h){fills.push({x,y,w,h,color:this.fillStyle,alpha:this.globalAlpha});}},{get:(target,key)=>key in target?target[key]:()=>{}});doc.getElementById('canvas').getContext=()=>ctx;
  let frame;const seq={currentHighResolutionTime:0,isFinished:false,get currentTime(){return this.currentHighResolutionTime},set currentTime(value){this.currentHighResolutionTime=value}};
  const sandbox={queueMicrotask,document:doc,window:{setTimeout,clearTimeout},devicePixelRatio:1,ResizeObserver:class{observe(){}},structuredClone,confirm:()=>true,console,requestAnimationFrame:fn=>{frame=fn;return 1;},cancelAnimationFrame:()=>{frame=null;}};vm.createContext(sandbox);
  const previewCalls=[],muteCalls=[],songLoads=[],restoredNotes=[],masterVolumes=[];let loadGate=null;
@@ -391,4 +391,51 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.equal(run('project.notes.length'),0,'holding the right button erases every note the pointer crosses');
  assert.equal(run('state.history.length'),1,'the whole erase drag is a single undo step');
 
+ // Full-height Instructions, nested shading and live-loop controls.
+ run('project.instruments=[{name:"Piano",color:"#4488aa"},{name:"Instructions",color:"#d0a020",isInstructions:true}];project.notes=[{id:1,instrument:0,start:0,length:128,pitch:60,volume:8},{id:2,instrument:1,start:0,length:1,pitch:-200,volume:0,loopEntry:true,loopCount:2},{id:3,instrument:1,start:32,length:1,pitch:300,volume:0,loopEntry:true,loopCount:2},{id:4,instrument:1,start:64,length:1,pitch:300,volume:0,loopExit:true},{id:5,instrument:1,start:96,length:1,pitch:300,volume:0,loopExit:true}];state.active=1;selection=new Set([2]);state.zoom=3');
+ view.scrollLeft=0;commands.refresh();
+ for(const key of ['pitch','length','volume'])assert.equal(doc.getElementById(key+'-field').hidden,true);
+ assert.equal(doc.getElementById('loop-count-field').hidden,false);assert.equal(doc.getElementById('loop-tie-field').hidden,true);
+ const countInput=doc.getElementById('loop-count');countInput.value='3';countInput.onchange();assert.equal(run('project.notes.find(n=>n.id===2).loopCount'),3);
+ countInput.value='0';countInput.onchange();assert.equal(run('project.notes.find(n=>n.id===2).loopCount'),3);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('project.notes.find(n=>n.id===2).loopCount'),2);
+ const markerRect=geometry.rect(run('project.notes.find(n=>n.id===3)'));assert.equal(markerRect.w,15);assert.equal(markerRect.y,HEAD);assert.equal(markerRect.h,600-HEAD);
+ fills.length=0;paint.draw();const regions=fills.filter(f=>f.color==='#d0a020'&&f.alpha===.1);assert.deepEqual(regions.map(r=>r.w),[288,96]);
+ const lineIndex=fills.findIndex(f=>f.color==='#d0a020'&&f.w===15);const noteIndex=fills.findIndex(f=>f.color==='#4488aa');assert.ok(lineIndex>=0&&noteIndex>lineIndex);
+ run('state.active=0;selection.clear()');click(KEY+32*3+5,550);assert.equal(run('state.active'),1);assert.equal(run('[...selection][0]'),3);
+ run('state.active=0;selection.clear()');paint.draw();const instructionRendering=(await load('src/rendering/tempo.ts')).namespace;
+ const captionPoint={x:KEY+96*3+35,y:HEAD+14};assert.equal(instructionRendering.instructionCaptionHit(captionPoint).id,5);click(captionPoint.x,captionPoint.y);assert.equal(run('[...selection][0]'),5);
+ assert.equal(doc.getElementById('loop-count-field').hidden,true);assert.equal(doc.getElementById('loop-tie-field').hidden,false);
+ doc.getElementById('loop-tie').checked=true;doc.getElementById('loop-tie').onchange();assert.equal(run('project.notes.find(n=>n.id===5).loopTie'),true);
+ run('state.active=0;selection=new Set([1])');commands.refresh();assert.equal(doc.getElementById('pitch-field').hidden,false);
+ // A paused live MML result stays frozen when a loop count changes.
+ const loopMml=mmlBox();loopMml.children[1].children[0].checked=false;loopMml.children[1].children[0].onchange();const loopFrozen=loopMml.children[0].textContent;
+ commands.commitNotes(run('project.notes.map(n=>n.id===2?{...n,loopCount:3}:n)'));assert.equal(mmlBox().children[0].textContent.replace(' · Out of date',''),loopFrozen);
+ mmlBox().children[1].children[0].checked=true;mmlBox().children[1].children[0].onchange();assert.notEqual(mmlBox().children[0].textContent,loopFrozen);
+ // Playback moves through expanded time while the visible playhead jumps back.
+ doc.getElementById('section-nav').value='';transport.seekToTick(0);await transport.play();seq.currentHighResolutionTime=1.1;frame();assert.ok(transport.playback.tick>=38&&transport.playback.tick<39);
+ doc.getElementById('play').onclick();const pausedTick=transport.playback.tick;await transport.play();assert.equal(transport.playback.tick,pausedTick);transport.stopPlayback(false);
+ commands.commitNotes(run('project.notes.filter(n=>n.id!==5)'));run('state.active=1;selection=new Set([2])');commands.refresh();assert.match(doc.getElementById('loop-warning').textContent,/no Exit/);
+
+ // Each explicit chord V survives inspector edits, copy/paste and Undo.
+ prefs.resetInstrumentView();
+ run('project.instruments=[{name:"Piano",color:"#abcdef"}];project.notes=[{id:1,instrument:0,start:0,length:32,pitch:60,volume:13},{id:2,instrument:0,start:0,length:32,pitch:64,volume:5},{id:3,instrument:0,start:32,length:32,pitch:67,volume:null}];state.active=0;selection=new Set([1]);state.history=[];state.future=[]');commands.refresh();
+ assert.equal(doc.getElementById('volume').value,'13');assert.match(doc.getElementById('info').textContent,/effective V13/);
+ doc.getElementById('volume').value='12';doc.getElementById('volume').onchange();assert.match(doc.getElementById('info').textContent,/effective V12/);
+ (await load('src/history.ts')).namespace.undo();run('selection=new Set([1,2])');commands.refresh();
+ clipboard.copyNotes();clipboard.setPastePosition(96);clipboard.pasteNotes();
+ assert.deepEqual(plain('project.notes.slice(-2).map(n=>[n.start,n.pitch,n.volume])'),[[96,60,13],[96,64,5]]);
+ run('selection=new Set([3])');commands.refresh();assert.match(doc.getElementById('info').textContent,/effective V5/);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('project.notes.length'),3);
+
+
+ // Every derived channel follows its owning Instrument's mute/solo and seek state.
+ transport.stopPlayback(false);prefs.resetInstrumentView();
+ run('project.instruments=[{name:"Piano",color:"#abcdef"},{name:"Other",color:"#abcdef"}];project.notes=[{id:1,instrument:0,start:0,length:128,pitch:60,volume:13},{id:2,instrument:0,start:16,length:16,pitch:60,volume:5},{id:3,instrument:1,start:0,length:128,pitch:64,volume:8}];state.active=0');commands.refresh();
+ transport.seekToTick(24);await transport.play();
+ assert.deepEqual(JSON.parse(JSON.stringify(restoredNotes.at(-1))),[{channel:0,pitch:60,velocity:110},{channel:2,pitch:64,velocity:68},{channel:1,pitch:60,velocity:42}]);
+ prefs.instrumentView.muted.add(0);transport.updatePlaybackMutes();assert.deepEqual(muteCalls.slice(-3),[{channel:0,muted:true},{channel:1,muted:true},{channel:2,muted:false}]);
+ prefs.instrumentView.muted.clear();prefs.instrumentView.solo=0;transport.updatePlaybackMutes();assert.deepEqual(muteCalls.slice(-3),[{channel:0,muted:false},{channel:1,muted:false},{channel:2,muted:true}]);
+ transport.stopPlayback(false);prefs.resetInstrumentView();
 });
+
