@@ -1,8 +1,8 @@
 import {$} from './dom.ts';
 import {draw} from './painting.ts';
-export const palette={gridA:'#e5f1fa',gridB:'#deedf8',row:'#275d8010',octave:'#387ba447',bar:'#3e789760',beat:'#3c73951c',ruler:'#c8dfef',text:'#284d68',keyDark:'#3f4144',keyLight:'#ffffff',keyLine:'#c9ced2',corner:'#b7d3e7',background:'#deedf8',playhead:'#1689dc'};
+export const palette={gridA:'#e5f1fa',gridB:'#deedf8',row:'#275d8010',octave:'#387ba447',cRow:'#398bce16',bar:'#3e789760',beat:'#3c73951c',ruler:'#c8dfef',text:'#284d68',keyDark:'#3f4144',keyLight:'#ffffff',keyLine:'#c9ced2',corner:'#b7d3e7',background:'#deedf8',playhead:'#1689dc'};
 const sky={...palette};
-const night={gridA:'#171717',gridB:'#1b1b1b',row:'#ffffff08',octave:'#ffffff25',bar:'#ffffff38',beat:'#ffffff12',ruler:'#252525',text:'#dddddd',keyDark:'#111111',keyLight:'#bfbfbf',keyLine:'#2a2a2a',corner:'#202020',background:'#171717',playhead:'#eeeeee'};
+const night={gridA:'#171717',gridB:'#1b1b1b',row:'#ffffff08',octave:'#ffffff25',cRow:'#5b9cda18',bar:'#ffffff38',beat:'#ffffff12',ruler:'#252525',text:'#dddddd',keyDark:'#111111',keyLight:'#bfbfbf',keyLine:'#2a2a2a',corner:'#202020',background:'#171717',playhead:'#eeeeee'};
 const key='mml-studio-workspace-v1';
 export function installAppearance(){
  if(!document.documentElement)return;

@@ -9,7 +9,9 @@ export function optimizeInstructions(text:string):string {
   const match=token.match(/^(&?[a-gr]\+?)(\d+)(\.?)$/);
   return match?{symbol:match[1],length:match[2],dot:match[3]}:null;
  });
- const defaults=[...new Set(['4',...events.flatMap(event=>event?[event.length]:[])])];
+ // MS2 accepts explicit c128/r128, but default-length L stops at L64.
+ const defaults=[...new Set(['4',...events.flatMap(event=>event&&Number(event.length)<=64?[event.length+event.dot]:[])])];
+ const suffix=(event:NonNullable<typeof events[number]>,state:number)=>defaults[state]===event.length+event.dot?'':defaults[state]===event.length?event.dot:event.length+event.dot;
  const indices=new Map(defaults.map((length,index)=>[length,index]));
  const count=defaults.length,choices=new Uint8Array(events.length*count);
  let costs=new Float64Array(count);
@@ -18,10 +20,10 @@ export function optimizeInstructions(text:string):string {
  // Ties prefer retaining the default, avoiding pointless L instructions.
  for(let i=events.length-1;i>=0;i--){
   const event=events[i];if(!event)continue;
-  const target=indices.get(event.length)!,next=new Float64Array(count);
-  const change=1+event.length.length+costs[target];
+  const target=indices.get(event.length+event.dot),next=new Float64Array(count);
+  const change=target===undefined?Infinity:1+event.length.length+event.dot.length+costs[target];
   for(let state=0;state<count;state++){
-   const keep=(state===target?0:event.length.length)+costs[state];
+   const keep=suffix(event,state).length+costs[state];
    const useChange=change<keep;
    next[state]=useChange?change:keep;choices[i*count+state]=Number(useChange);
   }
@@ -31,9 +33,9 @@ export function optimizeInstructions(text:string):string {
  for(let i=0;i<tokens.length;i++){
   const event=events[i];
   if(event){
-   if(choices[i*count+state]){state=indices.get(event.length)!;result.push('l'+event.length);}
+   if(choices[i*count+state]){state=indices.get(event.length+event.dot)!;result.push('l'+event.length+event.dot);}
    // L precedes &, so tempo/length commands never interrupt a tie prefix.
-   result.push(event.symbol+(defaults[state]===event.length?'':event.length)+event.dot);
+   result.push(event.symbol+suffix(event,state));
   }else if(tokens[i][0]==='v'){
    const value=Number(tokens[i].slice(1));
    if(value!==volume){result.push(tokens[i]);volume=value;}

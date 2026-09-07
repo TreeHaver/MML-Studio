@@ -1,7 +1,8 @@
 import { draw } from './painting.js';
 import { $, canvas, ctx, view } from './dom.js';
 import { state } from './state.js';
-import { KEY, HEAD, ROW } from './constants.js';
+import { KEY, HEAD } from './constants.js';
+import { pitchTop, pitchHeight } from './music/pitch-layout.js';
 import { playheadScroll } from './playback/follow.js';
 export function followPlayback(tick) {
     const left = playheadScroll(tick, state.zoom, view.clientWidth, view.scrollLeft, KEY);
@@ -19,7 +20,7 @@ export function layout() {
     if (state.segment)
         end = state.segment.projection.range.end - state.segment.projection.range.start;
     if (nt !== state.topPitch) {
-        view.scrollTop += (nt - state.topPitch) * ROW;
+        view.scrollTop += pitchTop(nt, state.topPitch);
         state.topPitch = nt;
     }
     state.bottomPitch = nb;
@@ -32,6 +33,6 @@ export function layout() {
     canvas.style.height = state.height + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     $('extent').style.width = (KEY + end * state.zoom) + 'px';
-    $('extent').style.height = (HEAD + (state.topPitch - state.bottomPitch + 1) * ROW) + 'px';
+    $('extent').style.height = (HEAD + pitchTop(state.topPitch, state.bottomPitch) + pitchHeight(state.bottomPitch)) + 'px';
     draw();
 }

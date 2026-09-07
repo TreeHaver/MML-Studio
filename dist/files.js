@@ -1,9 +1,9 @@
 import { checkpoint } from './history.js';
 import { importMml } from './import/mml.js';
 import { stopPlayback } from './playback/transport.js';
-import { refresh } from './commands.js';
+import { refresh, refreshTitle } from './commands.js';
 import { $, status, view } from './dom.js';
-import { ROW } from './constants.js';
+import { pitchTop } from './music/pitch-layout.js';
 import { draw } from './painting.js';
 import { state, resetInstrumentView } from './state.js';
 import { fresh } from './model/project.js';
@@ -13,7 +13,7 @@ export function installFiles() {
     $('project-name').onchange = () => { const name = $('project-name').value.trim() || 'Untitled'; if (name !== (state.project.name || 'Untitled')) {
         checkpoint();
         state.project.name = name;
-    } $('project-name').value = name; };
+    } $('project-name').value = name; refreshTitle(); };
     let importing = false;
     $('import-midi').onclick = async () => {
         if (importing)
@@ -41,7 +41,7 @@ export function installFiles() {
             state.dirty = true;
             view.scrollLeft = 0;
             refresh();
-            view.scrollTop = Math.max(0, (state.topPitch - (state.project.notes.find(n => n.instrument === 0)?.pitch ?? 60) - 5) * ROW);
+            view.scrollTop = Math.max(0, pitchTop(state.topPitch, (state.project.notes.find(n => n.instrument === 0)?.pitch ?? 60) + 5));
             draw();
             const count = state.project.instruments.length;
             const instructions = state.project.notes.filter(n => state.project.instruments[n.instrument].isInstructions).length;

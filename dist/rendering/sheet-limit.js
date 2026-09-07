@@ -4,11 +4,19 @@ import { KEY, HEAD } from '../constants.js';
 import { sheetSettings } from '../sheet-settings.js';
 import { createSheetPlanner } from '../music/sheets.js';
 let previous = '', boundary = null, tooSmall = false;
+let previousNotes, count = -1, settings = '';
 export function drawSheetLimit() {
     const instrument = state.project.instruments[state.active];
     if (!instrument || instrument.isInstructions)
         return;
-    const signature = JSON.stringify([state.active, instrument, sheetSettings.limit, state.project.notes.filter(n => n.instrument === state.active || n.tempo != null)]);
+    const nextSettings = JSON.stringify([state.active, instrument, sheetSettings.limit]);
+    let signature = previous;
+    if (previousNotes !== state.project.notes || count !== state.project.notes.length || settings !== nextSettings) {
+        previousNotes = state.project.notes;
+        count = previousNotes.length;
+        settings = nextSettings;
+        signature = JSON.stringify([settings, previousNotes.filter(n => n.instrument === state.active || n.tempo != null)]);
+    }
     if (signature !== previous) {
         previous = signature;
         boundary = null;

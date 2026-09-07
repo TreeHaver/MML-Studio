@@ -22,8 +22,10 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Internal note-group copy/paste and insertion position | `src/note-clipboard.ts`, `src/pointer.ts` |
 | Gray bands, pitch rows, measure/beat grid lines | `src/rendering/grid.ts` |
 | Note bodies, tint, labels, handles, selection outlines/box | `src/rendering/notes.ts` |
+| Indexed off-screen note culling | `src/music/note-visibility.ts`, `src/rendering/notes.ts` |
 | Measure labels | `src/rendering/ruler.ts` |
 | Piano keys and labels | `src/rendering/keyboard.ts` |
+| Uneven pitch-row heights, positions and inverse hit mapping | `src/music/pitch-layout.ts`, `src/geometry.ts`, `src/viewport.ts` |
 | Painting order and clipping | `src/painting.ts` |
 | Canvas sizing, scrolling extent, pixel scaling | `src/viewport.ts` |
 | Instruments UI, rename, color, add | `src/instruments.ts` |
@@ -41,7 +43,7 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | DOM references, status text | `src/dom.ts` |
 | Keyboard/header/row dimensions, drag threshold | `src/constants.ts` |
 | Startup wiring only | `src/renderer.ts` |
-| Windows runtime-only staging and portable releases | `build.bat`, `package-release.ps1`; checks: `tests/release.test.cjs`, `tests/electron-release.cjs` |
+| Windows runtime-only staging and portable releases | `build.bat`, `package-release.ps1`, `build-icon.cs`; checks: `tests/release.test.cjs`, `tests/electron-release.cjs` |
 | Native Electron window and file-dialog IPC | `main.cjs`, `preload.cjs` |
 | Main editor structure and styles | `index.html`, `studio.css` |
 | File/Export menu dismissal | `src/chrome.ts` |
@@ -68,7 +70,7 @@ No need to rewrite the whole app or read every module for each change. Tests sim
 
 - One instrument owns its notes and color; generated MML channels are derived, not editable model lanes. Raw MML generation/counts and a native tabbed pop-out are implemented; file export is deferred. General MIDI preview playback and format-0/1 MIDI import are implemented.
 - Import has no application-imposed file-size, note, event, track or instrument count caps. Export-limit warnings belong to future export planning. Tempo instructions are positive integer BPM. MIDI import rounds fractional BPM with a conversion notice, without export-range clamping.
-- Whole note = 128 integer timing units. L128 is 1; L64. is 3; L128. is invalid.
+- Whole note = 128 integer timing units. Explicit c128/r128 occupy 1 unit; c64. occupies 3. MS2 default-length instructions stop at L64: never emit L128. The grid's L128 label denotes editing resolution, not an emitted L command.
 - MapleStory 2 MML lengths need not be powers of two. Keep arbitrary positive integer note lengths (e.g. 5, 7, 11 units); grid choices are editing aids, not the set of legal durations. MIDI finer than the version-2 resolution is rounded with an import warning. See MIDI_IMPORT.md before implementing MML export or changing timing.
 - Grid default L4; dropdown through L128. Grid and zoom never change existing duration.
 - Chords and same-pitch overlaps are allowed; MML generation reports overlap warnings without removing notes.

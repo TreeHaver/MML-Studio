@@ -8,7 +8,7 @@ import { info } from './inspector.js';
 import { checkpoint } from './history.js';
 import { refresh } from './commands.js';
 import { $, view } from './dom.js';
-import { ROW } from './constants.js';
+import { pitchTop } from './music/pitch-layout.js';
 import { updatePlaybackMutes, updatePlaybackVoices } from './playback/transport.js';
 import { state, instrumentView } from './state.js';
 import { colors } from './model/project.js';
@@ -45,7 +45,7 @@ export function instruments() {
             $('editing-instrument').textContent = i.name;
             if (i.isInstructions) {
                 const event = state.project.notes.find(n => n.instrument === index);
-                view.scrollTop = Math.max(0, (state.topPitch - (event?.pitch ?? 60) - 5) * ROW);
+                view.scrollTop = Math.max(0, pitchTop(state.topPitch, (event?.pitch ?? 60) + 5));
             }
             info();
             draw();

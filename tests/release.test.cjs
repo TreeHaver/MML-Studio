@@ -17,3 +17,12 @@ test('release app exactly matches clean staging and includes runtime code/assets
  assert.ok(fs.existsSync(path.join(release,'locales/en-US.pak')));
  assert.equal(fs.existsSync(path.join(release,'resources/default_app.asar')),false);
 });
+test('release executable embeds the studio ICO image payloads',()=>{
+ const ico=fs.readFileSync(path.join(root,'assets/logo.ico')),exe=fs.readFileSync(path.join(release,'MML Music Studio.exe'));
+ assert.equal(exe.toString('ascii',0,2),'MZ');assert.equal(exe.readUInt32LE(exe.readUInt32LE(60)),0x4550);
+ const count=ico.readUInt16LE(4);assert.ok(count>0);
+ for(let i=0;i<count;i++){
+  const size=ico.readUInt32LE(6+i*16+8),offset=ico.readUInt32LE(6+i*16+12);
+  assert.ok(exe.includes(ico.subarray(offset,offset+size)),`Missing studio icon frame ${i}`);
+ }
+});

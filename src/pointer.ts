@@ -7,7 +7,8 @@ import {commitNotes,refresh} from './commands.ts';
 import {historySnapshot,fitsCurrentView} from './segment-session.ts';
 import {canvas,status,view} from './dom.ts';
 import {state,isMuted} from './state.ts';
-import {KEY,HEAD,ROW,threshold} from './constants.ts';
+import {KEY,HEAD,threshold} from './constants.ts';
+import {pitchTop,pitchAtY,pitchHeight} from './music/pitch-layout.ts';
 import {cellStart} from './music/timing.ts';
 import {valid} from './model/validation.ts';
 import {move,resize} from './music/note-operations.ts';
@@ -74,7 +75,11 @@ canvas.onpointermove=e=>{
  if(Math.hypot(dx,dy)<threshold&&!state.gesture.moved){draw();return;}state.gesture.moved=true;
  if(state.gesture.kind==='box'){edgePoint=p;if(!edgeFrame)edgeFrame=requestAnimationFrame(edgeScroll);}
  if(state.gesture.kind==='paint'){paint(state.gesture.music,musical(p));state.gesture.music=musical(p);}
- if(state.gesture.kind==='move')state.project.notes=move(state.gesture.base,state.selection,state.gesture.anchor,dx/state.zoom,state.project.instruments[state.active].isInstructions?0:Math.round(-dy/ROW),state.project.grid);
+ if(state.gesture.kind==='move'){
+  const note=state.gesture.base.find(n=>n.id===state.gesture.anchor)!;
+  const pitch=pitchAtY(state.topPitch,pitchTop(state.topPitch,note.pitch)+pitchHeight(note.pitch)/2+dy);
+  state.project.notes=move(state.gesture.base,state.selection,state.gesture.anchor,dx/state.zoom,state.project.instruments[state.active].isInstructions?0:pitch-note.pitch,state.project.grid);
+ }
  if(state.gesture.kind==='resize')state.project.notes=resize(state.gesture.base,state.gesture.nid,state.gesture.length+dx/state.zoom,state.project.grid);
  info();draw();
 };

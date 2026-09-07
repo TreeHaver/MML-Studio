@@ -8,6 +8,9 @@ app.on('browser-window-created',(_,win)=>{
  win.webContents.once('did-finish-load',async()=>{
   try{
    assert.ok(await win.webContents.executeJavaScript(`document.querySelector('#remove-overlap') !== null && document.querySelector('#instruments').children.length > 0`));
+   assert.equal(app.getName(),'MML Music Studio');
+   await win.webContents.executeJavaScript(`(()=>{const field=document.getElementById('project-name');field.value='Blue Moon';field.dispatchEvent(new Event('change'));})()`);
+   await new Promise(resolve=>setTimeout(resolve,100));assert.equal(win.getTitle(),'MML Music Studio - Blue Moon');
    assert.ok(await win.webContents.executeJavaScript(`window.files.soundBank().then(bytes=>bytes.length>1000000)`));
    assert.ok(await win.webContents.executeJavaScript(`import('./dist/playback/engine.js').then(async module=>!!(await module.getEngine()))`,true));
    finish();

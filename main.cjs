@@ -1,5 +1,9 @@
 const {app,BrowserWindow,ipcMain,dialog,clipboard}=require('electron');
 const path=require('node:path'),fs=require('node:fs/promises');
+const existingUserData=app.getPath('userData');
+app.setName('MML Music Studio');
+app.setPath('userData',existingUserData);
+app.setAppUserModelId('com.mmlstudio.editor');
 // All editor assets are local. Avoid Chromium disk-cache locks/permission errors
 // on Windows without moving userData (which holds saved workspace preferences).
 app.commandLine.appendSwitch('disable-http-cache');

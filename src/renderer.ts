@@ -5,7 +5,7 @@ import {installTools} from './tools.ts';
 import {installAppearance} from './appearance.ts';
 import {view} from './dom.ts';
 import {state} from './state.ts';
-import {ROW} from './constants.ts';
+import {pitchTop} from './music/pitch-layout.ts';
 import {draw} from './painting.ts';
 import {layout} from './viewport.ts';
 import {refresh} from './commands.ts';
@@ -36,7 +36,7 @@ new ResizeObserver(layout).observe(view);
 setTool('draw');
 refresh();
 installAppearance();
-view.scrollTop=(state.topPitch-78)*ROW;
+view.scrollTop=pitchTop(state.topPitch,78);
 draw();
 
 installPlayback();

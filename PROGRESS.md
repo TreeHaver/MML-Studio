@@ -468,3 +468,91 @@ Full package-release.ps1 runs now create releases/MML Music Studio-win32-x64.zip
 Changed: package-release.ps1, build.bat, README.md, PROGRESS.md. Validation: build.bat completed the incremental build, portable packaging and ZIP creation. All 153 archived files matched their release files by SHA256, with correct enclosing folder and matching file count. Existing node --test tests/release.test.cjs passed. No native UI rerun was needed for archive-only packaging changes.
 
 Generated release archive: releases/MML Music Studio-win32-x64.zip. Script transfer patch: mml-studio-auto-zip-patch.zip.
+
+## Piano-roll sharp backgrounds and C guides — 2026-09-07
+
+Reduced sharp-key and sharp-row painted backgrounds to 14 pixels, centered within the existing 20-pixel pitch rows. Added a low-opacity theme-specific blue tint across C rows and their piano keys. Natural-key height, pitch spacing and editing alignment remain unchanged. Per user clarification, no note drawing, geometry, hit testing or project/music data was changed.
+
+Changed: src/appearance.ts, src/rendering/grid.ts, src/rendering/keyboard.ts and their three incremental dist outputs; PROGRESS.md.
+
+Actual validation: node tests/run.cjs passed the incremental-output build and all 84 existing tests. Captured and inspected native Electron screenshots with C/sharp/natural note examples in Sky and Night; labels, centered bands and restrained octave tint are readable. Evidence: .validation/keyboard-sky.png and .validation/keyboard-night.png, captured with .validation/keyboard-preview.cjs. The prior saved theme/workspace preference was restored after capture.
+
+Working source and generated outputs updated. Transfer patch: mml-studio-piano-background-patch.zip. Restart the source editor, or run build.bat again to refresh the portable release and its ZIP.
+
+## Uneven piano-roll rows: sharps at 75% height — 2026-09-07
+
+Corrected the previous inset-background treatment per the user's screenshot: the actual sharp pitch rows now occupy 15 pixels, while natural rows occupy 20 pixels. The entire vertical layout is uneven (215 pixels per octave). Black keys and sharp backgrounds fill their shorter rows, without artificial light padding. The subtle blue C-row guide remains.
+
+Added a shared DOM-free pitch-layout mapping with periodic coordinates and inverse hit lookup, including negative/above-MIDI pitches. Keyboard/grid painting, note centers, pointer hit testing, vertical dragging, scroll extent, top-range expansion, startup/import/instruction-lane scrolling all use it. Note blocks retain the existing 14-pixel height and horizontal sizes; only their centers follow the new rows. Notes/volumes/durations/pitches in project data remain unchanged by the layout update. Adjacent-row hit testing cannot steal a note from the neighboring sharp row.
+
+Changed source: new src/music/pitch-layout.ts; src/geometry.ts, src/viewport.ts, src/rendering/grid.ts, src/rendering/keyboard.ts, src/files.ts, src/instruments.ts, src/renderer.ts, src/pointer.ts; corresponding nine dist outputs. Tests: new tests/pitch-layout.test.mjs and tests/electron-pitch-layout.cjs; tests/renderer.test.cjs, tests/run.cjs; coordinate maintenance in tests/electron-ui.cjs, tests/electron-behavior.cjs, tests/electron-structure.cjs, tests/electron-segment-view.cjs and tests/electron-smoke.cjs. Docs: PROJECT_MAP.md, PROGRESS.md.
+
+Actual validation: node tests/run.cjs passed the incremental-output build and all 85 tests. Coverage includes exact boundaries and inverse mapping across negative/MIDI/high pitches, 75% heights and octave sums, simulated note creation on every pitch in an octave, unchanged note height, selection and dragging across sharp/natural rows. Updated legacy fixed-coordinate expectations and native harness pitch coordinates. All six affected/new native test scripts pass node --check. Focused tests/electron-pitch-layout.cjs passes real native mouse creation of C/C-sharp and dragging C-sharp to D with exact pitch/time and unchanged note heights; evidence .validation/electron-pitch-layout.json/.png. Captured and inspected Sky/Night screenshots: .validation/uneven-keyboard-sky.png and .validation/uneven-keyboard-night.png. Broader tests/electron-ui.cjs stops before pitch checks on its pre-existing unrelated assertion that the Undo button background must not be transparent; that styling was not changed. Other native suites received coordinate updates but were not rerun.
+
+Working source and generated output updated. Transfer patch: mml-studio-uneven-pitch-rows-patch.zip. Run build.bat to regenerate the portable release and ZIP with this layout.
+
+## Embed the blue note-M executable icon — 2026-09-07
+
+package-release.ps1 now embeds assets/logo.ico into the copied release executable before creating its ZIP. New build-only build-icon.cs uses Windows resource-update APIs to replace existing icon groups in all their existing languages with the studio icon images, preserving other resource types. It validates the ICO and fails the build on errors. The installed node_modules Electron executable is untouched. No package download is required, and the helper does not ship in resources/app. The window continues using the matching assets/logo.png.
+
+Changed: package-release.ps1, new build-icon.cs, tests/release.test.cjs, README.md, PROJECT_MAP.md, PROGRESS.md. Regenerated local staging/release and releases/MML Music Studio-win32-x64.zip (now also containing the latest uneven-row renderer).
+
+Actual validation: build.bat passed incremental compilation, resource embedding, packaging and ZIP creation. Both tests/release.test.cjs tests pass, including PE signature and exact ICO payload presence. Extracted the EXE's associated icon via Windows/System.Drawing and inspected the blue note-M at .validation/executable-icon.png. The ZIP's EXE SHA256 matches the verified release EXE. No new native app launch was performed for this resource-only update. API reference: https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-updateresourcew
+
+Release ZIP updated locally. Build-script transfer patch: mml-studio-executable-icon-patch.zip. Future build.bat runs embed the icon automatically.
+
+## Full-cell note blocks with darkened borders — 2026-09-07
+
+Note rectangles now fill their full pitch-row height (20px natural, 15px sharp) and their complete displayed duration width. Removed the old vertical and horizontal inset. A 3px inside border slightly darkens each instrument color, retaining the existing sharp-note tint. Extremely narrow notes reduce border thickness to fit. The blue selection stroke stays clipped inside the note so neighboring rows remain clear. Project timing, pitches, volumes and MML are unchanged.
+
+Changed: src/geometry.ts, src/rendering/notes.ts and their two incremental dist outputs; tests/renderer.test.cjs and tests/electron-pitch-layout.cjs updated for full-cell geometry; PROGRESS.md.
+
+Actual validation: node tests/run.cjs passed the incremental-output build and all 85 tests. Native tests/electron-pitch-layout.cjs passed real mouse creation and movement, with new full-height geometry. Inspected Sky and Night screenshots showing natural and sharp notes filling their rows with the darkened outline. Evidence: .validation/electron-pitch-layout.json/.png and refreshed .validation/uneven-keyboard-sky.png/.validation/uneven-keyboard-night.png.
+
+Working source and generated files updated. Transfer patch: mml-studio-full-cell-notes-patch.zip. Run build.bat to refresh the executable release and ZIP.
+
+## Layered note borders and application/window names — 2026-09-07
+
+Full-cell notes now have an outer 1px black edge and 2px of darkened instrument color inside it (3px total). Narrow-note borders still shrink to fit; blue selection remains available. No timing or musical data changes.
+
+The main window title follows MML Music Studio - Project Name on initial load, rename, refresh/open/import/new and undo/redo. Electron application name and AppUserModelID are set explicitly. The prior userData path is retained when setting the app name, preserving saved preferences. Packaged EXE version resources now identify FileDescription/ProductName/InternalName as MML Music Studio, OriginalFilename as MML Music Studio.exe, and versions from package.json. The original runtime copyright string is retained. The installed development Electron executable is not modified; npm start still runs electron.exe, while releases run MML Music Studio.exe.
+
+Changed: src/rendering/notes.ts, src/commands.ts, src/files.ts and three incremental dist outputs; main.cjs; build-icon.cs; package-release.ps1; tests/renderer.test.cjs and tests/electron-release.cjs; README.md and PROGRESS.md. Regenerated release folder and ZIP.
+
+Actual validation: incremental build and all 85 tests passed after the border/title implementation. Added title rename/Undo/New coverage, then reran renderer and release checks: all 3 passed. build.bat completed metadata/icon embedding and ZIP creation. Windows FileVersionInfo confirms description/product/internal/original filename and version 0.3.0. Native packaged-app harness passes app.getName, actual BrowserWindow title after project rename (MML Music Studio - Blue Moon), startup, SoundFont and AudioWorklet checks. A standalone released-EXE probe confirms Windows ProcessName and description MML Music Studio; its hidden launch exposed no MainWindowTitle, so that probe's title assertion failed, and native title verification relies on the successful Electron harness instead. Evidence: .validation/electron-release.json and .validation/release-process-name.json. The test-launched process was closed.
+
+Release ZIP updated: releases/MML Music Studio-win32-x64.zip. Transfer patch: mml-studio-borders-and-names-patch.zip. Existing releases must be replaced/rebuilt to receive EXE naming metadata.
+
+## Indexed draw culling and lighter note borders — 2026-09-07
+
+The old note renderer rejected off-screen rectangles only after scanning all project notes. Added a per-pitch balanced interval index so scrolling queries only intersecting pitch/time candidates. Held notes starting before the viewport remain visible; fixed-width Instructions account for zoom; original paint order is retained. The index rebuilds on note-array replacement, insertion/deletion count changes or instrument-role changes. Production timing edits use array replacement through commits/gestures. Box-selection previews evaluate only visible candidates while committed selections still include all intended notes.
+
+Removed the black edge and reduced the darkened border to a single inside stroke instead of eight rectangle draws. Note width and height are one pixel smaller than their cells (bottom/right gap; 1px minimum width), retaining 20/15px row spacing and exact musical timing. Tiny notes skip unreadable text, and label contrast colors are cached per color.
+
+Also removed repeated full-song serialization from unchanged density/character-limit overlay redraws. Density uses note identity/count/active-lane invalidation. Sheet-limit signatures are rebuilt only after note identity/count or instrument/limit settings change; scrolling reuses the cached calculation. Updated the density-edit regression to use the actual commit path rather than an unsupported direct in-place timing mutation. Future timing edits must continue replacing the note array, as current editor handlers do.
+
+Changed: new src/music/note-visibility.ts; src/rendering/notes.ts, src/rendering/note-density.ts, src/rendering/sheet-limit.ts, src/geometry.ts; corresponding five dist outputs; new tests/note-visibility.test.mjs, tests/run.cjs, tests/renderer.test.cjs, tests/electron-pitch-layout.cjs; PROJECT_MAP.md, PROGRESS.md.
+
+Actual validation: node tests/run.cjs passed incremental build and all 88 tests. New tests compare indexed queries with brute force over varied pitches/zooms and verify held notes, instruction edges and stable paint order. A 100,000-note fixture returns 7 visible notes with fewer than 150 start-property reads per warm query, instead of a full scan. Existing tests cover edits/undo/scopes/limits/density/selection; native tests/electron-pitch-layout.cjs passes real mouse creation/dragging with 19/14px note heights. build.bat completed executable branding and ZIP generation; both release-content/icon tests passed. This is a verified reduction in rendering work, not a claim that every source of large-project latency has been removed.
+
+Updated release ZIP: releases/MML Music Studio-win32-x64.zip. Transfer patch: mml-studio-draw-culling-patch.zip. Restart with the updated release to load these changes.
+
+## Keep 128th durations explicit in MS2 MML — 2026-09-07
+
+Corrected automatic default-length compaction: MS2 L instructions stop at L64, even though explicit c128 and r128 are valid. The optimizer no longer considers denominators above 64 as default states, so one-unit notes, rests and tied continuations retain their explicit suffix. Legal L64 compaction remains available. Shared generated output feeds channel text, character counts and sheet/export planning. Stored timing, version-2 JSON, grid options and the shared-dialect importer are unchanged.
+
+Changed: src/music/mml-optimizer.ts and dist/music/mml-optimizer.js; tests/mml.test.mjs; MML_GENERATION.md, PROJECT_MAP.md and PROGRESS.md. Existing unrelated workspace changes preserved.
+
+Actual validation: node tests/run.cjs completed the incremental-output build and all 89 tests passed. Initial sandboxed build failed on installed audio dependency directory access; rerunning with approved dependency access succeeded. The independent MML test reader now rejects default lengths above 64. Regression coverage includes repeated 128th notes/rests, mixed L64/128 phrases, tempo-boundary ties, exact generated timing and byte counts, plus exhaustive legal-default cost comparisons. Existing sheet, import and simulated renderer tests passed. No native UI or in-game validation performed.
+
+Transfer patch: mml-studio-explicit-128-patch.zip. Working source/dist updated; run build.bat to regenerate the portable executable release and its ZIP. Next: verify generated short-note passages in MS2 when available.
+
+## Dotted L defaults supported — 2026-09-07
+
+User clarification: L1. is valid and makes an inherited note longer. Extended default-length optimization to distinguish dotted and undotted defaults. Repeated dotted whole notes can now emit l1.ccc; explicit note/rest suffixes override the entire default, and 128 durations remain explicit. L instructions retain the denominator ceiling of 64. The importer already supports dotted L; no import or JSON change needed.
+
+Changed: src/music/mml-optimizer.ts, src/music/mml.ts and both dist outputs; tests/mml.test.mjs and tests/sheets.test.mjs independent decoders; MML_GENERATION.md, PROGRESS.md. PROJECT_MAP.md correction from the preceding patch is included in the combined archive.
+
+Actual validation: node tests/run.cjs passed incremental build and all 90 tests with approved installed dependency access. Added dotted-whole/dotted-64 defaults, explicit undotted/128 overrides, rests, tied tempo changes and generated 192-unit duration coverage. Existing synchronized sheet/export tests pass with dotted-aware independent timing decoding. No native UI or in-game testing performed.
+
+Combined transfer patch: mml-studio-length-defaults-patch.zip (supersedes the explicit-128-only patch). Run build.bat to update the portable release and full release ZIP. Next: in-game playback verification when available.

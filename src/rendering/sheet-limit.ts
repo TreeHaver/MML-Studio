@@ -4,9 +4,15 @@ import {KEY,HEAD} from '../constants.ts';
 import {sheetSettings} from '../sheet-settings.ts';
 import {createSheetPlanner} from '../music/sheets.ts';
 let previous='',boundary:number|null=null,tooSmall=false;
+let previousNotes:typeof state.project.notes|undefined,count=-1,settings='';
 export function drawSheetLimit(){
  const instrument=state.project.instruments[state.active];if(!instrument||instrument.isInstructions)return;
- const signature=JSON.stringify([state.active,instrument,sheetSettings.limit,state.project.notes.filter(n=>n.instrument===state.active||n.tempo!=null)]);
+ const nextSettings=JSON.stringify([state.active,instrument,sheetSettings.limit]);
+ let signature=previous;
+ if(previousNotes!==state.project.notes||count!==state.project.notes.length||settings!==nextSettings){
+  previousNotes=state.project.notes;count=previousNotes.length;settings=nextSettings;
+  signature=JSON.stringify([settings,previousNotes.filter(n=>n.instrument===state.active||n.tempo!=null)]);
+ }
  if(signature!==previous){
   previous=signature;boundary=null;tooSmall=false;
   try{const plan=createSheetPlanner(state.project,state.active,sheetSettings.limit);

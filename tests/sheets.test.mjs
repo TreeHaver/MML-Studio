@@ -5,13 +5,13 @@ import {importMml} from '../dist/import/mml.js';
 const note=(id,start,length,pitch=60,volume=null,tempo=null,instrument=0)=>({id,start,length,pitch,volume,tempo,instrument});
 const project=notes=>({format:'mml-studio',version:2,grid:4,instruments:[{name:'Piano',color:'#abcdef'},{name:'Instructions',color:'#abcdef',isInstructions:true}],notes});
 function read(text){
- let tick=0,octave=4,volume=8,defaultLength=4,tie=false;const notes=[],tempos=[];
- const tokens=text.match(/[tovl]-?\d+|[a-gr][+]?\d*\.?|&/g)??[];assert.equal(tokens.join(''),text);
+ let tick=0,octave=4,volume=8,defaultLength=32,tie=false;const notes=[],tempos=[];
+ const tokens=text.match(/[tov]-?\d+|l\d+\.?|[a-gr][+]?\d*\.?|&/g)??[];assert.equal(tokens.join(''),text);
  for(const token of tokens){const c=token[0],value=Number(token.slice(1));
   if(tie)assert.match(token,/^[a-g]\+?\d*\.?$/);
-  if(c==='l'){defaultLength=value;continue;}
+  if(c==='l'){defaultLength=128/value*(token.endsWith('.')?1.5:1);continue;}
   if(c==='t'){tempos.push([tick,value]);continue;}if(c==='o'){octave=value;continue;}if(c==='v'){volume=value;continue;}if(c==='&'){tie=true;continue;}
-  const m=token.match(/^([a-gr])(\+?)(\d*)(\.?)$/),length=128/(m[3]?Number(m[3]):defaultLength)*(m[4]?1.5:1);
+  const m=token.match(/^([a-gr])(\+?)(\d*)(\.?)$/),length=(m[3]?128/Number(m[3]):defaultLength)*(m[4]?1.5:1);
   if(c!=='r'){const pitch=(octave+1)*12+({c:0,d:2,e:4,f:5,g:7,a:9,b:11}[c])+(m[2]?1:0);if(tie){assert.equal(notes.at(-1).pitch,pitch);notes.at(-1).length+=length;}else notes.push({start:tick,length,pitch,volume});}tie=false;tick+=length;
  }return {notes,tempos,tick};
 }

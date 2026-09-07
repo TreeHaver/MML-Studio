@@ -2,15 +2,15 @@ import { ctx, view } from '../dom.js';
 import { state } from '../state.js';
 import { KEY, HEAD } from '../constants.js';
 import { crowdedRegions } from '../music/note-density.js';
-let signature = '', regions = [];
+let previous, count = -1, active = -1, regions = [];
 export function drawCrowdedRegions() {
     if (state.project.instruments[state.active]?.isInstructions)
         return;
-    const notes = state.project.notes.filter(n => n.instrument === state.active);
-    const next = JSON.stringify(notes.map(n => [n.start, n.length]));
-    if (next !== signature) {
-        signature = next;
-        regions = crowdedRegions(notes);
+    if (previous !== state.project.notes || count !== state.project.notes.length || active !== state.active) {
+        previous = state.project.notes;
+        count = previous.length;
+        active = state.active;
+        regions = crowdedRegions(previous.filter(n => n.instrument === active));
     }
     ctx.save();
     ctx.fillStyle = '#ffd60026';

@@ -6,7 +6,8 @@ import { input, status } from './dom.js';
 import { state } from './state.js';
 import { valid } from './model/validation.js';
 import { syncSegment, fitsCurrentView } from './segment-session.js';
-export function refresh() { syncSegment(); input('project-name').value = state.project.name || 'Untitled'; input('grid').value = String(state.project.grid); instruments(); info(); layout(); }
+export function refreshTitle() { document.title = `MML Music Studio - ${state.project.name || 'Untitled'}`; }
+export function refresh() { syncSegment(); refreshTitle(); input('project-name').value = state.project.name || 'Untitled'; input('grid').value = String(state.project.grid); instruments(); info(); layout(); }
 export function commitNotes(notes) { if (!fitsCurrentView({ ...state.project, notes })) {
     status('This edit extends beyond the current view. Return to Project to edit across its boundary.');
     info();

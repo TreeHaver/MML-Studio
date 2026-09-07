@@ -1,9 +1,9 @@
 import {checkpoint} from './history.ts';
 import {importMml} from './import/mml.ts';
 import {stopPlayback} from './playback/transport.ts';
-import {refresh} from './commands.ts';
+import {refresh,refreshTitle} from './commands.ts';
 import {$,status,view} from './dom.ts';
-import {ROW} from './constants.ts';
+import {pitchTop} from './music/pitch-layout.ts';
 import {draw} from './painting.ts';
 import {state,resetInstrumentView} from './state.ts';
 import {fresh} from './model/project.ts';
@@ -13,7 +13,7 @@ import {fullProject,resetSegment} from './segment-session.ts';
 
 
 export function installFiles(){
-$('project-name').onchange=()=>{const name=($('project-name') as HTMLInputElement).value.trim()||'Untitled';if(name!==(state.project.name||'Untitled')){checkpoint();state.project.name=name;}($('project-name') as HTMLInputElement).value=name;};
+$('project-name').onchange=()=>{const name=($('project-name') as HTMLInputElement).value.trim()||'Untitled';if(name!==(state.project.name||'Untitled')){checkpoint();state.project.name=name;}($('project-name') as HTMLInputElement).value=name;refreshTitle();};
 let importing=false;
 $('import-midi').onclick=async()=>{
  if(importing)return;importing=true;($('import-midi') as HTMLButtonElement).disabled=true;
@@ -25,7 +25,7 @@ $('import-midi').onclick=async()=>{
   if(state.dirty&&!confirm('Replace the current project with this import and discard unsaved changes?'))return;
   stopPlayback(false);resetInstrumentView();resetSegment();state.project=imported.project;state.project.name=file.name.replace(/\.[^.]+$/,'')||'Untitled';state.selection.clear();state.active=0;
   state.history=[];state.future=[];state.dirty=true;view.scrollLeft=0;
-  refresh();view.scrollTop=Math.max(0,(state.topPitch-(state.project.notes.find(n=>n.instrument===0)?.pitch??60)-5)*ROW);draw();
+  refresh();view.scrollTop=Math.max(0,pitchTop(state.topPitch,(state.project.notes.find(n=>n.instrument===0)?.pitch??60)+5));draw();
   const count=state.project.instruments.length;
   const instructions=state.project.notes.filter(n=>state.project.instruments[n.instrument].isInstructions).length;
   const summary=`Imported ${imported.noteCount} note${imported.noteCount===1?'':'s'}${instructions?` and ${instructions} unbound instruction${instructions===1?'':'s'}`:''} from ${file.name} into ${count} instrument${count===1?'':'s'}. Save JSON to keep this project.`;

@@ -6,14 +6,14 @@ const note=(id,start,length,pitch=60,volume=null,instrument=0,tempo=null)=>({id,
 const project=notes=>({format:'mml-studio',version:2,grid:4,instruments:[{name:'Piano',color:'#fff'},{name:'Instructions',color:'#fff',isInstructions:true}],notes});
 // Independent reader checks actual emitted timing, pitch, ties and controller state.
 function read(text){
- let tick=0,octave=4,volume=8,tempo=120,defaultLength=4,tie=false;const notes=[],tempos=[];
- const tokens=text.match(/[tovl]-?\d+|[a-gr][+]?\d*\.?|&/g)??[];
+ let tick=0,octave=4,volume=8,tempo=120,defaultLength=32,tie=false;const notes=[],tempos=[];
+ const tokens=text.match(/[tov]-?\d+|l\d+\.?|[a-gr][+]?\d*\.?|&/g)??[];
  assert.equal(tokens.join(''),text);
  for(const token of tokens){const c=token[0],value=Number(token.slice(1));
   if(tie)assert.match(token,/^[a-g]\+?\d*\.?$/,'& must immediately prefix its continued note');
-  if(c==='l'){defaultLength=value;continue;}
+  if(c==='l'){assert.ok(value>=1&&value<=64,'MS2 default length must be L1–L64');defaultLength=128/value*(token.endsWith('.')?1.5:1);continue;}
   if(c==='t'){tempo=value;tempos.push([tick,tempo]);continue;}if(c==='o'){octave=value;continue;}if(c==='v'){volume=value;continue;}if(c==='&'){tie=true;continue;}
-  const m=token.match(/^([a-gr])(\+?)(\d*)(\.?)$/),length=128/(m[3]?Number(m[3]):defaultLength)*(m[4]?1.5:1);
+  const m=token.match(/^([a-gr])(\+?)(\d*)(\.?)$/),length=(m[3]?128/Number(m[3]):defaultLength)*(m[4]?1.5:1);
   if(c!=='r'){const pitch=(octave+1)*12+({c:0,d:2,e:4,f:5,g:7,a:9,b:11}[c])+(m[2]?1:0);if(tie){assert.equal(notes.at(-1).pitch,pitch);notes.at(-1).length+=length;}else notes.push({start:tick,length,pitch,volume});}
   tie=false;tick+=length;
  }
@@ -69,10 +69,36 @@ test('optimizer chooses length defaults across interruptions and preserves dots,
  const source='t120o4v8'+('c16d16r16e16.').repeat(3)+'t150& e16'.replace(' ','')+'c4'+('f8g8').repeat(4);
  const result=optimizeInstructions(source);
  assert.deepEqual(read(result),read(source));
- assert.match(result,/l16/);assert.match(result,/l8/);assert.doesNotMatch(result,/l\d+\./);
+ assert.match(result,/l16/);assert.match(result,/l8/);
  assert.doesNotMatch(result,/&[ltov]/);assert.ok(result.length<source.length-25);
  assert.equal(optimizeInstructions('c8c4c8'),'c8cc8','an isolated length must not introduce unprofitable L');
  assert.equal(optimizeInstructions('c4'.repeat(20)),'c'.repeat(20));
+});
+
+test('128th notes and rests stay explicit while L64 remains available',()=>{
+ for(const source of ['c128'.repeat(12),'r128'.repeat(12),('c64r64').repeat(8)+('c128r128').repeat(8)+('d64r64').repeat(8),('c128t150&c128').repeat(8)]){
+  const result=optimizeInstructions(source);
+  assert.deepEqual(read(result),read(source));
+  assert.equal((result.match(/(?:[a-gr])128/g)??[]).length,(source.match(/(?:[a-gr])128/g)??[]).length);
+ }
+ assert.equal(optimizeInstructions('c64'.repeat(12)),'l64'+'c'.repeat(12));
+ const p=project([note(1,0,4),note(2,5,1),note(3,7,1),note(4,9,1),...Array.from({length:3},(_,i)=>note(10+i,i+1,1,60,0,1,130+i*10))]);
+ const result=generateMml(p,0),decoded=read(result.channels[0]);
+ assert.deepEqual(decoded.notes,p.notes.filter(n=>n.instrument===0).map(n=>({start:n.start,length:n.length,pitch:n.pitch,volume:8})));
+ assert.deepEqual(decoded.tempos,[[0,120],[1,130],[2,140],[3,150]]);
+ assert.match(result.channels[0],/t130&c128t140&c128t150&c128/);
+ assert.match(result.channels[0],/r128c128/);
+ assert.equal(result.bytes,Buffer.byteLength(result.channels.join('')));
+});
+
+test('dotted L defaults lengthen inherited notes and preserve explicit overrides',()=>{
+ assert.equal(optimizeInstructions('c1.'.repeat(12)),'l1.'+'c'.repeat(12));
+ for(const source of [('c1.r1.').repeat(8)+'c1c128r128'+('d1.').repeat(8),('c64.r64.').repeat(8)+'c64'+('e64.').repeat(8),('c1.t150&c1.').repeat(8)]){
+  assert.deepEqual(read(optimizeInstructions(source)),read(source));
+ }
+ const result=generateMml(project(Array.from({length:8},(_,i)=>note(i,i*192,192))),0);
+ assert.match(result.channels[0],/l1\./);
+ assert.deepEqual(read(result.channels[0]).notes.map(n=>n.length),Array(8).fill(192));
 });
 
 test('volume optimization removes only redundant commands and preserves silence and restored dynamics',()=>{
@@ -87,11 +113,11 @@ test('volume optimization removes only redundant commands and preserves silence 
 });
 
 test('length default selection matches exhaustive minimum cost for short mixed phrases',()=>{
- const lengths=['4','8','16'];
+ const lengths=['4','64','128'];
  function best(sequence,state='4',index=0){
   if(index===sequence.length)return 0;
   const length=sequence[index];
-  return Math.min((length===state?0:length.length)+best(sequence,state,index+1),1+length.length+best(sequence,length,index+1));
+  return Math.min((length===state?0:length.length)+best(sequence,state,index+1),Number(length)<=64?1+length.length+best(sequence,length,index+1):Infinity);
  }
  for(let code=0;code<729;code++){
   let value=code;const sequence=Array.from({length:6},()=>{const length=lengths[value%3];value=Math.floor(value/3);return length;});

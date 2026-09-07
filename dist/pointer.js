@@ -7,7 +7,8 @@ import { commitNotes, refresh } from './commands.js';
 import { historySnapshot, fitsCurrentView } from './segment-session.js';
 import { canvas, status, view } from './dom.js';
 import { state, isMuted } from './state.js';
-import { KEY, HEAD, ROW, threshold } from './constants.js';
+import { KEY, HEAD, threshold } from './constants.js';
+import { pitchTop, pitchAtY, pitchHeight } from './music/pitch-layout.js';
 import { cellStart } from './music/timing.js';
 import { valid } from './model/validation.js';
 import { move, resize } from './music/note-operations.js';
@@ -215,8 +216,11 @@ export function installPointer() {
             paint(state.gesture.music, musical(p));
             state.gesture.music = musical(p);
         }
-        if (state.gesture.kind === 'move')
-            state.project.notes = move(state.gesture.base, state.selection, state.gesture.anchor, dx / state.zoom, state.project.instruments[state.active].isInstructions ? 0 : Math.round(-dy / ROW), state.project.grid);
+        if (state.gesture.kind === 'move') {
+            const note = state.gesture.base.find(n => n.id === state.gesture.anchor);
+            const pitch = pitchAtY(state.topPitch, pitchTop(state.topPitch, note.pitch) + pitchHeight(note.pitch) / 2 + dy);
+            state.project.notes = move(state.gesture.base, state.selection, state.gesture.anchor, dx / state.zoom, state.project.instruments[state.active].isInstructions ? 0 : pitch - note.pitch, state.project.grid);
+        }
         if (state.gesture.kind === 'resize')
             state.project.notes = resize(state.gesture.base, state.gesture.nid, state.gesture.length + dx / state.zoom, state.project.grid);
         info();

@@ -6,7 +6,7 @@ import {optimizeInstructions} from './mml-optimizer.ts';
 export type MmlResult={channels:string[],bytes:number,warnings:string[]};
 const pitches=['c','c+','d','d+','e','f','f+','g','g+','a','a+','b'];
 // Every stored integer duration is exact. Ties are duration decomposition,
-// not snapping to the editor grid. Dots apply to notes, never to L commands.
+// not snapping to the editor grid. The optimizer may use dotted L defaults.
 const lengths=Array.from({length:8},(_,i)=>2**i).flatMap(d=>[
  {units:128/d,text:String(d)},...(d<128?[{units:192/d,text:d+'.'}]:[])
 ]).sort((a,b)=>b.units-a.units);

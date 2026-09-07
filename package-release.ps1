@@ -72,6 +72,10 @@ try {
         Copy-Item -LiteralPath $_.FullName -Destination $releasePath -Recurse
     }
     Rename-Item -LiteralPath (Join-Path $releasePath 'electron.exe') -NewName 'MML Music Studio.exe'
+    # Embed the existing blue note-M icon in the copied executable before ZIPping.
+    if (-not ('StudioExecutableIcon' -as [type])) { Add-Type -Path (Join-Path $projectRoot 'build-icon.cs') }
+    [StudioExecutableIcon]::Apply((Join-Path $releasePath 'MML Music Studio.exe'), (Join-Path $projectRoot 'assets\logo.ico'), $manifest.version)
+    Write-Host 'Embedded MML Studio executable icon and application metadata.'
     $defaultApp = Join-Path $releasePath 'resources\default_app.asar'
     if (Test-Path -LiteralPath $defaultApp) { Remove-Item -LiteralPath $defaultApp }
     Copy-Item -LiteralPath $stagePath -Destination (Join-Path $releasePath 'resources\app') -Recurse

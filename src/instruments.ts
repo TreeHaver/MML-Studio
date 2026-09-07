@@ -8,7 +8,7 @@ import {info} from './inspector.ts';
 import {checkpoint} from './history.ts';
 import {refresh} from './commands.ts';
 import {$,view} from './dom.ts';
-import {ROW} from './constants.ts';
+import {pitchTop} from './music/pitch-layout.ts';
 import {updatePlaybackMutes,updatePlaybackVoices} from './playback/transport.ts';
 import {state,instrumentView} from './state.ts';
 import {colors} from './model/project.ts';
@@ -25,7 +25,7 @@ export function instruments(){
  button.title=i.name+' · click again to collapse';button.setAttribute('aria-expanded',String(!collapsed));
  const select=()=>{
   if(index===state.active)return;
-  state.active=index;state.selection.clear();document.querySelectorAll('.instrument-name').forEach((el,j)=>el.classList.toggle('active',j===index));document.querySelectorAll('.instrument').forEach((el,j)=>el.classList.toggle('selected',j===index));$('editing-instrument').textContent=i.name;if(i.isInstructions){const event=state.project.notes.find(n=>n.instrument===index);view.scrollTop=Math.max(0,(state.topPitch-(event?.pitch??60)-5)*ROW);}info();draw();
+  state.active=index;state.selection.clear();document.querySelectorAll('.instrument-name').forEach((el,j)=>el.classList.toggle('active',j===index));document.querySelectorAll('.instrument').forEach((el,j)=>el.classList.toggle('selected',j===index));$('editing-instrument').textContent=i.name;if(i.isInstructions){const event=state.project.notes.find(n=>n.instrument===index);view.scrollTop=Math.max(0,pitchTop(state.topPitch,(event?.pitch??60)+5));}info();draw();
  };
  button.onclick=()=>{
   const collapse=index===state.active&&!instrumentView.collapsed.has(index);

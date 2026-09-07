@@ -36,7 +36,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  mmlBox().children[1].children[0].checked=true;mmlBox().children[1].children[0].onchange();
  click(158,240);assert.equal(run('project.notes.length'),1);
  drag(252,240,348,240);assert.equal(run('project.notes[0].length'),64);
- drag(165,240,261,200);assert.equal(run('project.notes[0].start'),64);assert.equal(run('project.notes[0].pitch'),70);
+ drag(165,240,261,200);assert.equal(run('project.notes[0].start'),64);assert.equal(run('project.notes[0].pitch'),69);
  run("setTool('select')");drag(245,175,455,220);assert.equal(run('selection.size'),1);
  doc.onkeydown({key:'Delete',target:new El(),preventDefault(){}});assert.equal(run('project.notes.length'),0);
  run("setTool('spray')");drag(250,240,538,240);assert.deepEqual(run('project.notes.map(n=>n.start)'),[32,64,96,128]);run("selection.clear();setTool('select')");const moveGeometry=(await load('src/geometry.ts')).namespace,firstPaint=moveGeometry.rect(run('project.notes[0]'));drag(firstPaint.x+4,firstPaint.y+4,firstPaint.x+100,firstPaint.y+4);assert.equal(run('selection.size'),1);assert.equal(run('project.notes[0].start'),64);run('selection=new Set(project.notes.map(n=>n.id))');doc.onkeydown({key:'Delete',target:new El(),preventDefault(){}});
@@ -70,7 +70,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  run('project.instruments.push({name:"Other",color:"#fff"});state.active=1');
  doc.getElementById('view').scrollTop+=20;
  click(20,240);await new Promise(setImmediate);
- assert.deepEqual(previewCalls.at(-1),{pitch:expected-1,program:0});
+ assert.deepEqual(previewCalls.at(-1),{pitch:65,program:0}); // 20px crosses a 15px sharp row here.
  // Instructions create one-unit silent events, allow horizontal movement,
  // and draw a yellow global line even while another instrument is active.
  (await load('src/commands.ts')).namespace.refresh();
@@ -195,7 +195,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  run('project.notes=Array.from({length:10},(_,i)=>({id:i,instrument:0,start:0,length:100,pitch:60+i,volume:8}));project.notes.push({id:11,instrument:0,start:20,length:10,pitch:75,volume:8});state.active=0;state.zoom=1');
  doc.getElementById('view').scrollLeft=0;fills.length=0;paint.draw();
  const yellow=()=>fills.filter(f=>f.color==='#ffd60026');assert.equal(yellow().length,1);assert.equal(yellow()[0].x,82);assert.equal(yellow()[0].w,10);
- run('project.notes.at(-1).length=20');fills.length=0;paint.draw();assert.equal(yellow()[0].w,20);
+ (await load('src/commands.ts')).namespace.commitNotes(run('project.notes.map(n=>n.id===11?{...n,length:20}:n)'));fills.length=0;paint.draw();assert.equal(yellow()[0].w,20);
  run('state.active=1');fills.length=0;paint.draw();assert.equal(yellow().length,0);
  run('state.active=0;project.notes.pop()');fills.length=0;paint.draw();assert.equal(yellow().length,0);
 
@@ -307,7 +307,8 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  returnProject.onclick();assert.equal(run('state.segment'),null);assert.equal(doc.getElementById('segment-view-label').hidden,true);assert.ok(run('project.notes.some(n=>n.start===96&&n.pitch===72)'));
  (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project)'),originalAlbum); // undo also works after leaving
  transport.seekToTick(120);openSegment.onclick();
- view.scrollTop=(run('state.topPitch')-78)*20;click(KEY+40*3,HEAD+8*20+8);
+ const pitchLayout=(await load('src/music/pitch-layout.ts')).namespace;
+ view.scrollTop=pitchLayout.pitchTop(run('state.topPitch'),78);click(KEY+40*3,HEAD+pitchLayout.pitchTop(78,70)+pitchLayout.pitchHeight(70)/2);
  assert.ok(run('state.segment.root.notes.some(n=>n.start===128&&n.pitch===70)'));
  (await load('src/history.ts')).namespace.undo();assert.equal(run('state.segment.root.notes.some(n=>n.pitch===70)'),false);
  run('selection=new Set([6])');doc.onkeydown({key:'Delete',target:new El(),preventDefault(){}});
@@ -345,5 +346,25 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),initialMeter);
  transport.seekToTick(20);currentSignature.onfocus();currentSignature.value='5/4';currentSignature.onchange();
  assert.deepEqual(plain('project.notes.filter(n=>n.timeSignature).map(n=>[n.start,n.timeSignature])'),[[0,'5/4']]);
+
+ // Actual uneven-row hit testing, full-cell note height, and semitone dragging.
+ run('project.notes=[];selection.clear();state.active=0;state.zoom=3;setTool("draw")');commands.refresh();
+ view.scrollLeft=0;view.scrollTop=pitchLayout.pitchTop(run('state.topPitch'),72);
+ for(let pitch=72;pitch>=60;pitch--){
+  const y=HEAD+pitchLayout.pitchTop(72,pitch)+pitchLayout.pitchHeight(pitch)/2;
+  click(KEY+15,y);
+  const added=run('project.notes.at(-1)'),bounds=geometry.rect(added);
+  assert.equal(added.pitch,pitch);assert.equal(bounds.h,pitchLayout.pitchHeight(pitch)-1);assert.equal(bounds.w,added.length*run("state.zoom")-1);
+  assert.equal(bounds.y+bounds.h/2,y-.5);assert.equal(geometry.hit({x:bounds.x+5,y}).id,added.id);
+ }
+ const lowC=run('project.notes.find(n=>n.pitch===60)'),lowBounds=geometry.rect(lowC);
+ run(`selection=new Set([${lowC.id}]);setTool("select")`);
+ drag(lowBounds.x+8,lowBounds.y+7,lowBounds.x+104,HEAD+pitchLayout.pitchTop(72,61)+7.5);
+ assert.equal(run(`project.notes.find(n=>n.id===${lowC.id}).pitch`),61);
+ assert.equal(run(`project.notes.find(n=>n.id===${lowC.id}).start`),32);
+ const titleBefore=run('project.name');projectName.value='Blue Moon';projectName.onchange();
+ assert.equal(doc.title,'MML Music Studio - Blue Moon');
+ (await load('src/history.ts')).namespace.undo();assert.equal(doc.title,'MML Music Studio - '+titleBefore);
+ doc.getElementById('new').onclick();assert.equal(doc.title,'MML Music Studio - Untitled');
 
 });
