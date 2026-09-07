@@ -29,7 +29,7 @@ app.whenReady().then(()=>{
 ipcMain.handle('save',async(_,text)=>{if(typeof text!=='string')throw Error('Invalid project');const r=await fileDialog('showSaveDialog',{defaultPath:safeFileStem(JSON.parse(text).name)+'.json',filters:[{name:'Studio JSON',extensions:['json']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text);return true;});
 ipcMain.handle('open',async()=>{const r=await fileDialog('showOpenDialog',{properties:['openFile'],filters:[{name:'Studio JSON',extensions:['json']}]});return r.canceled?null:fs.readFile(r.filePaths[0],'utf8');});
 ipcMain.handle('import-midi',async()=>{
- const r=await fileDialog('showOpenDialog',{title:'Import MIDI or MML',properties:['openFile'],filters:[{name:'MIDI and MML files',extensions:['mid','midi','mml','ms2mml','mne']}]});
+ const r=await fileDialog('showOpenDialog',{title:'Import MIDI or MML',properties:['openFile'],filters:[{name:'MIDI and MML files',extensions:['mid','midi','mml','ms2mml','mne']},{name:'Text files',extensions:['txt','xml']},{name:'All files',extensions:['*']}]});
  if(r.canceled)return null;
  const file=r.filePaths[0],bytes=await fs.readFile(file);
  return {name:path.basename(file),bytes:new Uint8Array(bytes)};

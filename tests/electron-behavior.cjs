@@ -47,6 +47,6 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  const boxes=await evaluate(`(()=>{const field=document.getElementById('current-signature').getBoundingClientRect(),caption=document.querySelector('.editor-caption').getBoundingClientRect();return {inside:field.right<=caption.right&&field.bottom<=caption.bottom,height:caption.height};})()`);assert.ok(boxes.inside);checks.push(boxes);
  fs.writeFileSync('.validation/electron-behavior.png',(await win.webContents.capturePage()).toPNG());
  win.setSize(900,700);await wait(150);
- assert.ok(await evaluate(`(()=>{const editor=document.querySelector('.editor').getBoundingClientRect();return [...document.querySelectorAll('.playback-settings label,.playback-settings #playback-position')].every(el=>el.getBoundingClientRect().right<=editor.right);})()`),'Playback settings fit a 900px window');
+ assert.ok(await evaluate(`(()=>{const editor=document.querySelector('.editor').getBoundingClientRect();return [...document.querySelectorAll('.editor-caption .caption-control,.editor-caption #playback-position')].every(el=>el.getBoundingClientRect().right<=editor.right);})()`),'Playback settings fit a 900px window');
  stage='completed native section seek, editable meter, live/paused voice changes, held-note PCM, speed clock, master gain, rewind and responsive captions';finish();
  }catch(error){finish(error);}});});require('../main.cjs');

@@ -6,6 +6,11 @@ export function move(notes:Note[],ids:Set<number>,anchor:number,dt:number,dp:num
  const result=notes.map(n=>ids.has(n.id)?{...n,start:n.start+delta,pitch:n.pitch+dp}:n);
  return valid(result)?result:notes;
 }
+/** A new note may also be drawn backwards: its end stays in the cell the drag started in. */
+export function stretchBack(notes:Note[],id:number,start:number,end:number):Note[]{
+ const result=notes.map(n=>n.id===id?{...n,start,length:end-start}:n);
+ return valid(result)?result:notes;
+}
 export function resize(notes:Note[],id:number,length:number,grid:number):Note[]{
  const result=notes.map(n=>n.id===id?{...n,length:Math.max(128/grid,snap(length,grid))}:n);
  return valid(result)?result:notes;

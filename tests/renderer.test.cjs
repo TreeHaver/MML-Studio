@@ -194,7 +194,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  // Yellow crowding boxes follow the selected instrument and edits.
  run('project.notes=Array.from({length:10},(_,i)=>({id:i,instrument:0,start:0,length:100,pitch:60+i,volume:8}));project.notes.push({id:11,instrument:0,start:20,length:10,pitch:75,volume:8});state.active=0;state.zoom=1');
  doc.getElementById('view').scrollLeft=0;fills.length=0;paint.draw();
- const yellow=()=>fills.filter(f=>f.color==='#ffd60026');assert.equal(yellow().length,1);assert.equal(yellow()[0].x,82);assert.equal(yellow()[0].w,10);
+ const yellow=()=>fills.filter(f=>f.color==='#f0b90016');assert.equal(yellow().length,1);assert.equal(yellow()[0].x,82);assert.equal(yellow()[0].w,10);
  (await load('src/commands.ts')).namespace.commitNotes(run('project.notes.map(n=>n.id===11?{...n,length:20}:n)'));fills.length=0;paint.draw();assert.equal(yellow()[0].w,20);
  run('state.active=1');fills.length=0;paint.draw();assert.equal(yellow().length,0);
  run('state.active=0;project.notes.pop()');fills.length=0;paint.draw();assert.equal(yellow().length,0);
@@ -366,5 +366,26 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.equal(doc.title,'MML Music Studio - Blue Moon');
  (await load('src/history.ts')).namespace.undo();assert.equal(doc.title,'MML Music Studio - '+titleBefore);
  doc.getElementById('new').onclick();assert.equal(doc.title,'MML Music Studio - Untitled');
+
+ // Drawing a note backwards grows it to the left of the cell the drag started in.
+ run('project.grid=4;project.notes=[];selection.clear();state.history=[];state.future=[];state.zoom=3');run('setTool("draw")');
+ commands.refresh();doc.getElementById('view').scrollLeft=0;
+ c.onpointerdown(event(350,240));const drawn=run('project.notes.at(-1)');
+ c.onpointermove(event(254,240));c.onpointerup(event(254,240));
+ const stretched=run('project.notes.at(-1)');
+ assert.equal(stretched.start,drawn.start-32,'dragging left moves the new note back a cell');
+ assert.equal(stretched.length,64,'and its end stays in the cell the drag started in');
+ // Right button erases: a click removes one note, holding it removes everything it crosses.
+ prefs.resetInstrumentView();
+ run('project.notes=[{id:1,instrument:0,start:0,length:32,pitch:60,volume:8},{id:2,instrument:0,start:64,length:32,pitch:60,volume:8},{id:3,instrument:0,start:128,length:32,pitch:60,volume:8}];state.active=0;state.history=[];state.future=[];selection.clear();state.zoom=3');
+ commands.refresh();
+ const middle=id=>{const r=geometry.rect(run(`project.notes.find(n=>n.id===${id})`));return {x:r.x+r.w/2,y:r.y+r.h/2};};
+ const rightButton=(x,y)=>({clientX:x,clientY:y,button:2,pointerId:9,preventDefault(){}});
+ const firstNote=middle(1),thirdNote=middle(3);
+ c.onpointerdown(rightButton(firstNote.x,firstNote.y));
+ assert.equal(run('project.notes.length'),2,'a right click removes the note under the pointer');
+ c.onpointermove(rightButton(thirdNote.x,thirdNote.y));c.onpointerup(rightButton(thirdNote.x,thirdNote.y));
+ assert.equal(run('project.notes.length'),0,'holding the right button erases every note the pointer crosses');
+ assert.equal(run('state.history.length'),1,'the whole erase drag is a single undo step');
 
 });

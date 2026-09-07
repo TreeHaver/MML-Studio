@@ -14,7 +14,7 @@ export function importMml(text:string,name='MML'){
   const xml=text.replace(/^<\?xml[^?]*\?>\s*/i,'').replace(/<!--[\s\S]*?-->/g,'');
   if(!/^<ms2\s*>[\s\S]*<\/ms2>\s*$/i.test(xml))throw Error('Invalid MS2MML XML.');
   let body=xml.replace(/^<ms2\s*>/i,'').replace(/<\/ms2>\s*$/i,'');const channels:string[]=[];
-  body=body.replace(/<(melody|chord)(?:\s+index="\d+")?\s*>([\s\S]*?)<\/\1>/gi,(_,tag,content)=>{
+  body=body.replace(/<(melody|chord)(?:\s+[\w-]+="[^"]*")*\s*>([\s\S]*?)<\/\1>/gi,(_,tag,content)=>{
    channels.push(content.replace(/<!\[CDATA\[([\s\S]*?)\]\]>|&(?:amp|lt|gt|quot|apos);/g,(token:string,cdata:string)=>cdata!==undefined?cdata:({'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'"','&apos;':"'"}[token]!)));return '';
 
   });
@@ -48,10 +48,14 @@ export function importMml(text:string,name='MML'){
    while(p<s.length){const c=s[p++];
     if(c==='o'){const sign=s[p]==='-'?(p++,-1):1;octave=sign*number(true)!;continue;}
     if(c==='<'||c==='>'){octave+=c==='>'?1:-1;continue;}
-    if(c==='l'){if(!/\d/.test(s[p]??''))throw Error('L needs a length.');defaultLength=length();continue;}
+    if(c==='l'){if(!/\d/.test(s[p]??'')){warnings.add('An L with no length was ignored; the previous default length still applies.');continue;}defaultLength=length();continue;}
     if(c==='v'){volume=number(true)!;if(volume>15)throw Error('Volume outside model range 0–15.');continue;}
     if(c==='t'){const bpm=number(true)!;if(bpm<1)throw Error('Tempo must be a positive integer.');const at=Math.round(tick);if(tempos.has(at)&&tempos.get(at)!==bpm)throw Error('Conflicting global tempos at '+at);tempos.set(at,bpm);continue;}
-    if(c==='&'){if(tie||!last)throw Error('Invalid tie.');tie=true;continue;}
+    if(c==='&'){if(!last)throw Error('Invalid tie.');if(tie)warnings.add('Repeated tie markers were treated as one; no notes were changed.');tie=true;continue;}
+    // Converters annotate measures as M29, M30 …; verified to land on exact measure boundaries.
+    if(c==='m'){number();warnings.add('Measure labels from the source editor were ignored; they mark positions and carry no sound.');continue;}
+    // MS2 sheets carry s0/s1 switches this model has no equivalent for; skipping them keeps the notes.
+    if(c==='s'){number();warnings.add("'s' commands (s0/s1) are not represented by this editor and were ignored. Notes, timing and volumes are unchanged.");continue;}
     if(!'cdefgabnr'.includes(c))throw Error('Unsupported MML token '+JSON.stringify(c)+' at '+(p-1));
     let pitch=c==='n'?number(true)!:(octave+1)*12+({c:0,d:2,e:4,f:5,g:7,a:9,b:11}[c]??0);
     if(c!=='n'&&c!=='r'&&['+','#','-'].includes(s[p]))pitch+=s[p++]==='-'?-1:1;

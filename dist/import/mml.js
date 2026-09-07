@@ -16,7 +16,7 @@ export function importMml(text, name = 'MML') {
             throw Error('Invalid MS2MML XML.');
         let body = xml.replace(/^<ms2\s*>/i, '').replace(/<\/ms2>\s*$/i, '');
         const channels = [];
-        body = body.replace(/<(melody|chord)(?:\s+index="\d+")?\s*>([\s\S]*?)<\/\1>/gi, (_, tag, content) => {
+        body = body.replace(/<(melody|chord)(?:\s+[\w-]+="[^"]*")*\s*>([\s\S]*?)<\/\1>/gi, (_, tag, content) => {
             channels.push(content.replace(/<!\[CDATA\[([\s\S]*?)\]\]>|&(?:amp|lt|gt|quot|apos);/g, (token, cdata) => cdata !== undefined ? cdata : ({ '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'" }[token])));
             return '';
         });
@@ -80,8 +80,10 @@ export function importMml(text, name = 'MML') {
                     continue;
                 }
                 if (c === 'l') {
-                    if (!/\d/.test(s[p] ?? ''))
-                        throw Error('L needs a length.');
+                    if (!/\d/.test(s[p] ?? '')) {
+                        warnings.add('An L with no length was ignored; the previous default length still applies.');
+                        continue;
+                    }
                     defaultLength = length();
                     continue;
                 }
@@ -102,9 +104,23 @@ export function importMml(text, name = 'MML') {
                     continue;
                 }
                 if (c === '&') {
-                    if (tie || !last)
+                    if (!last)
                         throw Error('Invalid tie.');
+                    if (tie)
+                        warnings.add('Repeated tie markers were treated as one; no notes were changed.');
                     tie = true;
+                    continue;
+                }
+                // Converters annotate measures as M29, M30 …; verified to land on exact measure boundaries.
+                if (c === 'm') {
+                    number();
+                    warnings.add('Measure labels from the source editor were ignored; they mark positions and carry no sound.');
+                    continue;
+                }
+                // MS2 sheets carry s0/s1 switches this model has no equivalent for; skipping them keeps the notes.
+                if (c === 's') {
+                    number();
+                    warnings.add("'s' commands (s0/s1) are not represented by this editor and were ignored. Notes, timing and volumes are unchanged.");
                     continue;
                 }
                 if (!'cdefgabnr'.includes(c))

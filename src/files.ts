@@ -29,11 +29,20 @@ $('import-midi').onclick=async()=>{
   const count=state.project.instruments.length;
   const instructions=state.project.notes.filter(n=>state.project.instruments[n.instrument].isInstructions).length;
   const summary=`Imported ${imported.noteCount} note${imported.noteCount===1?'':'s'}${instructions?` and ${instructions} unbound instruction${instructions===1?'':'s'}`:''} from ${file.name} into ${count} instrument${count===1?'':'s'}. Save JSON to keep this project.`;
-  status(summary);$('midi-summary').textContent=summary;
+  status(summary);$('midi-report-title').textContent='Import complete';$('midi-report-note').hidden=false;$('midi-summary').textContent=summary;
   $('midi-warnings').replaceChildren();
   for(const warning of imported.warnings){const li=document.createElement('li');li.textContent=warning;$('midi-warnings').append(li);}
   ($('midi-report') as HTMLDialogElement).showModal();
- }catch(error){status('Import failed: '+error);}
+ }catch(error){
+  // A failed import used to report only in the footer, which reads as "nothing happened".
+  const reason=String((error as any)?.message??error).replace(/^Error:\s*/,'');
+  status('Import failed: '+reason);
+  $('midi-report-title').textContent='Import failed';
+  $('midi-summary').textContent=reason;
+  $('midi-warnings').replaceChildren();
+  $('midi-report-note').hidden=true;
+  ($('midi-report') as HTMLDialogElement).showModal();
+ }
  finally{importing=false;($('import-midi') as HTMLButtonElement).disabled=false;}
 };
 $('midi-report-close').onclick=()=>($('midi-report') as HTMLDialogElement).close();

@@ -7,6 +7,8 @@ export function installChrome(){
  const menus=[$('file-menu'),$('theme-menu'),$('export-menu'),$('tools-menu')] as HTMLDetailsElement[];
  document.onclick=event=>{
   const target=event.target as HTMLElement;
+  // Our select lists are appended to <body>, so a click in one is not outside its menu.
+  if(target.closest('.select-panel'))return;
   for(const menu of menus)if(!menu.contains(target)||target.closest('button'))menu.open=false;
  };
  document.onkeyup=event=>{if(event.key==='Escape')for(const menu of menus){if(menu.open){menu.open=false;menu.querySelector('summary')?.focus();}}};

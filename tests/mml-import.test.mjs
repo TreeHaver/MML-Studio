@@ -40,3 +40,24 @@ test('large MML and unlimited channel counts are retained',()=>{
  assert.equal(importMml('MML@'+Array(20).fill('c4').join(',')+';').noteCount,20);
  assert.equal(importMml('o-1c4').project.notes[0].pitch,0);
 });
+
+test('real MS2 sheets: chord attributes, repeated ties, pedal switches, measure labels and a bare L',()=>{
+ // MS2 exports label channels chord="N"; only index="N" used to be recognised, so every sheet failed.
+ const xml='<?xml version="1.0" encoding="utf-8"?><ms2><melody><![CDATA[l8cde]]></melody><chord chord="1"><![CDATA[l8gab]]></chord><chord chord="2"><![CDATA[]]></chord></ms2>';
+ const sheet=importMml(xml,'Sheet');
+ assert.deepEqual(sheet.project.notes.map(n=>[n.start,n.length,n.pitch]),[[0,16,60],[16,16,62],[32,16,64],[0,16,67],[16,16,69],[32,16,71]]);
+ assert.equal(sheet.project.instruments.length,1);
+ // Annotations a converter leaves behind: none of them may move a note.
+ const plain=importMml('l8cdefg'),annotated=importMml('l8cdeM29s1lfgs0');
+ assert.deepEqual(annotated.project.notes.map(n=>[n.start,n.length,n.pitch]),plain.project.notes.map(n=>[n.start,n.length,n.pitch]));
+ assert.ok(annotated.warnings.some(w=>/Measure labels/.test(w)));
+ assert.ok(annotated.warnings.some(w=>/'s' commands/.test(w)));
+ assert.ok(annotated.warnings.some(w=>/L with no length/.test(w)));
+ // A doubled tie is redundant, not broken: one note comes out, not an error.
+ const doubled=importMml('l8c&&c');
+ assert.deepEqual(doubled.project.notes.map(n=>[n.start,n.length,n.pitch]),[[0,32,60]]);
+ assert.ok(doubled.warnings.some(w=>/Repeated tie/.test(w)));
+ // A tie still has to continue the same pitch, and unknown letters still fail atomically.
+ assert.throws(()=>importMml('c&d'));
+ assert.throws(()=>importMml('cqe'));
+});

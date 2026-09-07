@@ -170,6 +170,8 @@ export function installAppearance() {
             $('toggle-' + side).setAttribute('aria-pressed', String(!settings[side + 'Hidden']));
         }
     };
+    // Dragging a panel most of the way shut closes it; dragging back out reopens it.
+    const COLLAPSE = 120;
     const themeLabels = { sky: 'Sky', night: 'Night' };
     const theme = () => {
         document.documentElement.dataset.theme = settings.theme;
@@ -184,9 +186,10 @@ export function installAppearance() {
         const clamp = (value) => Math.max(180, Math.min(value, 480, main.clientWidth - 340 - 12 - (settings[otherHidden] ? 0 : $(other === 'left' ? 'track-panel' : 'note-properties').getBoundingClientRect().width)));
         let drag = null;
         handle.onpointerdown = e => { if (e.button !== 0)
-            return; e.preventDefault(); drag = { x: e.clientX, width: settings[hidden] ? settings[side] : $(side === 'left' ? 'track-panel' : 'note-properties').getBoundingClientRect().width, preferred: settings[side], hidden: settings[hidden] }; settings[hidden] = false; handle.setPointerCapture(e.pointerId); document.documentElement.classList.add('resizing'); fit(); };
+            return; e.preventDefault(); drag = { x: e.clientX, width: settings[hidden] ? 0 : $(side === 'left' ? 'track-panel' : 'note-properties').getBoundingClientRect().width, preferred: settings[side], hidden: settings[hidden] }; handle.setPointerCapture(e.pointerId); document.documentElement.classList.add('resizing'); fit(); };
         handle.onpointermove = e => { if (!drag)
-            return; settings[side] = clamp(drag.width + (e.clientX - drag.x) * (side === 'left' ? 1 : -1)); fit(); };
+            return; const raw = drag.width + (e.clientX - drag.x) * (side === 'left' ? 1 : -1); settings[hidden] = raw < COLLAPSE; if (raw >= COLLAPSE)
+            settings[side] = clamp(raw); fit(); };
         const finish = (cancel = false) => { if (!drag)
             return; if (cancel) {
             settings[side] = drag.preferred;

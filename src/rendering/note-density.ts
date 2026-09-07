@@ -3,18 +3,35 @@ import {state} from '../state.ts';
 import {KEY,HEAD} from '../constants.ts';
 import {crowdedRegions} from '../music/note-density.ts';
 let previous:typeof state.project.notes|undefined,count=-1,active=-1,regions:ReturnType<typeof crowdedRegions>=[];
-export function drawCrowdedRegions(){
- if(state.project.instruments[state.active]?.isInstructions)return;
+function current(){
+ if(state.project.instruments[state.active]?.isInstructions)return [];
  if(previous!==state.project.notes||count!==state.project.notes.length||active!==state.active){
   previous=state.project.notes;count=previous.length;active=state.active;
   regions=crowdedRegions(previous.filter(n=>n.instrument===active));
  }
- ctx.save();ctx.fillStyle='#ffd60026';ctx.strokeStyle='#e6b800';ctx.lineWidth=2;
- for(const region of regions){
-  const left=KEY+region.start*state.zoom-view.scrollLeft,right=KEY+region.end*state.zoom-view.scrollLeft;
+ return regions;
+}
+const span=(region:{start:number,end:number})=>({left:KEY+region.start*state.zoom-view.scrollLeft,right:KEY+region.end*state.zoom-view.scrollLeft});
+/** A warning, not an error: tint the span just enough to find it, never enough to hide notes. */
+export function drawCrowdedRegions(){
+ ctx.save();
+ for(const region of current()){
+  const {left,right}=span(region);
   if(right<=KEY||left>=state.width)continue;
-  ctx.fillRect(left,HEAD,right-left,state.height-HEAD);
-  ctx.strokeRect(left,HEAD+1,right-left,Math.max(0,state.height-HEAD-2));
+  ctx.fillStyle='#f0b90016';ctx.fillRect(left,HEAD,right-left,state.height-HEAD);
+  ctx.fillStyle='#d9a40040';ctx.fillRect(left,HEAD,1,state.height-HEAD);ctx.fillRect(right-1,HEAD,1,state.height-HEAD);
+ }
+ ctx.restore();
+}
+/** The ruler carries the real signal, so crowding stays findable without covering the roll. */
+export function drawCrowdedMarkers(){
+ const list=current();if(!list.length)return;
+ ctx.save();ctx.beginPath();ctx.rect(KEY,0,state.width-KEY,HEAD);ctx.clip();ctx.fillStyle='#e0a800';
+ for(const region of list){
+  const {left,right}=span(region);
+  const from=Math.max(KEY,left),to=Math.min(state.width,right);
+  if(to<=from)continue;
+  ctx.fillRect(from,HEAD-3,to-from,3);
  }
  ctx.restore();
 }

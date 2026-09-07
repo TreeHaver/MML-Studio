@@ -1,5 +1,51 @@
 # Checkpoint — 0.3.0 General MIDI playback and note-attached tempo
 
+## Real MapleStory 2 sheet import — 2026-09-07
+
+Sheets exported by MapleStory 2 could not be imported at all. The MS2MML element pattern accepted only index="N", while real files label channels chord="N"; nothing matched, the leftover body was non-empty, and every sheet failed with "Invalid or unsupported MS2MML XML elements." Any attribute list is now accepted. Verified against a ten-channel piano sheet that plays in game: 3345 notes.
+
+Three further tokens in the same file stopped an atomic import and are now skipped, each with its own warning: a repeated tie marker with a command between it and the tied note, which is redundant rather than broken; s0/s1 switches this model has no equivalent for; and an L with no length, which leaves the previous default in place. Converter measure labels (M29, M30 and so on) are skipped as well. That last decision was measured rather than assumed: parsing the channel while ignoring them puts every label on an exact measure boundary — ticks 3712, 3840, 10368, 10496 and 10624 against a 128-unit 4/4 measure — with the label matching the elapsed measure count in all five cases, so they are positional annotations that cannot carry sound. Unknown letters still fail atomically, and a tie must still continue the same adjacent pitch.
+
+A failed import previously reported only in the footer status line, which reads as the button doing nothing. Failures now open the existing report dialog titled "Import failed" with the reason, hiding the paragraph that only applies to a successful import. The open-file dialog also offers Text files and All files, since MML sheets are not always named with one of the five known extensions.
+
+Known unrelated limitation confirmed while checking for regressions: sheets using volumes above 15 (rushe_full_3mle_loud.ms2mml, rushe_full_3mle_v2.mml) still fail validation. Clamping them would silently change loudness, so no change was made.
+
+Changed: src/import/mml.ts, src/files.ts, main.cjs, index.html and the two generated dist outputs. Tests: tests/mml-import.test.mjs gains coverage for chord attributes, repeated ties, pedal switches, measure labels and a bare L, and asserts that the annotated and plain forms of the same phrase produce identical notes. Actual validation: incremental build and node tests/run.cjs, 91 tests passing, plus the ten-channel sheet and six other local MML/MS2MML files imported through the built module.
+
+## Workspace controls and header layout — 2026-09-07
+
+Panel visibility is back to one control per panel, at the toolbar end nearest it, so the same button closes and opens instead of closing from inside the panel and reopening from a tab on the roll edge. Both intermediate arrangements were removed, including the divider column that widened to 18px to host a reveal tab; dividers are 6px again. A button drops to half opacity while its panel is hidden.
+
+The header is a three-column grid (1fr auto 1fr) with the left and right groups wrapped, so the transport is centred on the window rather than on whatever space the side groups leave over. Measured in Electron: transport centre 652 against a window centre of 652.
+
+Tools moved out of the editor toolbar into the header beside the theme and Export menus, adopting their height and padding. Its panel is now two blocks with their own headings, one-line descriptions and full-width Apply buttons; the length selector is labelled "Round to" rather than "Grid", which collided with the toolbar's own Grid control. The Export panel is split the same way: an Options section carrying the character limit with a line saying what it does and the section checkbox, then an Export as MS2MML section with two centred buttons.
+
+Icons: Draw, Select and Spray carry pencil, marquee and spray-can glyphs at 38px height; Tools carries a wrench; Export a download arrow; and the theme menu shows a sun on Sky and a moon on Night, with the same pair marking the two options in its list. Add instrument left the panel heading to become a full-width dashed button above the list, where the old plus button sat, and is exempt from flex shrinking so it keeps its height once the list overflows.
+
+Fixed while moving these: a click inside one of our select lists closed the menu containing it, because the lists are appended to body and the menu-dismissal handler read that as a click outside. Choosing a length in the Tools menu closed the whole menu.
+
+Changed: index.html, studio.css, src/appearance.ts, src/chrome.ts and two generated dist outputs. Tests: tests/electron-ui.cjs covers the toolbar toggles and asserts that a select list can be used without closing its menu. Actual validation: incremental build, node tests/run.cjs, and targeted Electron measurements of header centring. tests/electron-ui.cjs runs to its instrument-panel section; one assertion there, expecting a non-selected instrument's MML box to be hidden, has been stale since the instrument-panel rework and was left alone. Two other stale assertions in the same file were corrected: the undo button is outlined rather than filled, and #theme no longer exists since the theme became a menu.
+
+## Right-button erase and backwards note drawing — 2026-09-07
+
+Holding the right button erases every note the pointer crosses, where before only a single click deleted the note under it. The path is sampled every 4px so a fast drag cannot skip a note between two move events, overlapping notes at one point are all removed, and the whole drag is one undo step rather than one per note. Erasing stays confined to the selected instrument.
+
+Drawing a note now grows in both directions. Dragging left of the cell the drag started in moves the note's start with the pointer and anchors its end to that cell. Dragging right is unchanged and still uses the existing resize path, as does edge-resizing an existing note, where dragging back must shorten rather than move the start.
+
+Changed: src/pointer.ts, src/music/note-operations.ts and their two generated dist outputs. Tests: tests/renderer.test.cjs asserts that a right click removes one note, that a right drag removes all three it crosses in a single history step, and that drawing backwards moves the start one cell while the length becomes two cells. Actual validation: incremental build and node tests/run.cjs.
+
+## One toolbar row fewer, quieter crowding markers, panels that close by dragging — 2026-09-07
+
+The playback bar added earlier spent a full row on two sliders. Speed and volume, along with the time and BPM readout, moved into the caption strip, leaving toolbar and caption above the roll instead of toolbar, playback bar and caption. The strip wraps instead of clipping when the window narrows.
+
+Crowded regions, marking more than ten simultaneous notes on the selected instrument, filled the roll's whole height in yellow behind a 2px border and made the notes inside hard to read. The signal moved to a solid 3px bar at the foot of the ruler, where it is visible at a glance without covering anything; the tint inside the roll dropped from 15% to 8% opacity with 1px edges in place of the border. Detection itself is unchanged.
+
+Dragging a divider now closes its panel. Past 120px the panel hides and keeps its preferred width; dragging back out past that threshold reopens it at the width the pointer gives it; between 120 and 180px it snaps to the 180px minimum. Before this a drag bottomed out at 180px and could never close, and grabbing the divider of a hidden panel expanded it to its stored width on mousedown.
+
+The project name was a stacked label over a bordered field. It reads as a document title now: inline caption, 14px semibold, transparent until hovered or focused, elided rather than pushing the header wider. It had also inherited a top margin from the generic text-field rule, which left it out of line with the File menu.
+
+Changed: index.html, studio.css, src/appearance.ts, src/painting.ts, src/rendering/note-density.ts and three generated dist outputs. Tests: tests/electron-ui.cjs covers closing and reopening a panel by dragging; tests/electron-behavior.cjs points at the caption strip instead of the removed playback bar; tests/renderer.test.cjs follows the new crowding colour. Actual validation: incremental build, node tests/run.cjs, and a targeted Electron drag reporting 264px to hidden and back to 220px.
+
 ## Neutral closed theme selector — 2026-09-07
 
 The theme selector now uses the neutral surface while closed and switches to the selected/accent treatment only while its dropdown is open. Changed themes.css and this log. Technical validation confirms both state rules, a successful build and all 45 functional tests. Per user direction, no visual judgment was performed. Local only, no push.

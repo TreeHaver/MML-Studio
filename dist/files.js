@@ -47,6 +47,8 @@ export function installFiles() {
             const instructions = state.project.notes.filter(n => state.project.instruments[n.instrument].isInstructions).length;
             const summary = `Imported ${imported.noteCount} note${imported.noteCount === 1 ? '' : 's'}${instructions ? ` and ${instructions} unbound instruction${instructions === 1 ? '' : 's'}` : ''} from ${file.name} into ${count} instrument${count === 1 ? '' : 's'}. Save JSON to keep this project.`;
             status(summary);
+            $('midi-report-title').textContent = 'Import complete';
+            $('midi-report-note').hidden = false;
             $('midi-summary').textContent = summary;
             $('midi-warnings').replaceChildren();
             for (const warning of imported.warnings) {
@@ -57,7 +59,14 @@ export function installFiles() {
             $('midi-report').showModal();
         }
         catch (error) {
-            status('Import failed: ' + error);
+            // A failed import used to report only in the footer, which reads as "nothing happened".
+            const reason = String(error?.message ?? error).replace(/^Error:\s*/, '');
+            status('Import failed: ' + reason);
+            $('midi-report-title').textContent = 'Import failed';
+            $('midi-summary').textContent = reason;
+            $('midi-warnings').replaceChildren();
+            $('midi-report-note').hidden = true;
+            $('midi-report').showModal();
         }
         finally {
             importing = false;

@@ -3,7 +3,7 @@ import { anchor, point, musical, hit, edge, boxIds } from './geometry.js';
 import { layout } from './viewport.js';
 import { draw } from './painting.js';
 import { info } from './inspector.js';
-import { commitNotes, refresh } from './commands.js';
+import { refresh } from './commands.js';
 import { historySnapshot, fitsCurrentView } from './segment-session.js';
 import { canvas, status, view } from './dom.js';
 import { state, isMuted } from './state.js';
@@ -11,7 +11,7 @@ import { KEY, HEAD, threshold } from './constants.js';
 import { pitchTop, pitchAtY, pitchHeight } from './music/pitch-layout.js';
 import { cellStart } from './music/timing.js';
 import { valid } from './model/validation.js';
-import { move, resize } from './music/note-operations.js';
+import { move, resize, stretchBack } from './music/note-operations.js';
 import { previewNote } from './playback/preview.js';
 import { seekToTick } from './playback/transport.js';
 import { setPastePosition } from './note-clipboard.js';
@@ -36,6 +36,16 @@ export function installPointer() {
             state.selection.add(next.id);
         }
     } };
+    // Right button erases: a click removes one note, holding it removes everything it crosses.
+    const eraseAt = (p) => { let removed = false, note; while ((note = hit(p))) {
+        state.project.notes = state.project.notes.filter(o => o.id !== note.id);
+        state.selection.delete(note.id);
+        removed = true;
+    } return removed; };
+    // Sample the path so a fast drag cannot jump over a note between two move events.
+    const eraseTrail = (from, to) => { const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 4)); let removed = false; for (let i = 1; i <= steps; i++)
+        if (eraseAt({ x: from.x + (to.x - from.x) * i / steps, y: from.y + (to.y - from.y) * i / steps }))
+            removed = true; return removed; };
     let keyGesture = null;
     let scrubbing = false;
     // Dragging a selection box past the visible area scrolls the roll instead of stopping at it.
@@ -108,16 +118,17 @@ export function installPointer() {
         e.preventDefault();
         canvas.focus();
         const n = hit(p);
-        if (e.button === 2) {
-            if (n)
-                commitNotes(state.project.notes.filter(o => o.id !== n.id));
-            state.selection.delete(n?.id ?? -1);
-            info();
-            return;
-        }
         const add = e.ctrlKey || e.metaKey;
         const before = JSON.stringify(state.project);
         const m = musical(p);
+        if (e.button === 2) {
+            state.gesture = { kind: 'erase', start: p, current: p, last: p, before };
+            canvas.setPointerCapture(e.pointerId);
+            eraseAt(p);
+            info();
+            draw();
+            return;
+        }
         if (e.shiftKey || (!n && state.tool === 'select'))
             state.gesture = { kind: 'box', start: p, current: p, origin: { x: p.x + view.scrollLeft, y: p.y + view.scrollTop }, music: m, add, before };
         else if (n) {
@@ -169,7 +180,7 @@ export function installPointer() {
             state.selection = new Set([newNote.id]);
             const spray = state.tool === 'spray' && !instructions;
             state.gesture = { kind: instructions ? 'instruction-create' : spray ? 'paint' : 'resize', start: p, current: p, music: m, nid: newNote.id, before,
-                ...(spray ? { painted: new Set([`${start}:${m.pitch}`]) } : { base: structuredClone(state.project.notes), length: newNote.length }) };
+                ...(spray ? { painted: new Set([`${start}:${m.pitch}`]) } : { base: structuredClone(state.project.notes), length: newNote.length, cell: start }) };
         }
         canvas.setPointerCapture(e.pointerId);
         info();
@@ -201,6 +212,14 @@ export function installPointer() {
             return;
         }
         state.gesture.current = p;
+        if (state.gesture.kind === 'erase') {
+            if (eraseTrail(state.gesture.last, p)) {
+                info();
+                draw();
+            }
+            state.gesture.last = p;
+            return;
+        }
         const dx = p.x - state.gesture.start.x, dy = p.y - state.gesture.start.y;
         if (Math.hypot(dx, dy) < threshold && !state.gesture.moved) {
             draw();
@@ -221,8 +240,14 @@ export function installPointer() {
             const pitch = pitchAtY(state.topPitch, pitchTop(state.topPitch, note.pitch) + pitchHeight(note.pitch) / 2 + dy);
             state.project.notes = move(state.gesture.base, state.selection, state.gesture.anchor, dx / state.zoom, state.project.instruments[state.active].isInstructions ? 0 : pitch - note.pitch, state.project.grid);
         }
-        if (state.gesture.kind === 'resize')
-            state.project.notes = resize(state.gesture.base, state.gesture.nid, state.gesture.length + dx / state.zoom, state.project.grid);
+        if (state.gesture.kind === 'resize') {
+            const g = state.gesture, step = 128 / state.project.grid, tick = musical(p).tick;
+            // Only a note being drawn carries a cell: dragging left of it grows the note backwards.
+            if (g.cell !== undefined && tick < g.cell)
+                state.project.notes = stretchBack(g.base, g.nid, cellStart(Math.max(0, tick), state.project.grid), g.cell + step);
+            else
+                state.project.notes = resize(g.base, g.nid, g.length + dx / state.zoom, state.project.grid);
+        }
         info();
         draw();
     };
@@ -258,7 +283,10 @@ export function installPointer() {
             state.future = [];
             state.dirty = true;
         }
+        const erased = state.gesture.kind === 'erase';
         endGesture();
+        if (erased && !state.segment)
+            refresh();
         if (canvas.hasPointerCapture(e.pointerId))
             canvas.releasePointerCapture(e.pointerId);
     };

@@ -82,6 +82,8 @@ export function installAppearance(){
   $('track-panel').hidden=settings.leftHidden;$('note-properties').hidden=settings.rightHidden;
   for(const [side,handle,width] of [['left',left,l],['right',right,r]] as const){handle.setAttribute('aria-valuenow',String(width));handle.setAttribute('aria-valuemax',String(Math.max(180,main.clientWidth-340-12-(side==='left'?r:l))));$('toggle-'+side).setAttribute('aria-pressed',String(!settings[side+'Hidden' as 'leftHidden'|'rightHidden']));}
  };
+ // Dragging a panel most of the way shut closes it; dragging back out reopens it.
+ const COLLAPSE=120;
  const themeLabels:Record<string,string>={sky:'Sky',night:'Night'};
  const theme=()=>{
   document.documentElement.dataset.theme=settings.theme;Object.assign(palette,settings.theme==='night'?night:sky);
@@ -94,8 +96,8 @@ export function installAppearance(){
   const hidden=side==='left'?'leftHidden':'rightHidden',other=side==='left'?'right':'left',otherHidden=side==='left'?'rightHidden':'leftHidden';
   const clamp=(value:number)=>Math.max(180,Math.min(value,480,main.clientWidth-340-12-(settings[otherHidden]?0:$(other==='left'?'track-panel':'note-properties').getBoundingClientRect().width)));
   let drag:{x:number,width:number,preferred:number,hidden:boolean}|null=null;
-  handle.onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();drag={x:e.clientX,width:settings[hidden]?settings[side]:$(side==='left'?'track-panel':'note-properties').getBoundingClientRect().width,preferred:settings[side],hidden:settings[hidden]};settings[hidden]=false;handle.setPointerCapture(e.pointerId);document.documentElement.classList.add('resizing');fit();};
-  handle.onpointermove=e=>{if(!drag)return;settings[side]=clamp(drag.width+(e.clientX-drag.x)*(side==='left'?1:-1));fit();};
+  handle.onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();drag={x:e.clientX,width:settings[hidden]?0:$(side==='left'?'track-panel':'note-properties').getBoundingClientRect().width,preferred:settings[side],hidden:settings[hidden]};handle.setPointerCapture(e.pointerId);document.documentElement.classList.add('resizing');fit();};
+  handle.onpointermove=e=>{if(!drag)return;const raw=drag.width+(e.clientX-drag.x)*(side==='left'?1:-1);settings[hidden]=raw<COLLAPSE;if(raw>=COLLAPSE)settings[side]=clamp(raw);fit();};
   const finish=(cancel=false)=>{if(!drag)return;if(cancel){settings[side]=drag.preferred;settings[hidden]=drag.hidden;}drag=null;document.documentElement.classList.remove('resizing');fit();save();};
   handle.onpointerup=()=>finish();handle.onpointercancel=()=>finish(true);handle.onlostpointercapture=()=>finish();
   handle.ondblclick=()=>{settings[side]=side==='left'?264:234;settings[hidden]=false;fit();save();};

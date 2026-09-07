@@ -17,7 +17,7 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | V inheritance | `src/music/volume.ts` |
 | Project JSON validation | `src/model/serialization.ts` |
 | Mouse hit testing, coordinates, selection anchor | `src/geometry.ts` |
-| Pointer gestures: draw, box select, move, resize, cancel | `src/pointer.ts` |
+| Pointer gestures: draw both ways, spray, box select, move, resize, right-button erase, cancel | `src/pointer.ts` |
 | Keyboard shortcuts and deletion | `src/keyboard.ts` |
 | Internal note-group copy/paste and insertion position | `src/note-clipboard.ts`, `src/pointer.ts` |
 | Gray bands, pitch rows, measure/beat grid lines | `src/rendering/grid.ts` |
@@ -46,8 +46,8 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Windows runtime-only staging and portable releases | `build.bat`, `package-release.ps1`, `build-icon.cs`; checks: `tests/release.test.cjs`, `tests/electron-release.cjs` |
 | Native Electron window and file-dialog IPC | `main.cjs`, `preload.cjs` |
 | Main editor structure and styles | `index.html`, `studio.css` |
-| File/Export menu dismissal | `src/chrome.ts` |
-| Sky/Night palettes, resizable/collapsible panels, saved workspace | `src/appearance.ts`, `themes.css` |
+| File/Tools/theme/Export menu dismissal, including clicks inside a custom select list | `src/chrome.ts` |
+| Sky/Night palettes, custom select lists, panels resized or closed by dragging, saved workspace | `src/appearance.ts`, `themes.css` |
 | Header logo and native window icon | `assets/logo.svg`, `assets/logo.png`, `main.cjs` |
 | MML pop-out styles | `style.css` |
 

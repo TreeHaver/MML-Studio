@@ -8,8 +8,8 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  assert.equal(await evaluate(`document.documentElement.dataset.theme`),'sky');
  assert.equal(await evaluate(`document.getElementById('play').disabled`),true);
  assert.equal(await evaluate(`document.querySelectorAll('.transport-button svg').length`),6);
- assert.equal(await evaluate(`document.querySelectorAll('.workspace-options svg.lucide').length`),2);
- assert.equal(await evaluate(`document.querySelectorAll('.history-controls svg.lucide').length`),3);assert.equal(await evaluate(`getComputedStyle(document.getElementById('undo')).width`),'36px');assert.notEqual(await evaluate(`getComputedStyle(document.getElementById('undo')).backgroundColor`),'rgba(0, 0, 0, 0)');
+ assert.equal(await evaluate(`document.querySelectorAll('.panel-toggle svg').length`),2);
+ assert.equal(await evaluate(`document.querySelectorAll('.history-controls svg.lucide').length`),3);assert.equal(await evaluate(`getComputedStyle(document.getElementById('undo')).width`),'36px');assert.equal(await evaluate(`getComputedStyle(document.getElementById('undo')).borderTopWidth`),'1px');assert.notEqual(await evaluate(`getComputedStyle(document.getElementById('undo')).borderTopColor`),'rgba(0, 0, 0, 0)');
  const leftBefore=await evaluate(`document.getElementById('track-panel').getBoundingClientRect().width`);
  const divider=await evaluate(`(()=>{const r=document.getElementById('left-divider').getBoundingClientRect();return {x:Math.round(r.x+3),y:Math.round(r.y+120)};})()`);
  win.focus();win.webContents.focus();win.webContents.sendInputEvent({type:'mouseMove',...divider});win.webContents.sendInputEvent({type:'mouseDown',...divider,button:'left',clickCount:1});
@@ -19,6 +19,24 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  win.webContents.sendInputEvent({type:'mouseUp',x:divider.x+50,y:divider.y,button:'left',clickCount:1});
  await evaluate(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
  assert.ok(await evaluate(`document.getElementById('track-panel').getBoundingClientRect().width`)>leftBefore+30,JSON.stringify({leftBefore,divider,actual:await evaluate(`({width:document.getElementById('track-panel').getBoundingClientRect().width,settings:localStorage.getItem('mml-studio-workspace-v1'),grid:document.getElementById('workspace').style.gridTemplateColumns})`)}));
+ // Dragging a panel most of the way shut closes it, and dragging back out reopens it.
+ const shut=await evaluate(`(()=>{const r=document.getElementById('left-divider').getBoundingClientRect();return {x:Math.round(r.x+3),y:Math.round(r.y+120)};})()`);
+ win.webContents.sendInputEvent({type:'mouseMove',...shut});win.webContents.sendInputEvent({type:'mouseDown',...shut,button:'left',clickCount:1});
+ await evaluate(`new Promise(resolve=>requestAnimationFrame(resolve))`);
+ win.webContents.sendInputEvent({type:'mouseMove',x:shut.x-300,y:shut.y,button:'left',modifiers:['leftButtonDown']});
+ await evaluate(`new Promise(resolve=>requestAnimationFrame(resolve))`);
+ win.webContents.sendInputEvent({type:'mouseUp',x:shut.x-300,y:shut.y,button:'left',clickCount:1});
+ await evaluate(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
+ assert.equal(await evaluate(`document.getElementById('track-panel').hidden`),true,'dragging the divider shut hides the panel');
+ const reopen=await evaluate(`(()=>{const r=document.getElementById('left-divider').getBoundingClientRect();return {x:Math.round(r.x+3),y:Math.round(r.y+120)};})()`);
+ win.webContents.sendInputEvent({type:'mouseMove',...reopen});win.webContents.sendInputEvent({type:'mouseDown',...reopen,button:'left',clickCount:1});
+ await evaluate(`new Promise(resolve=>requestAnimationFrame(resolve))`);
+ win.webContents.sendInputEvent({type:'mouseMove',x:reopen.x+220,y:reopen.y,button:'left',modifiers:['leftButtonDown']});
+ await evaluate(`new Promise(resolve=>requestAnimationFrame(resolve))`);
+ win.webContents.sendInputEvent({type:'mouseUp',x:reopen.x+220,y:reopen.y,button:'left',clickCount:1});
+ await evaluate(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
+ assert.equal(await evaluate(`document.getElementById('track-panel').hidden`),false,'dragging back out reopens it');
+ assert.ok(await evaluate(`document.getElementById('track-panel').getBoundingClientRect().width`)>180);
  await evaluate(`document.getElementById('toggle-left').click();new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);assert.equal(await evaluate(`document.getElementById('track-panel').hidden`),true);assert.ok(await evaluate(`document.querySelector('.editor').getBoundingClientRect().width`)>400);assert.ok(await evaluate(`document.getElementById('note-properties').getBoundingClientRect().width`)>180);
  await evaluate(`document.getElementById('toggle-left').click();document.getElementById('left-divider').dispatchEvent(new MouseEvent('dblclick'));document.getElementById('right-divider').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));`);
  assert.equal(await evaluate(`JSON.parse(localStorage.getItem('mml-studio-workspace-v1')).right`),250);
@@ -27,7 +45,16 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.note-fields')).display`),'none');
  const fileArrowCenter=await evaluate(`(()=>{const r=document.querySelector('#file-menu .menu-chevron').getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]})()`);await evaluate(`document.querySelector('#file-menu summary').click()`);assert.equal(await evaluate(`document.getElementById('file-menu').open`),true);assert.equal(await evaluate(`getComputedStyle(document.querySelector('#file-menu[open] .menu-chevron')).width`),'9px');assert.deepEqual(await evaluate(`(()=>{const r=document.querySelector('#file-menu .menu-chevron').getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]})()`),fileArrowCenter);
  await evaluate(`document.querySelector('.editor-caption').click()`);assert.equal(await evaluate(`document.getElementById('file-menu').open`),false);
- await evaluate(`document.querySelector('#export-menu summary').click()`);assert.equal(await evaluate(`document.getElementById('export-menu').open`),true);assert.equal(await evaluate(`getComputedStyle(document.querySelector('#export-menu[open] .menu-chevron')).width`),'9px');assert.equal(await evaluate(`document.querySelector('#theme').parentElement.classList.contains('select-control')`),true);await evaluate(`document.querySelector('#theme').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))`);assert.equal(await evaluate(`document.querySelector('#theme').parentElement.classList.contains('open')`),true);await evaluate(`document.querySelector('#theme').dispatchEvent(new Event('change'))`);assert.equal(await evaluate(`document.querySelector('#theme').parentElement.classList.contains('open')`),false);await evaluate(`document.body.dispatchEvent(new KeyboardEvent('keyup',{key:'Escape',bubbles:true}))`);assert.equal(await evaluate(`document.getElementById('export-menu').open`),false);
+ await evaluate(`document.querySelector('#export-menu summary').click()`);assert.equal(await evaluate(`document.getElementById('export-menu').open`),true);assert.equal(await evaluate(`getComputedStyle(document.querySelector('#export-menu[open] .menu-chevron')).width`),'9px');await evaluate(`document.body.dispatchEvent(new KeyboardEvent('keyup',{key:'Escape',bubbles:true}))`);assert.equal(await evaluate(`document.getElementById('export-menu').open`),false);
+ // Our select lists live on <body>; using one must not be read as a click outside its menu.
+ await evaluate(`document.querySelector('#tools-menu summary').click()`);assert.equal(await evaluate(`document.getElementById('tools-menu').open`),true);
+ assert.equal(await evaluate(`document.getElementById('simplify-length').parentElement.classList.contains('select-control')`),true);
+ await evaluate(`document.getElementById('simplify-length').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))`);
+ assert.equal(await evaluate(`document.querySelectorAll('body>.select-panel').length`),1);
+ await evaluate(`document.querySelector('body>.select-panel button:nth-child(3)').dispatchEvent(new MouseEvent('click',{bubbles:true}))`);
+ assert.equal(await evaluate(`document.getElementById('simplify-length').value`),'16');
+ assert.equal(await evaluate(`document.getElementById('tools-menu').open`),true,'a click in a select list must not close the menu holding it');
+ await evaluate(`document.body.dispatchEvent(new KeyboardEvent('keyup',{key:'Escape',bubbles:true}))`);assert.equal(await evaluate(`document.getElementById('tools-menu').open`),false);
  await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/commands.js'),import('./dist/inspector.js')]).then(([{state},{refresh},{info}])=>{window.s=state;window.refresh=refresh;window.info=info;
  s.project.instruments=[{name:'Felt Piano',color:'#78e4c4',midiProgram:0},{name:'Warm Strings',color:'#a998e8',midiProgram:48},{name:'Acoustic Bass',color:'#ebba7b',midiProgram:32},{name:'Soft Bells',color:'#7cbad9',midiProgram:10},{name:'Instructions',color:'#f4d35e',isInstructions:true}];
  s.project.notes=Array.from({length:24},(_,i)=>({id:i+1,instrument:i<16?0:1,start:(i%16)*16,length:i<16?12:32,pitch:[60,64,67,72,71,67,64,62][i%8]-(i>=16?12:0),volume:i===0?10:null}));s.active=0;s.selection=new Set([1,2,3]);refresh();document.getElementById('view').scrollTop=pitchTop(s.topPitch,79);})`);

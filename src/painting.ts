@@ -1,4 +1,4 @@
-import {drawCrowdedRegions} from './rendering/note-density.ts';
+import {drawCrowdedRegions,drawCrowdedMarkers} from './rendering/note-density.ts';
 import {refreshSignature} from './toolbar.ts';
 import {refreshSegmentControls,drawSegmentBoundary} from './segment-view.ts';
 import {drawSheetLimit} from './rendering/sheet-limit.ts';
@@ -31,6 +31,7 @@ export function draw(){
  drawNotes();
  ctx.restore();
  drawRuler();
+ drawCrowdedMarkers();
  drawKeyboard();
  drawTempoMarkers();
  drawSegmentBoundary();
