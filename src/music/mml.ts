@@ -1,4 +1,5 @@
 import {hasOverlappingNotes} from './note-density.ts';
+import {DRUM_KIT_NAME,DRUM_MS2_WARNING} from '../playback/drums.ts';
 import type {Note,Project} from '../model/types.ts';
 import {tempoMap,type TempoEvent} from './tempo.ts';
 import {optimizeInstructions} from './mml-optimizer.ts';
@@ -39,7 +40,7 @@ export function generateMml(project:Project,index:number,source=project.notes.fi
  if(instrument.isInstructions)return {channels:[],bytes:0,warnings:['Global tempo instructions are included in every musical channel.']};
  const overlap=!options.skipWarnings&&hasOverlappingNotes(source);
  if(instrument.ms2Drum)source=source.map(n=>({...n,pitch:60}));
- if(instrument.isDrum)warnings.push('Standard Drum Kit is not a valid MS2 instrument.');
+ if(instrument.isDrum)warnings.push(`${DRUM_KIT_NAME}: ${DRUM_MS2_WARNING}`);
  if(tempos.some(t=>t.bpm<32||t.bpm>255))warnings.push('Tempo outside MS2 T32–T255: retained unchanged; resolve before export.');
  if(source.some(n=>n.pitch<12||n.pitch>119))warnings.push('Pitch outside MS2 O0–O8: retained unchanged; resolve before export.');
  const notes=[...source].sort((a,b)=>a.start-b.start||a.id-b.id),volumes=new Map<number,number>();let v=8;

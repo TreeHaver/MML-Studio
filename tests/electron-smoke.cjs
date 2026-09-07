@@ -68,7 +68,7 @@ app.on('browser-window-created',(_,win)=>{
    assert.equal(await evaluate(`document.getElementById('play').disabled`),false);
    result.checks.push('Song Play/Pause/Resume/Stop and simultaneous keyboard preview passed');
    await evaluate(`(()=>{const s=document.querySelector('#instruments select');s.value='drums';s.dispatchEvent(new Event('change'));})()`);
-   assert.match(await evaluate(`document.querySelector('.instrument-warning').textContent`),/Not a valid MS2 instrument/);
+   assert.match(await evaluate(`document.querySelector('.instrument-flag').getAttribute('data-message')`),/Not a valid MS2 instrument/);
    await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/constants.js'),import('./dist/music/pitch-layout.js')]).then(([{state},{HEAD},{pitchTop}])=>{document.getElementById('view').scrollTop=pitchTop(state.topPitch,36)-(200-HEAD);})`);
    await wait(100);await click(point.x,point.y);await wait(100);
    assert.match(await evaluate(`document.getElementById('status').textContent`),/Bass Drum 1/);

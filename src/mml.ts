@@ -32,7 +32,7 @@ export function mmlControls(row:HTMLElement,body:HTMLElement,index:number){
  const i=state.project.instruments[index],e=entry(index),box=document.createElement('div');box.className='instrument-mml';
  e.label=document.createElement('small');
  // A marker, not a control: it says what is wrong on hover and does nothing when clicked.
- e.warning=document.createElement('span');e.warning.className='instrument-warning';e.warning.setAttribute('role','img');
+ e.warning=document.createElement('span');e.warning.className='instrument-flag';e.warning.setAttribute('role','img');
  e.warning.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
  const label=document.createElement('label'),toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=e.live;toggle.onchange=()=>{e.live=toggle.checked;updateMml();};const caption=document.createElement('span');caption.textContent='Real time updating';label.append(toggle,caption);
  const refresh=document.createElement('button');refresh.textContent='Update MML';refresh.title='Regenerate this instrument’s MML from the notes now. Only needed with real time updating off.';refresh.onclick=()=>{e.result=generateMml(state.project,index);e.revision=revision;publish(i,e,index);};

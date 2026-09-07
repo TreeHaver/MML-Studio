@@ -1,7 +1,7 @@
 import { mmlControls, updateMml } from './mml.js';
 import { instrumentActions, removeInstrument } from './instrument-actions.js';
 import { GM_PROGRAMS } from './playback/gm-programs.js';
-import { DRUM_KIT_NAME, DRUM_MS2_WARNING, MS2_DRUMS } from './playback/drums.js';
+import { DRUM_KIT_NAME, MS2_DRUMS } from './playback/drums.js';
 import { INSTRUCTIONS_NAME } from './model/instructions.js';
 import { draw } from './painting.js';
 import { info } from './inspector.js';
@@ -95,12 +95,6 @@ export function instruments() {
             i.name = MS2_DRUMS[i.ms2Drum].name; void updatePlaybackVoices(); instruments(); updateMml(true); info(); draw(); };
         row.append(color, button, preset);
         $('instruments').append(row);
-        if (i.isDrum) {
-            const warning = document.createElement('small');
-            warning.className = 'instrument-warning';
-            warning.textContent = DRUM_MS2_WARNING;
-            row.append(warning);
-        }
         if (i.isInstructions) {
             const help = document.createElement('small');
             help.className = 'instrument-help';

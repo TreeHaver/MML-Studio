@@ -1,7 +1,7 @@
 import {mmlControls,updateMml} from './mml.ts';
 import {instrumentActions,removeInstrument} from './instrument-actions.ts';
 import {GM_PROGRAMS} from './playback/gm-programs.ts';
-import {DRUM_KIT_NAME,DRUM_MS2_WARNING,MS2_DRUMS,type Ms2Drum} from './playback/drums.ts';
+import {DRUM_KIT_NAME,MS2_DRUMS,type Ms2Drum} from './playback/drums.ts';
 import {INSTRUCTIONS_NAME} from './model/instructions.ts';
 import {draw} from './painting.ts';
 import {info} from './inspector.ts';
@@ -41,7 +41,6 @@ export function instruments(){
  const instructions=document.createElement('option');instructions.value='instructions';instructions.textContent='Instructions (silent)';preset.append(instructions);
  preset.value=i.isInstructions?'instructions':i.isDrum?'drums':i.ms2Drum??String(i.midiProgram??0);preset.onchange=()=>{checkpoint();delete i.ms2Drum;if(preset.value in MS2_DRUMS)i.ms2Drum=preset.value as Ms2Drum;i.isDrum=preset.value==='drums';i.isInstructions=preset.value==='instructions';i.midiProgram=i.isDrum||i.isInstructions||i.ms2Drum?0:Number(preset.value);if(i.isInstructions)i.name=INSTRUCTIONS_NAME;if(i.ms2Drum)i.name=MS2_DRUMS[i.ms2Drum].name;void updatePlaybackVoices();instruments();updateMml(true);info();draw();};
  row.append(color,button,preset);$('instruments').append(row);
- if(i.isDrum){const warning=document.createElement('small');warning.className='instrument-warning';warning.textContent=DRUM_MS2_WARNING;row.append(warning);}
  if(i.isInstructions){const help=document.createElement('small');help.className='instrument-help';help.textContent='Silent events. Draw a marker, then edit tempo, time signature or section in the inspector.';row.append(help);}
  const controls=document.createElement('div');controls.className='instrument-controls';
  const changed=()=>{state.selection.clear();updatePlaybackMutes();instruments();info();draw();};

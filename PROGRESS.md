@@ -1,5 +1,21 @@
 # Checkpoint — 0.3.0 General MIDI playback and note-attached tempo
 
+## One drum warning, and a UI check that reports every failure — 2026-09-07
+
+The class `instrument-warning` was serving two things at once: a full-width amber line written by the instruments panel, and the new hover marker for MML warnings. Restyling it for the marker squeezed the drum-kit line into a 24px box on top of the card's other icons. The marker now has its own class, `instrument-flag`, and `instrument-warning` is a text line again.
+
+The drum note was then saying the same thing twice: `Standard Drum Kit is not a valid MS2 instrument.` from MML generation, and `Not a valid MS2 instrument. Available for editing and preview.` as its own line in the card. Both now come from `DRUM_MS2_WARNING`, already shared with MIDI import, and reach the card only through the marker. The separate line is gone.
+
+The warning tooltip was clipped by the scrolling instruments panel: it was anchored to the icon, which sits 64px inside the card, so a 214px bubble hung past the card's left edge. It is anchored to the card edge and capped, measured at 202px inside a 212px card.
+
+tests/electron-ui.cjs was rewritten. It ran 46 assertions in one linear script inside a single try/catch, so the first failure hid the rest — three consecutive runs failed at three different points, which read as three bugs rather than one flaky script plus one stale assertion. Each area is now a named check that runs and reports independently, and the result file lists what passed and what failed. Fourteen "wait a frame or two" pauses became `until(condition)` polls with a deadline, a divider drag waits for the handler's `resizing` class before moving, and holding Undo polls for the repeat instead of sleeping 900ms hoping it fired; the only remaining wall-clock wait proves that nothing more happens after release, which genuinely needs one. The stale assertion expecting a non-selected instrument's MML box to be hidden was replaced with what the box now guarantees: one per instrument, inside its Instrument actions body, closed by default. A new check covers a select list staying open while the roll scrolls. Three consecutive runs now pass 19 of 19.
+
+The simulated DOM in tests/renderer.test.cjs had `setAttribute(){}` as an empty function, so nothing set through an attribute could be asserted. It records attributes now and offers `getAttribute`.
+
+Known failure, unrelated and pre-existing: tests/electron-smoke.cjs expects a piano-key preview of E4 and gets F4, one key out. Verified by stashing this work and rerunning at the previous commit, where it fails identically. The uneven pitch rows are the obvious suspect. Not investigated further here.
+
+Changed: src/mml.ts, src/music/mml.ts, src/instruments.ts, studio.css, themes.css and three generated dist outputs. Tests: tests/electron-ui.cjs rewritten, tests/renderer.test.cjs and tests/electron-smoke.cjs follow the marker instead of the removed line. Actual validation: incremental build, node tests/run.cjs 91 passing, tests/electron-ui.cjs passing 19 checks on three consecutive runs, and an Electron measurement of the tooltip against the card width.
+
 ## Playback settings, card cleanup and unsaved-state accuracy — 2026-09-07
 
 Speed and volume left the caption strip for a panel behind an icon button at the right of the editor toolbar, next to the history actions. They are set once and then ignored, so they no longer hold a permanent row; Zoom stayed in the toolbar because it is used continuously. The sliders are 35% larger there, keeping the native control rather than reimplementing it. Merging the caption strip into the toolbar was measured and rejected: in the default window the editor column is 794px while the toolbar already needs 847px and the caption 448px, so a merged row would wrap into two lines again.

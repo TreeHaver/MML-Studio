@@ -1,4 +1,5 @@
 import { hasOverlappingNotes } from './note-density.js';
+import { DRUM_KIT_NAME, DRUM_MS2_WARNING } from '../playback/drums.js';
 import { tempoMap } from './tempo.js';
 import { optimizeInstructions } from './mml-optimizer.js';
 const pitches = ['c', 'c+', 'd', 'd+', 'e', 'f', 'f+', 'g', 'g+', 'a', 'a+', 'b'];
@@ -60,7 +61,7 @@ export function generateMml(project, index, source = project.notes.filter(n => n
     if (instrument.ms2Drum)
         source = source.map(n => ({ ...n, pitch: 60 }));
     if (instrument.isDrum)
-        warnings.push('Standard Drum Kit is not a valid MS2 instrument.');
+        warnings.push(`${DRUM_KIT_NAME}: ${DRUM_MS2_WARNING}`);
     if (tempos.some(t => t.bpm < 32 || t.bpm > 255))
         warnings.push('Tempo outside MS2 T32–T255: retained unchanged; resolve before export.');
     if (source.some(n => n.pitch < 12 || n.pitch > 119))

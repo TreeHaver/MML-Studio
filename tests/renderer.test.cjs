@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),{transpile}=require('../transpile.cjs');
 test('renderer handles click, edge resize, group box/delete, rename, grid and scroll without text nodes on notes',async()=>{
- const elements=new Map();class El{constructor(){this.value='';this.children=[];this.style={};this.clientWidth=900;this.clientHeight=600;this.scrollLeft=0;this.scrollTop=0;this.classList={toggle(){}};}append(...e){this.children.push(...e)}replaceChildren(){this.children=[]}replaceWith(e){this.replacement=e}after(e){this.replacement=e}querySelector(){return null}set innerHTML(value){this._html=value;const match=/<span>(.*?)<\/span>/.exec(value);if(match)this.textContent=match[1]}get innerHTML(){return this._html}setAttribute(){}focus(){}select(){}matches(){return false}getBoundingClientRect(){return {left:0,top:0}}setPointerCapture(){this.capture=true}hasPointerCapture(){return this.capture}releasePointerCapture(){this.capture=false}}
+ const elements=new Map();class El{constructor(){this.value='';this.children=[];this.style={};this.clientWidth=900;this.clientHeight=600;this.scrollLeft=0;this.scrollTop=0;this.classList={toggle(){}};}append(...e){this.children.push(...e)}replaceChildren(){this.children=[]}replaceWith(e){this.replacement=e}after(e){this.replacement=e}querySelector(){return null}set innerHTML(value){this._html=value;const match=/<span>(.*?)<\/span>/.exec(value);if(match)this.textContent=match[1]}get innerHTML(){return this._html}setAttribute(name,value){(this.attributes??={})[name]=String(value)}getAttribute(name){return this.attributes?.[name]??null}focus(){}select(){}matches(){return false}getBoundingClientRect(){return {left:0,top:0}}setPointerCapture(){this.capture=true}hasPointerCapture(){return this.capture}releasePointerCapture(){this.capture=false}}
  const doc={getElementById:id=>{if(!elements.has(id))elements.set(id,new El());return elements.get(id)},createElement:()=>new El(),querySelectorAll:()=>[]};
  const fills=[],texts=[];const ctx=new Proxy({measureText(text){return {width:text.length*6}},fillText(text,x,y){texts.push({text,x,y})},fillRect(x,y,w,h){fills.push({x,y,w,h,color:this.fillStyle});}},{get:(target,key)=>key in target?target[key]:()=>{}});doc.getElementById('canvas').getContext=()=>ctx;
  let frame;const seq={currentHighResolutionTime:0,isFinished:false,get currentTime(){return this.currentHighResolutionTime},set currentTime(value){this.currentHighResolutionTime=value}};
@@ -64,10 +64,12 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.equal(previewCalls.length,2);
  const kit=doc.getElementById('instruments').children[0].children[2];kit.value='drums';kit.onchange();
  assert.equal(run('project.instruments[0].isDrum'),true);
- assert.match(doc.getElementById('instruments').children[0].children[3].textContent,/Not a valid MS2 instrument/);
+ const flag=()=>doc.getElementById('instruments').children[0].children.find(el=>el.className==='instrument-flag');
+ assert.match(flag().getAttribute('data-message'),/Not a valid MS2 instrument/);
+ assert.equal(flag().hidden,false);
  click(20,240);await new Promise(setImmediate);assert.deepEqual(previewCalls.at(-1),{pitch:expected,program:0,isDrum:true});
  const melodic=doc.getElementById('instruments').children[0].children[2];melodic.value='40';melodic.onchange();
- assert.equal(run('project.instruments[0].isDrum'),false);assert.equal(doc.getElementById('instruments').children[0].children.some(el=>el.className==='instrument-warning'&&el.textContent),false);
+ assert.equal(run('project.instruments[0].isDrum'),false);assert.equal(flag().hidden,true,'a valid instrument shows no warning marker');
  run('project.instruments.push({name:"Other",color:"#fff"});state.active=1');
  doc.getElementById('view').scrollTop+=20;
  click(20,240);await new Promise(setImmediate);
