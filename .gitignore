@@ -4,6 +4,8 @@ node_modules/
 # Local validation output and release bundles
 .validation/
 release/
+releases/
+staging/
 *.zip
 
 # Generated local/editor state
@@ -14,5 +16,3 @@ Thumbs.db
 # Windows spell-check cache created under the project folder
 眈姶ǋ/
 
-# Other
-build.bat

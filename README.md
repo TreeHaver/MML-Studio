@@ -9,6 +9,20 @@ npm start
 
 The source is TypeScript; the build uses the pinned TypeScript package to generate JavaScript ES modules. This is a transpile/build check, not a static TypeScript type check. Electron main and sandboxed preload are CommonJS. The ZIP also includes generated dist files.
 
+## Build a Windows release
+
+After installing dependencies with `npm ci`, run `build.bat` from a terminal. It works from any current directory and stops on compilation or packaging errors.
+
+The batch file compiles the source, then calls `package-release.ps1` to copy only runtime files into `staging/app/`. The helper uses the installed Windows x64 Electron runtime and writes `releases/MML Music Studio-win32-x64/MML Music Studio.exe`. Distribute that entire release folder; users do not need Node.js or npm to run it.
+
+Each full build also creates `releases/MML Music Studio-win32-x64.zip`, containing the entire app folder. Share this ZIP and extract it before running the EXE. Rebuilding replaces the previous ZIP only after compression succeeds. `-StageOnly` does not package or ZIP anything. Output archives are already excluded by `.gitignore`.
+
+Each build replaces `staging/app/` and that one release folder. Close the released app before rebuilding. Project source files are copied, never moved. Other release folders and the older `release/` directory remain intact. Generated folders are ignored by Git; build scripts are tracked.
+
+The app payload includes compiled modules, HTML/CSS, images, the SoundFont, bundled audio code and license notices. Development documentation, tests, source TypeScript, npm dependencies, build scripts and previous archives are excluded. Electron's own runtime DLLs, locales and notices are retained. The executable is a renamed copy of the installed Electron runtime; this creates a portable folder, not an installer or a signed/customized executable.
+
+For staging only, after compilation: `powershell -NoProfile -ExecutionPolicy Bypass -File package-release.ps1 -StageOnly`. Add future runtime assets to the helper's explicit lists. Check packaged contents with `node --test tests/release.test.cjs`; the optional native check is `node_modules/electron/dist/electron.exe tests/electron-release.cjs`.
+
 ## Editing
 
 - **Ctrl+C / Ctrl+V** (Cmd on macOS): copy the selected group and paste into the active instrument. By default, paste starts at the copied group's end; repeated pastes follow consecutively. Click empty piano-roll space in Select mode to choose a grid-aligned insertion position. Pasted notes remain selected for moving and support Undo/Redo. Timing offsets, pitches, durations and attached tempo are retained; inherited volumes are made explicit. Conflicting tempo changes block the paste without modifying the project. The clipboard is internal to this app window; text-field copy/paste keeps its normal behavior.

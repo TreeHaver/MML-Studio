@@ -41,6 +41,7 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | DOM references, status text | `src/dom.ts` |
 | Keyboard/header/row dimensions, drag threshold | `src/constants.ts` |
 | Startup wiring only | `src/renderer.ts` |
+| Windows runtime-only staging and portable releases | `build.bat`, `package-release.ps1`; checks: `tests/release.test.cjs`, `tests/electron-release.cjs` |
 | Native Electron window and file-dialog IPC | `main.cjs`, `preload.cjs` |
 | Main editor structure and styles | `index.html`, `studio.css` |
 | File/Export menu dismissal | `src/chrome.ts` |

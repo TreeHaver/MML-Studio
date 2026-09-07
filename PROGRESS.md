@@ -446,3 +446,25 @@ Changed: src/music/structure.ts, src/toolbar.ts and their two incremental dist o
 Actual validation: node tests/run.cjs passed the incremental-output build and all 84 tests using approved installed dependency access. Added coverage for no-signature initialization away from zero, future signatures, changed meters, Song resets, non-reset Segments, exact measure edges, ruler agreement, simulated header edits at measure start, stable focus position while the playhead moves, replacement of the initial signature and Undo. No native UI check performed.
 
 Working folder updated. Transfer patch: mml-studio-signature-measure-patch.zip. Apply over the current Remove overlap version and restart the editor.
+
+## Clean Windows staging and portable release build — 2026-09-07
+
+Replaced the broad electron-packager batch command with build.bat plus package-release.ps1. The batch anchors to its own directory, checks installed prerequisites, runs the incremental-output compiler, stops on errors, and calls the packaging helper. No new npm dependency/download is needed: the helper verifies and copies the installed Electron 37.0.0 Windows x64 runtime and renames its executable to MML Music Studio.exe.
+
+Staging uses explicit runtime file/asset/vendor lists and derives compiled module paths from current source to avoid shipping stale dist files. It writes a minimal runtime package.json without npm dependencies or build scripts. Output: staging/app and releases/MML Music Studio-win32-x64/resources/app. The portable release retains Electron DLLs/locales/notices and app/audio/SoundFont licenses. Source files, tests, project documentation, scripts, node_modules, packages, archives and validation scratch data do not ship. The installer/signing/executable metadata customization are outside this portable-copy workflow.
+
+Rebuilds clean only the two exact generated directories after absolute-path and reparse-point checks. Sources are copied, never moved. Other releases and the existing release directory are retained. Optional -StageOnly supports payload inspection. Added staging/ and releases/ to .gitignore, retained release/, and removed the old build.bat ignore rule so build scripts are trackable.
+
+Changed: build.bat, new package-release.ps1, .gitignore, README.md, PROJECT_MAP.md, PROGRESS.md; new tests/release.test.cjs and tests/electron-release.cjs. No application source changed.
+
+Actual validation: ran build.bat end to end with approved compiler dependency access; incremental build passed and produced an 81-file app payload. Injected stale documentation into both output app folders, rebuilt via the helper, and verified those stale files disappeared. node --test tests/release.test.cjs passes exact staging/release file and byte equality, excluded development content, minimal manifest, assets/vendor/license coverage and Electron runtime presence. git check-ignore confirms generated folders ignored and scripts not ignored (the latter correctly returns status 1). Native tests/electron-release.cjs passes using the installed identical Electron runtime to load the packaged main/preload/renderer, SoundFont IPC and actual AudioWorklet/synth initialization; evidence .validation/electron-release.json. This checks packaged assets, not installer behavior or physical-speaker output. No unrelated musical regression rerun was needed for these packaging-only changes.
+
+Release generated locally at releases/MML Music Studio-win32-x64. Build-script transfer patch: mml-studio-clean-build-patch.zip. Run build.bat after npm ci to regenerate the portable release.
+
+## Automatic release ZIP — 2026-09-07
+
+Full package-release.ps1 runs now create releases/MML Music Studio-win32-x64.zip with the enclosing application folder and all Electron runtime files. Compression writes to a temporary archive first, then replaces the previous ZIP only after success; the temporary file is cleaned on failure. Existing output archive directories/links are rejected. StageOnly remains staging-only. build.bat prints the ZIP path, README explains distribution/extraction, and existing releases/ plus *.zip ignore rules already cover the output.
+
+Changed: package-release.ps1, build.bat, README.md, PROGRESS.md. Validation: build.bat completed the incremental build, portable packaging and ZIP creation. All 153 archived files matched their release files by SHA256, with correct enclosing folder and matching file count. Existing node --test tests/release.test.cjs passed. No native UI rerun was needed for archive-only packaging changes.
+
+Generated release archive: releases/MML Music Studio-win32-x64.zip. Script transfer patch: mml-studio-auto-zip-patch.zip.
