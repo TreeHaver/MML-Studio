@@ -1,5 +1,29 @@
 # Checkpoint — 0.3.0 General MIDI playback and note-attached tempo
 
+## Keyboard runs to the top edge, and every Electron check passes — 2026-09-07
+
+The ruler painted a solid 62x30 block above the key column, so the keyboard began below a header of its own. That block is gone and the keys are drawn from the top of the canvas, clipped, so the column reads as continuing past the edge. The row arithmetic was measured first and ruled out: across 430 scroll positions the first drawn row never leaves a gap, so the strip was the painted corner, not a layout seam.
+
+The remaining stale Electron assertions were then worked through. `electron-smoke` was failing on a piano-key glide expecting E4 and hearing F4: it dragged a fixed 80px, which meant four semitones only while every row was 20px tall. Uneven rows made 80px reach F4. The target is now derived from the layout, so it survives another change of row heights.
+
+Fixing that one uncovered the rest, each hidden behind the previous failure:
+
+- Four files still drove `#pause`, removed when play and pause became one icon button. They check `is-playing` and the button's title now.
+- `electron-instrument-actions` simulated Ctrl+C/Ctrl+V with synthetic keydowns, which the native clipboard handlers never see. It uses the real clipboard through `webContents.copy()`/`paste()`.
+- The same file clicked "the first button in Instrument actions" for Merge, which Split now precedes. It finds the button by name.
+- `electron-timeline` read "the second select under #instruments" for an instrument preset, an index shifted by the Split and Merge selects. It starts from the card instead.
+- `electron-midi-import` expected "MIDI import failed"; the importer takes MML too, so the message no longer names MIDI. Its dialog title changed for the same reason.
+- `electron-midi-import` and `electron-dialog-focus` forced `state.dirty=true` to stand for unsaved work. Prompts compare against the last saved contents now, so the flag alone no longer means there is anything to discard; both clear the saved snapshot as well.
+- `electron-mml` read a warning from the card's text, where warnings are a hover marker now.
+
+Two files gained a `run`/`evaluate` wrapper that reports which expression failed: "Script failed to execute" on its own says nothing, and both spent their failures on it.
+
+The Undo hold check in `electron-ui` was the last flaky spot: a lost mouseDown left nothing to poll for. It now waits for the immediate undo that pointerdown fires and presses again if that never arrives. Three consecutive runs clean.
+
+State: node tests/run.cjs 91 passing, and every Electron file passing except `electron-release`, which looks for a packaged build that `build.bat` has to produce first.
+
+Changed: src/rendering/ruler.ts, src/rendering/keyboard.ts and their two generated dist outputs. Tests: electron-smoke, electron-ui, electron-instruments, electron-instrument-actions, electron-midi-import, electron-mml, electron-timeline, electron-dialog-focus. Actual validation: incremental build, node tests/run.cjs, the full Electron sweep above, an Electron measurement of the warning tooltip against the card width, and a scripted check of the row arithmetic across 430 scroll positions.
+
 ## One drum warning, and a UI check that reports every failure — 2026-09-07
 
 The class `instrument-warning` was serving two things at once: a full-width amber line written by the instruments panel, and the new hover marker for MML warnings. Restyling it for the marker squeezed the drum-kit line into a 24px box on top of the card's other icons. The marker now has its own class, `instrument-flag`, and `instrument-warning` is a text line again.

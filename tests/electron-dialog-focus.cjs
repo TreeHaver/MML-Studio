@@ -21,7 +21,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  };
  await settle();await type('project-name','Before import');
  await run(`document.getElementById('import-midi').onclick()`);await type('project-name','After cancel');checks.push('Canceled import restores native click/typing');
- await run(`import('./dist/state.js').then(({state})=>{window.s=state;s.dirty=true})`);selection=fixture;answer=1;
+ await run(`import('./dist/state.js').then(({state})=>{window.s=state;s.dirty=true;s.saved=''})`);selection=fixture;answer=1;
  await run(`document.getElementById('import-midi').onclick()`);await type('project-name','Declined import');assert.equal(await run('s.project.notes.length'),0);checks.push('Declined native confirmation preserves project and typing');
  answer=0;await run(`document.getElementById('import-midi').onclick()`);assert.equal(await run(`document.getElementById('midi-report').open`),true,await run(`document.getElementById('status').textContent`));
  await run(`document.getElementById('midi-report-close').click()`);await type('project-name','Imported song');assert.equal(await run('s.project.notes.length'),2);

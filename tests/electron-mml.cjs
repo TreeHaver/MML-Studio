@@ -5,7 +5,7 @@ let started=false;
 app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.webContents.once('did-finish-load',async()=>{try{
  const evaluate=code=>win.webContents.executeJavaScript(code,true);
  await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/commands.js')]).then(([{state},{refresh}])=>{window.testState=state;window.testRefresh=refresh;state.project.notes=Array.from({length:11},(_,i)=>({id:i+1,instrument:0,start:0,length:11,pitch:60+i,volume:i===10?12:null}));refresh();})`);
- assert.match(await evaluate(`document.querySelector('.instrument-mml').textContent`),/Over 10 Channels/);
+ assert.match(await evaluate(`document.querySelector('.instrument-flag').getAttribute('data-message')`),/Over 10 Channels/);
  const popupReady=new Promise(resolve=>app.once('browser-window-created',(_,child)=>child.webContents.once('did-finish-load',()=>resolve(child))));
  await evaluate(`document.querySelectorAll('.instrument-mml button')[1].click()`);const popup=await popupReady;
  const inspect=code=>popup.webContents.executeJavaScript(code,true);

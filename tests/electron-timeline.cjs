@@ -15,7 +15,7 @@ app.on('browser-window-created',(_,win)=>win.webContents.once('did-finish-load',
    state.active=1;refresh();document.getElementById('view').scrollTop=1200;
   })`);
   await wait(200);
-  assert.equal(await evaluate(`document.querySelectorAll('#instruments select')[1].value`),'instructions');
+  assert.equal(await evaluate(`[...document.querySelectorAll('#instruments .instrument')].map(card=>card.querySelector(':scope > .select-control > select'))[1].value`),'instructions');
   const pixel=await evaluate(`Promise.all([import('./dist/constants.js'),import('./dist/state.js')]).then(([{KEY,HEAD},{state}])=>Array.from(document.getElementById('canvas').getContext('2d').getImageData(Math.round((KEY+128*state.zoom)*devicePixelRatio),Math.round((HEAD+100)*devicePixelRatio),1,1).data))`);
   assert.deepEqual(pixel,[244,211,94,255]);result.checks.push('Instructions selector and yellow unbound tempo line rendered in native canvas');
   fs.writeFileSync(path.join(output,'electron-timeline.png'),(await wc.capturePage()).toPNG());
@@ -24,7 +24,7 @@ app.on('browser-window-created',(_,win)=>win.webContents.once('did-finish-load',
   await wait(350);
   const position=await evaluate(`import('./dist/playback/transport.js').then(({playback})=>{const v=document.getElementById('view');return {left:v.scrollLeft,top:v.scrollTop,tick:playback.tick,width:v.clientWidth};})`);
   assert.ok(position.left>0);assert.equal(position.top,1200);assert.ok(62+position.tick*3-position.left<position.width);
-  await evaluate(`document.getElementById('pause').click()`);
+  await evaluate(`document.getElementById('play').click()`);
   const paused=await evaluate(`document.getElementById('view').scrollLeft`);await wait(200);
   assert.equal(await evaluate(`document.getElementById('view').scrollLeft`),paused);
   await evaluate(`import('./dist/playback/transport.js').then(m=>m.play())`);await wait(150);

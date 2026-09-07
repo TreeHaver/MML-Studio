@@ -17,6 +17,5 @@ export function drawRuler() {
         ctx.textBaseline = 'bottom';
         ctx.fillText(String(line.bar), x + 9, HEAD - 1);
     }
-    ctx.fillStyle = palette.corner;
-    ctx.fillRect(0, 0, KEY, HEAD);
+    // The keyboard covers this column to the top edge, so no corner block is painted here.
 }

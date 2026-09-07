@@ -163,6 +163,9 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
   await evaluate(`import('./dist/history.js').then(({checkpoint})=>{s.history=[];s.future=[];for(let grid=4;grid<12;grid++){checkpoint();s.project.grid=grid;}})`);
   const point=await evaluate(`(()=>{const r=document.getElementById('undo').getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};})()`);
   win.focus();win.webContents.focus();move(point);press(point);
+  // pointerdown undoes once immediately; if that is lost the press never landed, so press again.
+  try{await until(`s.project.grid<11`,'the first Undo on press',1500);}
+  catch{release(point);move(point);press(point);await until(`s.project.grid<11`,'the first Undo after a second press',2500);}
   // Poll for the repeat instead of sleeping a fixed 900ms and hoping it fired.
   try{await until(`s.project.grid<10`,'Undo to repeat while held',6000);}
   finally{release(point);}

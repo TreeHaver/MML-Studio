@@ -50,17 +50,20 @@ app.on('browser-window-created',(_,win)=>{
    const highPreviewPeak=await evaluate(`Math.max(...window.__meters.map(m=>{const b=new Float32Array(m.fftSize);m.getFloatTimeDomainData(b);return Math.max(...b.map(Math.abs));}))`);
    assert.ok(highPreviewPeak>0.00001,`Silent native C#8 preview: ${highPreviewPeak}`);result.checks.push({highPreviewPeak});
    await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/constants.js'),import('./dist/music/pitch-layout.js')]).then(([{state},{HEAD},{pitchTop}])=>{document.getElementById('view').scrollTop=pitchTop(state.topPitch,60)-(200-HEAD);})`);
-   await wait(100);await evaluate(`(()=>{const c=document.getElementById('canvas');c.onpointerdown({button:0,clientX:${point.x},clientY:${point.y},pointerId:1,preventDefault(){}});c.onpointermove({clientX:${point.x},clientY:${point.y-80},pointerId:1});c.onpointerup({pointerId:1});})()`);await wait(150);
+   await wait(100);
+   const glideTo=await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/constants.js'),import('./dist/music/pitch-layout.js')]).then(([{state},{HEAD},{pitchTop,pitchHeight}])=>Math.round(document.getElementById('canvas').getBoundingClientRect().top+HEAD+pitchTop(state.topPitch,64)-document.getElementById('view').scrollTop+pitchHeight(64)/2))`);
+   await evaluate(`(()=>{const c=document.getElementById('canvas');c.onpointerdown({button:0,clientX:${point.x},clientY:${point.y},pointerId:1,preventDefault(){}});c.onpointermove({clientX:${point.x},clientY:${glideTo},pointerId:1});c.onpointerup({pointerId:1});})()`);await wait(150);
    assert.match(await evaluate(`document.getElementById('status').textContent`),/Preview: E4/);result.checks.push('Piano-key drag preview passed');
    // A held note lets us check Pause/Resume and preview independence.
    await evaluate(`import('./dist/state.js').then(({state})=>{state.project.notes=[{id:1,instrument:0,start:0,length:512,pitch:60,volume:null}];})`);
    await evaluate(`import('./dist/playback/transport.js').then(m=>m.play())`);
    await wait(200);
-   assert.equal(await evaluate(`document.getElementById('pause').disabled`),false);
+   assert.equal(await evaluate(`document.getElementById('play').classList.contains('is-playing')`),true);
+   assert.equal(await evaluate(`document.getElementById('play').title`),'Pause');
    await click(point.x,point.y);await wait(150);
-   assert.equal(await evaluate(`document.getElementById('pause').disabled`),false);
-   await evaluate(`document.getElementById('pause').click()`);
-   assert.equal(await evaluate(`document.getElementById('play').textContent`),'Resume');
+   assert.equal(await evaluate(`document.getElementById('play').classList.contains('is-playing')`),true,'a key preview must not stop playback');
+   await evaluate(`document.getElementById('play').click()`);await wait(100);
+   assert.equal(await evaluate(`document.getElementById('play').title`),'Resume');
    await evaluate(`import('./dist/playback/transport.js').then(m=>m.play())`);
    await wait(150);
    result.checks.push({transportPosition:await evaluate(`document.getElementById('playback-position').textContent`)});

@@ -16,15 +16,15 @@ app.on('browser-window-created',(_,win)=>{
  const wc=win.webContents;
  wc.once('did-finish-load',async()=>{
   try{
-   const run=code=>wc.executeJavaScript(code,true);
+   const run=code=>wc.executeJavaScript(code,true).catch(error=>{throw Error(String(error.message||error)+' | while running: '+String(code).slice(0,200));});
    const state=()=>run(`import('./dist/state.js').then(({state})=>({project:state.project,dirty:state.dirty}))`);
    const importClick=()=>run(`document.getElementById('import-midi').onclick()`);
    const initial=await state();await importClick();assert.deepEqual(await state(),initial);
    result.checks.push('Cancel leaves project unchanged');
    selection=badFile;await importClick();assert.deepEqual(await state(),initial);
-   assert.match(await run(`document.getElementById('status').textContent`),/MIDI import failed/);
+   assert.match(await run(`document.getElementById('status').textContent`),/Import failed/);
    result.checks.push('Malformed file leaves project unchanged');
-   await run(`import('./dist/state.js').then(({state})=>{state.dirty=true;window.confirm=()=>false;})`);
+   await run(`import('./dist/state.js').then(({state})=>{state.dirty=true;state.saved='';window.confirm=()=>false;})`);
    const dirty=await state();selection=validFile;await importClick();assert.deepEqual(await state(),dirty);
    result.checks.push('Declining unsaved-changes prompt leaves project unchanged');
    await run(`window.confirm=()=>true;true;`);await importClick();
@@ -38,7 +38,7 @@ app.on('browser-window-created',(_,win)=>{
    await run(`document.getElementById('grid').value='128';document.getElementById('grid').onchange()`);
    assert.deepEqual((await state()).project.notes.map(n=>n.length),[7,11]);
    await run(`import('./dist/playback/transport.js').then(m=>m.play())`);
-   assert.equal(await run(`document.getElementById('pause').disabled`),false);
+   assert.equal(await run(`document.getElementById('play').classList.contains('is-playing')`),true);
    await run(`document.getElementById('stop').click()`);
    result.checks.push('Real file IPC accepts a file over 16 MiB, imports 7/11-unit notes and GM Violin, displays report, marks unsaved, and starts playback');
    win.setSize(900,700);await new Promise(resolve=>setTimeout(resolve,200));
@@ -49,7 +49,7 @@ app.on('browser-window-created',(_,win)=>{
    assert.equal((await state()).project.notes.length,130000);
    await run(`document.getElementById('midi-report-close').click()`);
    await run(`import('./dist/playback/transport.js').then(m=>m.play())`);
-   assert.equal(await run(`document.getElementById('pause').disabled`),false);
+   assert.equal(await run(`document.getElementById('play').classList.contains('is-playing')`),true);
    await run(`document.getElementById('stop').click()`);
    result.checks.push('130,000-note import renders and starts/stops native playback without argument-count errors');
    await run(`import('./dist/state.js').then(({state})=>{state.dirty=false;})`);finish();
