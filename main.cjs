@@ -43,7 +43,7 @@ function validMml(data){return data&&typeof data.name==='string'&&Array.isArray(
 ipcMain.handle('mml-open',(event,data)=>{
  if(event.sender!==win.webContents||!validMml(data))throw Error('Invalid MML request');mmlData=data;
  if(mmlWindow&&!mmlWindow.isDestroyed()){mmlWindow.webContents.send('mml-data',data);mmlWindow.show();mmlWindow.focus();return;}
- mmlWindow=new BrowserWindow({parent:win,width:820,height:600,minWidth:450,minHeight:350,backgroundColor:'#23262a',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+ mmlWindow=new BrowserWindow({parent:win,width:820,height:600,minWidth:450,minHeight:350,icon:path.join(__dirname,'assets','logo.png'),backgroundColor:'#23262a',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  mmlWindow.setMenuBarVisibility(false);mmlWindow.setClosable(true);mmlWindow.webContents.setWindowOpenHandler(()=>({action:'deny'}));mmlWindow.webContents.on('will-navigate',e=>e.preventDefault());mmlWindow.on('closed',()=>{mmlWindow=null;mmlData=null;});mmlWindow.loadFile(path.join(__dirname,'mml.html'));
 });
 ipcMain.handle('mml-update',(event,data)=>{if(event.sender!==win.webContents||!validMml(data))return;mmlData=data;if(mmlWindow&&!mmlWindow.isDestroyed())mmlWindow.webContents.send('mml-data',data);});

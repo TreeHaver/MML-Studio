@@ -8,14 +8,14 @@ export function installAppearance(){
  if(!document.documentElement)return;
  const main=$('workspace'),left=$('left-divider'),right=$('right-divider');
  // The native popup is painted by the browser and ignores page CSS, so selects get our own list.
- let closeOpenList:(()=>void)|null=null;
+ let closeOpenList:(()=>void)|null=null,openOwner:HTMLElement|null=null;
  const decorateSelect=(select:HTMLSelectElement)=>{
   if(select.parentElement?.classList.contains('select-control'))return;
   const shell=document.createElement('span'),chevron=document.createElement('span');shell.className='select-control';chevron.className='select-chevron';chevron.setAttribute('aria-hidden','true');select.replaceWith(shell);shell.append(select,chevron);
   let panel:HTMLDivElement|null=null,items:HTMLButtonElement[]=[],active=-1,typed='',typedTimer:number|undefined;
   // Options read "12. Vibraphone", so type-ahead has to match the name, not the number.
   const label=(option:HTMLOptionElement)=>(option.textContent??'').replace(/^\s*\d+\.\s*/,'').toLowerCase();
-  const close=()=>{panel?.remove();panel=null;items=[];active=-1;typed='';shell.classList.remove('open');if(closeOpenList===close)closeOpenList=null;};
+  const close=()=>{panel?.remove();panel=null;items=[];active=-1;typed='';shell.classList.remove('open');if(closeOpenList===close){closeOpenList=null;openOwner=null;}};
   const highlight=(index:number)=>{
    if(!panel||index<0||index>=items.length)return;
    items[active]?.classList.remove('current');active=index;
@@ -42,7 +42,7 @@ export function installAppearance(){
     item.onclick=()=>{const changed=select.value!==option.value;select.value=option.value;close();select.focus({preventScroll:true});if(changed)select.dispatchEvent(new Event('change',{bubbles:true}));};
     panel!.append(item);return item;
    });
-   document.body.append(panel);shell.classList.add('open');closeOpenList=close;
+   document.body.append(panel);shell.classList.add('open');closeOpenList=close;openOwner=shell;
    const box=select.getBoundingClientRect();
    panel.style.minWidth=box.width+'px';panel.style.maxWidth=Math.round(innerWidth-16)+'px';
    const below=innerHeight-box.bottom-14,above=box.top-14,full=panel.offsetHeight;
@@ -66,8 +66,9 @@ export function installAppearance(){
   });
  };
  document.addEventListener('pointerdown',e=>{const target=e.target as Element|null;if(!target?.closest?.('.select-control')&&!target?.closest?.('.select-panel'))closeOpenList?.();},true);
- // An ancestor scrolling detaches the fixed panel from its select, but scrolling the panel itself must not.
- document.addEventListener('scroll',e=>{const target=e.target as Element|null;if(!target?.closest?.('.select-panel'))closeOpenList?.();},true);
+ // Only a scroll that moves the select detaches the fixed panel from it. The roll scrolls
+ // constantly while following playback, and must not close a list in the toolbar.
+ document.addEventListener('scroll',e=>{const target=e.target as any;if(openOwner&&target?.contains?.(openOwner))closeOpenList?.();},true);
  window.addEventListener('resize',()=>closeOpenList?.());
  window.addEventListener('keydown',e=>{if(e.key==='Escape')closeOpenList?.();});
  document.querySelectorAll('select').forEach(select=>decorateSelect(select as HTMLSelectElement));new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{if(!(node instanceof Element))return;if(node.matches('select'))decorateSelect(node as HTMLSelectElement);node.querySelectorAll('select').forEach(select=>decorateSelect(select as HTMLSelectElement));}))).observe(document.body,{childList:true,subtree:true});

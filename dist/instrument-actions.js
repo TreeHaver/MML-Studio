@@ -137,6 +137,7 @@ export function instrumentActions(row, index) {
     body.append(destination, merge);
     box.append(summary, body);
     row.append(box);
+    return body;
 }
 function applySplit(project, count) {
     if (!count) {

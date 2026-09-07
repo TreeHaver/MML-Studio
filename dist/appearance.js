@@ -9,7 +9,7 @@ export function installAppearance() {
         return;
     const main = $('workspace'), left = $('left-divider'), right = $('right-divider');
     // The native popup is painted by the browser and ignores page CSS, so selects get our own list.
-    let closeOpenList = null;
+    let closeOpenList = null, openOwner = null;
     const decorateSelect = (select) => {
         if (select.parentElement?.classList.contains('select-control'))
             return;
@@ -22,8 +22,10 @@ export function installAppearance() {
         let panel = null, items = [], active = -1, typed = '', typedTimer;
         // Options read "12. Vibraphone", so type-ahead has to match the name, not the number.
         const label = (option) => (option.textContent ?? '').replace(/^\s*\d+\.\s*/, '').toLowerCase();
-        const close = () => { panel?.remove(); panel = null; items = []; active = -1; typed = ''; shell.classList.remove('open'); if (closeOpenList === close)
-            closeOpenList = null; };
+        const close = () => { panel?.remove(); panel = null; items = []; active = -1; typed = ''; shell.classList.remove('open'); if (closeOpenList === close) {
+            closeOpenList = null;
+            openOwner = null;
+        } };
         const highlight = (index) => {
             if (!panel || index < 0 || index >= items.length)
                 return;
@@ -73,6 +75,7 @@ export function installAppearance() {
             document.body.append(panel);
             shell.classList.add('open');
             closeOpenList = close;
+            openOwner = shell;
             const box = select.getBoundingClientRect();
             panel.style.minWidth = box.width + 'px';
             panel.style.maxWidth = Math.round(innerWidth - 16) + 'px';
@@ -124,8 +127,9 @@ export function installAppearance() {
     };
     document.addEventListener('pointerdown', e => { const target = e.target; if (!target?.closest?.('.select-control') && !target?.closest?.('.select-panel'))
         closeOpenList?.(); }, true);
-    // An ancestor scrolling detaches the fixed panel from its select, but scrolling the panel itself must not.
-    document.addEventListener('scroll', e => { const target = e.target; if (!target?.closest?.('.select-panel'))
+    // Only a scroll that moves the select detaches the fixed panel from it. The roll scrolls
+    // constantly while following playback, and must not close a list in the toolbar.
+    document.addEventListener('scroll', e => { const target = e.target; if (openOwner && target?.contains?.(openOwner))
         closeOpenList?.(); }, true);
     window.addEventListener('resize', () => closeOpenList?.());
     window.addEventListener('keydown', e => { if (e.key === 'Escape')

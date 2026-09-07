@@ -48,6 +48,9 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Main editor structure and styles | `index.html`, `studio.css` |
 | File/Tools/theme/Export menu dismissal, including clicks inside a custom select list | `src/chrome.ts` |
 | Sky/Night palettes, custom select lists, panels resized or closed by dragging, saved workspace | `src/appearance.ts`, `themes.css` |
+| Playback speed/volume panel, effective-BPM readout | `index.html`, `src/playback/transport.ts` |
+| Per-instrument MML box and warning marker, inside Instrument actions | `src/mml.ts`, `src/instrument-actions.ts` |
+| Unsaved-change prompts compared against the last saved contents | `src/files.ts`, `src/state.ts` |
 | Header logo and native window icon | `assets/logo.svg`, `assets/logo.png`, `main.cjs` |
 | MML pop-out styles | `style.css` |
 

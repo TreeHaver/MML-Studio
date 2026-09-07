@@ -115,7 +115,8 @@ function positionLabel() {
     $('playback-time').textContent = playback.tick === null ? '' : `${secondsAtTick(phase === 'idle' ? tempoMap(state.project.notes) : plan?.map ?? tempoMap(state.project.notes), tick).toFixed(1)} s · `;
     const label = $('effective-bpm');
     label.hidden = playbackSettings.speed === 1;
-    label.textContent = `Effective BPM ${Number(effective.toFixed(2))}${effective < 32 || effective > 255 ? ' (Out of bounds!)' : ''}`;
+    // Reads as part of the line, not a footnote: whole numbers, same size, same baseline.
+    label.textContent = ` · ${Math.round(effective)} effective${effective < 32 || effective > 255 ? ' (out of bounds!)' : ''}`;
     label.classList.toggle('out-of-bounds', effective < 32 || effective > 255);
 }
 export function syncPlaybackControls() { buttons(); positionLabel(); }

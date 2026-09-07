@@ -25,7 +25,8 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  const click=(x,y)=>{c.onpointerdown(event(x,y));c.onpointerup(event(x,y));};const drag=(x,y,xx,yy)=>{c.onpointerdown(event(x,y));c.onpointermove(event(xx,yy));c.onpointerup(event(xx,yy));};
  click(158,240);assert.equal(run('project.notes.length'),1);
  assert.equal(doc.getElementById('play').disabled,false);
- const mmlBox=()=>doc.getElementById('instruments').children[0].children.find(el=>el.className==='instrument-mml');
+ const mmlHome=()=>doc.getElementById('instruments').children[0].children.find(el=>el.className==='instrument-actions').children.find(el=>el.className==='instrument-action-body');
+ const mmlBox=()=>mmlHome().children.find(el=>el.className==='instrument-mml');
  assert.match(mmlBox().children[0].textContent,/Instrument character count: [1-9][0-9]* bytes/);
  const mmlToggle=mmlBox().children[1].children[0];mmlToggle.checked=false;mmlToggle.onchange();
  const frozen=mmlBox().children[0].textContent;
@@ -66,7 +67,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.match(doc.getElementById('instruments').children[0].children[3].textContent,/Not a valid MS2 instrument/);
  click(20,240);await new Promise(setImmediate);assert.deepEqual(previewCalls.at(-1),{pitch:expected,program:0,isDrum:true});
  const melodic=doc.getElementById('instruments').children[0].children[2];melodic.value='40';melodic.onchange();
- assert.equal(run('project.instruments[0].isDrum'),false);assert.equal(doc.getElementById('instruments').children[0].children.some(el=>el.className==='instrument-warning'),false);
+ assert.equal(run('project.instruments[0].isDrum'),false);assert.equal(doc.getElementById('instruments').children[0].children.some(el=>el.className==='instrument-warning'&&el.textContent),false);
  run('project.instruments.push({name:"Other",color:"#fff"});state.active=1');
  doc.getElementById('view').scrollTop+=20;
  click(20,240);await new Promise(setImmediate);
@@ -264,16 +265,16 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  const speed=doc.getElementById('playback-speed'),masterVolume=doc.getElementById('playback-volume'),effective=doc.getElementById('effective-bpm');
  const projectBeforeSettings=run('JSON.stringify(project)');
  assert.equal(speed.value,'100');assert.equal(masterVolume.value,'100');assert.equal(effective.hidden,true);
- speed.onpointerdown();speed.value='198';speed.oninput();assert.equal(speed.value,'200');assert.equal(seq.playbackRate,2);assert.equal(effective.textContent,'Effective BPM 240');
+ speed.onpointerdown();speed.value='198';speed.oninput();assert.equal(speed.value,'200');assert.equal(seq.playbackRate,2);assert.equal(effective.textContent,' · 240 effective');
  speed.value='52';speed.oninput();assert.equal(speed.value,'50');speed.onpointerup();
  speed.onkeydown();speed.value='51';speed.oninput();assert.equal(speed.value,'51'); // keyboard can leave snap positions
- speed.value='1';speed.oninput();assert.equal(speed.value,'25');assert.equal(effective.textContent,'Effective BPM 30 (Out of bounds!)');
- speed.value='500';speed.oninput();assert.equal(speed.value,'400');assert.equal(effective.textContent,'Effective BPM 480 (Out of bounds!)');
+ speed.value='1';speed.oninput();assert.equal(speed.value,'25');assert.equal(effective.textContent,' · 30 effective (out of bounds!)');
+ speed.value='500';speed.oninput();assert.equal(speed.value,'400');assert.equal(effective.textContent,' · 480 effective (out of bounds!)');
  masterVolume.value='0';masterVolume.oninput();assert.equal(masterVolumes.at(-1),0);
  masterVolume.value='35';masterVolume.oninput();assert.equal(masterVolumes.at(-1),.35);
  assert.equal(run('JSON.stringify(project)'),projectBeforeSettings);
- await transport.play();assert.equal(seq.playbackRate,4);assert.equal(doc.getElementById('playback-bpm').textContent,'60 BPM');assert.equal(effective.textContent,'Effective BPM 240');
- transport.seekToTick(130);assert.equal(doc.getElementById('playback-bpm').textContent,'90 BPM');assert.equal(effective.textContent,'Effective BPM 360 (Out of bounds!)');
+ await transport.play();assert.equal(seq.playbackRate,4);assert.equal(doc.getElementById('playback-bpm').textContent,'60 BPM');assert.equal(effective.textContent,' · 240 effective');
+ transport.seekToTick(130);assert.equal(doc.getElementById('playback-bpm').textContent,'90 BPM');assert.equal(effective.textContent,' · 360 effective (out of bounds!)');
  speed.value='100';speed.oninput();assert.equal(seq.playbackRate,1);assert.equal(effective.hidden,true);transport.stopPlayback(false);
 
  // Song/Segment views use a local model and save edits into the complete album.

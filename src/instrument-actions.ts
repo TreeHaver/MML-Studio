@@ -43,7 +43,7 @@ export function mergeInstrument(source:number,target:number){
   apply(result.project,source,target>source?target-1:target);status(`Merged “${from.name}” into “${to.name}”. Undo to restore both.`);
  }catch(error){status(String(error));}
 }
-export function instrumentActions(row:HTMLElement,index:number){
+export function instrumentActions(row:HTMLElement,index:number):HTMLElement{
  const box=document.createElement('details');box.className='instrument-actions';
  const summary=document.createElement('summary');summary.textContent='Instrument actions';
  const body=document.createElement('div');body.className='instrument-action-body';
@@ -67,7 +67,7 @@ export function instrumentActions(row:HTMLElement,index:number){
   body.append(label,target,split);
   if(state.project.instruments[index].isDrum){const kit=document.createElement('button');kit.className='instrument-split-kit';kit.textContent='Split Drumkit';kit.onclick=()=>splitKitInstrument(index);body.append(kit);}
  }
- body.append(destination,merge);box.append(summary,body);row.append(box);
+ body.append(destination,merge);box.append(summary,body);row.append(box);return body;
 }
 
 function applySplit(project:Project,count:number){

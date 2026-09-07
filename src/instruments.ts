@@ -58,8 +58,7 @@ export function instruments(){
  row.classList.toggle('collapsed',collapsed);
  const remove=document.createElement('button');remove.className='instrument-row-delete';remove.title='Delete '+i.name;remove.setAttribute('aria-label','Delete '+i.name);remove.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>';remove.onclick=()=>removeInstrument(index);row.append(remove);
  const rename=document.createElement('button');rename.className='instrument-row-rename';rename.title='Rename '+i.name;rename.setAttribute('aria-label','Rename '+i.name);rename.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';rename.onclick=beginRename;row.append(rename);
- mmlControls(row,index);
- instrumentActions(row,index);
+ mmlControls(row,instrumentActions(row,index),index);
  });
  panel.scrollTop=scroll;
  // Selects are wrapped by a MutationObserver, which runs after this returns and moves the scroll again.
