@@ -5,6 +5,7 @@ import { checkpoint } from './history.js';
 import { refresh } from './commands.js';
 import { status } from './dom.js';
 import { valid } from './model/validation.js';
+import { fitsCurrentView } from './segment-session.js';
 let clipboard = null;
 let position = null;
 export function setPastePosition(tick) { position = tick; status('Paste position set. Ctrl+V pastes into the active instrument.'); }
@@ -51,6 +52,10 @@ export function pasteNotes() {
     let id = state.project.notes.reduce((max, n) => Math.max(max, n.id), 0);
     const start = position ?? 0, added = clipboard.notes.map(n => ({ ...n, id: ++id, instrument: state.active, start: start + n.start }));
     const notes = [...state.project.notes, ...added];
+    if (!fitsCurrentView({ ...state.project, notes })) {
+        status('The pasted notes extend beyond this view. Return to Project to paste across its boundary.');
+        return;
+    }
     if (!valid(notes)) {
         status('Cannot paste here: the copied tempo instructions conflict with an existing tempo change.');
         return;
@@ -75,6 +80,10 @@ export function pasteMml(text) {
         let id = project.notes.reduce((max, n) => Math.max(max, n.id), 0);
         const added = imported.project.notes.map(n => ({ ...n, id: ++id, start: start + n.start, instrument: imported.project.instruments[n.instrument].isInstructions ? ensureInstructions(project) : state.active }));
         project.notes.push(...added);
+        if (!fitsCurrentView(project)) {
+            status('The pasted MML extends beyond this view. Return to Project to paste across its boundary.');
+            return true;
+        }
         if (!valid(project.notes)) {
             status('Cannot paste MML: conflicting global tempo instructions.');
             return true;

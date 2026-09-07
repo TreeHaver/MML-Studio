@@ -6,7 +6,7 @@ import {parse} from '../dist/model/serialization.js';
 import {valid} from '../dist/model/validation.js';
 import {move} from '../dist/music/note-operations.js';
 import {tempoMap,secondsAtTick,tickAtSeconds,tempoAt} from '../dist/music/tempo.js';
-import {compilePlayback} from '../dist/playback/midi.js';
+import {compilePlayback,heldPlaybackNotes} from '../dist/playback/midi.js';
 import {GM_PROGRAMS} from '../dist/playback/gm-programs.js';
 import {BasicMIDI,SoundBankLoader,SpessaSynthProcessor} from 'spessasynth_core';
 import {StbVorbis} from 'stb-vorbis';
@@ -19,6 +19,13 @@ test('compressed SF3 decoding is explicitly disabled without loading a decoder',
  assert.ok(!Object.values(lock.packages).some(p=>/registry.*stb-vorbis/.test(p.resolved??'')));
 });
 const note=(id,start,length,pitch=60,tempo=null)=>({id,start,length,pitch,tempo,instrument:0,volume:null});
+test('seek restoration retains original onset volume, mapped drums and exact note boundaries',()=>{
+ const p=fresh();p.instruments.push({name:'Snare',color:'#ff9900',ms2Drum:'snare'},{name:'Instructions',color:'#f4d35e',isInstructions:true});
+ p.notes=[{...note(1,0,128),volume:5},{...note(2,0,8,62),volume:9},{...note(3,8,2,64),volume:0},note(4,32,32,65),{...note(5,0,128),instrument:1,volume:12},{...note(6,0,128),instrument:2,volume:15}];
+ const channels=compilePlayback(p).channels;
+ assert.deepEqual(heldPlaybackNotes(p,channels,32),[{channel:0,pitch:60,velocity:76},{channel:9,pitch:38,velocity:102}]);
+ assert.deepEqual(heldPlaybackNotes(p,channels,128),[]);assert.deepEqual(heldPlaybackNotes(p,channels,0),[]);
+});
 test('tempo boundaries, conflicts, default and exact held-note timing',()=>{
  const p=fresh();p.notes=[note(1,0,128),note(2,32,32,64,60)];
  const map=tempoMap(p.notes);assert.equal(tempoAt(p.notes,0),120);assert.equal(secondsAtTick(map,128),3.5);assert.equal(tickAtSeconds(map,3.5),128);

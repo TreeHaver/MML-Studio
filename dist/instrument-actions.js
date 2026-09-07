@@ -4,6 +4,7 @@ import { refresh } from './commands.js';
 import { status } from './dom.js';
 import { stopPlayback } from './playback/transport.js';
 import { deleteInstrument, mergeInstruments, splitNotes, splitDrumkit, parseSplitPitch } from './model/instrument-operations.js';
+import { removeSegmentInstrument } from './segment-session.js';
 function apply(project, source, active) {
     stopPlayback(false);
     checkpoint();
@@ -17,6 +18,7 @@ function apply(project, source, active) {
         if (solo !== null && solo !== source)
             instrumentView.solo = solo > source ? solo - 1 : solo;
     }
+    removeSegmentInstrument(source);
     state.project = project;
     state.active = active;
     state.selection.clear();
@@ -29,6 +31,22 @@ export function removeInstrument(index) {
         return;
     const notes = state.project.notes.filter(n => n.instrument === index), tempos = notes.filter(n => n.tempo != null).length;
     const contents = `${notes.length} notes/events${tempos ? `, including ${tempos} global tempo instructions` : ''}`, last = state.project.instruments.length === 1;
+    if (state.segment) {
+        if (!notes.length) {
+            status('This instrument has no notes in the current view.');
+            return;
+        }
+        if (!confirm(`Remove ${contents} from “${instrument.name}” in this view?\nThe shared instrument and notes outside this view remain. You can undo this.`))
+            return;
+        stopPlayback(false);
+        checkpoint();
+        state.project.notes = state.project.notes.filter(n => n.instrument !== index);
+        state.selection.clear();
+        state.gesture = null;
+        refresh();
+        status(`Cleared “${instrument.name}” inside this view. Undo to restore.`);
+        return;
+    }
     if (notes.length && !confirm(last
         ? `“${instrument.name}” is the only instrument, so it cannot be deleted — it will be emptied instead.\nIts ${contents} will be cleared and it will be reset to an empty Piano.\nYou can undo this.`
         : `Delete “${instrument.name}” and its ${contents}?\nYou can undo this.`))
@@ -42,7 +60,8 @@ export function mergeInstrument(source, target) {
         const result = mergeInstruments(state.project, source, target), from = state.project.instruments[source], to = state.project.instruments[target];
         const count = state.project.notes.filter(n => n.instrument === source).length;
         const warning = result.volumeConflict ? '\nSome simultaneous notes have different volumes. After merging, they will share one volume at each position, so their loudness may change.' : '';
-        if (!confirm(`Move all ${count} notes/events and their tempo instructions from “${from.name}” into “${to.name}”, then delete “${from.name}”?\nThe destination keeps its name, color, playback preset and mute state.${warning}\nYou can undo this.`))
+        const scope = state.segment ? ' inside this view? Notes outside the view and the shared source instrument remain.' : `, then delete “${from.name}”?`;
+        if (!confirm(`Move all ${count} notes/events and their tempo instructions from “${from.name}” into “${to.name}”${scope}\nThe destination keeps its name, color, playback preset and mute state.${warning}\nYou can undo this.`))
             return;
         apply(result.project, source, target > source ? target - 1 : target);
         status(`Merged “${from.name}” into “${to.name}”. Undo to restore both.`);

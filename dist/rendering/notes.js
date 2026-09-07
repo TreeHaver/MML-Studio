@@ -42,7 +42,7 @@ export function drawNotes() {
         ctx.fillStyle = noteLabelColor(instructions ? INSTRUCTIONS_COLOR : state.project.instruments[n.instrument].color);
         ctx.font = '10px Segoe UI, sans-serif';
         ctx.textBaseline = 'middle';
-        ctx.fillText(instructions ? (n.tempo == null ? 'Event' : `T${n.tempo}`) : name(n.pitch) + (n.tempo == null ? '' : ` T${n.tempo}`), r.x + 4, r.y + r.h / 2);
+        ctx.fillText(instructions ? ([n.section, n.timeSignature, n.tempo == null ? '' : `T${n.tempo}`].filter(Boolean).join(' · ') || 'Event') : name(n.pitch) + (n.tempo == null ? '' : ` T${n.tempo}`), r.x + 4, r.y + r.h / 2);
         ctx.restore();
         ctx.globalAlpha = 1;
     }

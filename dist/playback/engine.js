@@ -1,4 +1,11 @@
 // Independent lazy synths keep keyboard previews from changing song channels.
+let masterVolume = 1;
+const outputs = new Set();
+export function setMasterVolume(value) {
+    masterVolume = Math.max(0, Math.min(1, value));
+    for (const output of outputs)
+        output.gain.setTargetAtTime(masterVolume, output.context.currentTime, .015);
+}
 async function createSynth() {
     const lib = await import('../../vendor/synth.js');
     const context = new AudioContext({ sampleRate: 44100 });
@@ -6,10 +13,15 @@ async function createSynth() {
         await context.resume();
         await context.audioWorklet.addModule(new URL('../../vendor/spessasynth_processor.min.js', import.meta.url));
         const synth = new lib.WorkletSynthesizer(context);
-        synth.connect(context.destination);
+        const output = context.createGain();
+        output.gain.value = masterVolume;
+        synth.connect(output);
+        output.connect(context.destination);
         const bytes = await window.files.soundBank();
         await synth.soundBankManager.addSoundBank(new Uint8Array(bytes).buffer, 'General MIDI');
         await synth.isReady;
+        output.gain.value = masterVolume;
+        outputs.add(output);
         return { lib, context, synth };
     }
     catch (error) {
@@ -74,6 +86,8 @@ export function getEngine() {
             seq.loopCount = 0;
             return {
                 seq, context,
+                restoreNotes(notes) { for (const n of notes)
+                    synth.noteOn(n.channel, n.pitch, n.velocity); },
                 mute(channel, muted) { synth.midiChannels[channel].setSystemParameter('isMuted', muted); },
                 async load(binary) {
                     seq.pause();
@@ -87,6 +101,7 @@ export function getEngine() {
                         timer = setTimeout(() => done(Error('SoundFont playback did not become ready.')), 20000);
                         seq.loadNewSongList([{ binary, fileName: 'MML Studio preview' }]);
                     });
+                    seq.pause();
                 },
                 async play() { await context.resume(); seq.play(); },
                 pause() { seq.pause(); synth.stopAll(true); },

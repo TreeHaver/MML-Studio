@@ -1,5 +1,8 @@
+import { validStructure } from '../music/structure.js';
 import { tempoMap } from '../music/tempo.js';
 export function valid(notes) {
+    if (!validStructure(notes))
+        return false;
     try {
         tempoMap(notes);
     }

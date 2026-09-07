@@ -30,6 +30,7 @@ export function readSMF(bytes:Uint8Array):MidiFile{
     if(meta===3)names[track]=new TextDecoder().decode(data).replace(/[\x00-\x1f]/g,'').trim()||names[track];
     if(meta===33){if(data.length!==1||data[0]>127)throw Error('Invalid MIDI port.');port=data[0];}
     if(meta===81&&(data.length!==3||data.every(b=>b===0)))throw Error('Invalid MIDI tempo.');
+    if(meta===88&&(data.length!==4||data[0]===0))throw Error('Invalid MIDI time signature.');
     events.push({tick,track,port,status,data,meta});
     if(meta===47){if(data.length)throw Error('Invalid end-of-track event.');ended=true;pos=limit;break;}
    }else if(status===240||status===247){

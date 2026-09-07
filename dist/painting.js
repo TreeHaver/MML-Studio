@@ -1,4 +1,6 @@
 import { drawCrowdedRegions } from './rendering/note-density.js';
+import { refreshSignature } from './toolbar.js';
+import { refreshSegmentControls, drawSegmentBoundary } from './segment-view.js';
 import { drawSheetLimit } from './rendering/sheet-limit.js';
 import { palette } from './appearance.js';
 import { playback, syncPlaybackControls } from './playback/transport.js';
@@ -13,6 +15,8 @@ import { drawKeyboard } from './rendering/keyboard.js';
 import { drawTempoMarkers } from './rendering/tempo.js';
 export function draw() {
     syncPlaybackControls();
+    refreshSignature();
+    refreshSegmentControls();
     const { width, height } = state;
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = palette.background;
@@ -28,6 +32,7 @@ export function draw() {
     drawRuler();
     drawKeyboard();
     drawTempoMarkers();
+    drawSegmentBoundary();
     drawSheetLimit();
     if (playback.tick !== null) {
         const x = KEY + playback.tick * state.zoom - view.scrollLeft;

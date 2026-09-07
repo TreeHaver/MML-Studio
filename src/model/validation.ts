@@ -1,6 +1,8 @@
+import {validStructure} from '../music/structure.ts';
 import {tempoMap} from '../music/tempo.ts';
 import type {Note,Project} from '../model/types.ts';
 export function valid(notes:Note[]):boolean {
+ if(!validStructure(notes))return false;
  try {tempoMap(notes);} catch {return false;}
  const groups=new Map<number,Map<number,Note[]>>();
  for(const n of notes){

@@ -1,14 +1,16 @@
 import { refresh } from './commands.js';
 import { $ } from './dom.js';
 import { state, resetInstrumentView } from './state.js';
-import { stopPlayback } from './playback/transport.js';
-export function checkpoint() { state.history.push(JSON.stringify(state.project)); if (state.history.length > 100)
+import { stopPlayback, updatePlaybackVoices } from './playback/transport.js';
+import { historySnapshot, restoreProject } from './segment-session.js';
+export function checkpoint() { state.history.push(historySnapshot()); if (state.history.length > 100)
     state.history.shift(); state.future = []; state.dirty = true; }
 export function undo(redo = false) { const src = redo ? state.future : state.history, dst = redo ? state.history : state.future; if (!src.length)
-    return; dst.push(JSON.stringify(state.project)); const restored = JSON.parse(src.pop()); if (restored.instruments.length !== state.project.instruments.length) {
+    return; dst.push(historySnapshot()); const restored = JSON.parse(src.pop()); if (state.segment || restored.instruments.length !== state.project.instruments.length) {
     stopPlayback(false);
     resetInstrumentView();
-} state.project = restored; state.active = Math.min(state.active, state.project.instruments.length - 1); state.selection.clear(); state.gesture = null; state.dirty = true; refresh(); }
+} const voicesChanged = restored.instruments.some((i, index) => ["midiProgram", "isDrum", "ms2Drum", "isInstructions"].some(key => i[key] !== state.project.instruments[index]?.[key])); restoreProject(restored); if (voicesChanged)
+    void updatePlaybackVoices(); state.active = Math.min(state.active, state.project.instruments.length - 1); state.selection.clear(); state.gesture = null; state.dirty = true; refresh(); }
 export function installHistory() {
     const repeat = (id, action) => {
         const button = $(id);

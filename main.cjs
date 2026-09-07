@@ -4,7 +4,16 @@ const path=require('node:path'),fs=require('node:fs/promises');
 // on Windows without moving userData (which holds saved workspace preferences).
 app.commandLine.appendSwitch('disable-http-cache');
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+function safeFileStem(value){let name=(typeof value==='string'?value:'Untitled').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').replace(/[. ]+$/,'').trim()||'Untitled';if(/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name))name='_'+name;return name;}
 let win;
+function restoreEditorFocus(){if(win&&!win.isDestroyed()){win.focus();win.webContents.focus();}}
+async function fileDialog(kind,options){try{return await dialog[kind](win,options);}finally{restoreEditorFocus();}}
+ipcMain.on('confirm-action',(event,message)=>{
+ if(!win||win.isDestroyed()||event.sender!==win.webContents||typeof message!=='string'){event.returnValue=false;return;}
+ let accepted=false;
+ try{accepted=dialog.showMessageBoxSync(win,{type:'question',title:'MML Studio',message,buttons:['Continue','Cancel'],defaultId:1,cancelId:1,noLink:true})===0;}
+ finally{restoreEditorFocus();event.returnValue=accepted;}
+});
 app.whenReady().then(()=>{
  win=new BrowserWindow({width:1320,height:850,minWidth:900,minHeight:560,icon:path.join(__dirname,'assets','logo.png'),backgroundColor:'#171d21',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  // Stay hidden until the module script has run, so the empty skeleton is never shown.
@@ -13,15 +22,15 @@ app.whenReady().then(()=>{
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  win.webContents.on('will-navigate',e=>e.preventDefault());
 });
-ipcMain.handle('save',async(_,text)=>{if(typeof text!=='string')throw Error('Invalid project');const r=await dialog.showSaveDialog(win,{defaultPath:'music-studio.json',filters:[{name:'Studio JSON',extensions:['json']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text);return true;});
-ipcMain.handle('open',async()=>{const r=await dialog.showOpenDialog(win,{properties:['openFile'],filters:[{name:'Studio JSON',extensions:['json']}]});return r.canceled?null:fs.readFile(r.filePaths[0],'utf8');});
+ipcMain.handle('save',async(_,text)=>{if(typeof text!=='string')throw Error('Invalid project');const r=await fileDialog('showSaveDialog',{defaultPath:safeFileStem(JSON.parse(text).name)+'.json',filters:[{name:'Studio JSON',extensions:['json']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text);return true;});
+ipcMain.handle('open',async()=>{const r=await fileDialog('showOpenDialog',{properties:['openFile'],filters:[{name:'Studio JSON',extensions:['json']}]});return r.canceled?null:fs.readFile(r.filePaths[0],'utf8');});
 ipcMain.handle('import-midi',async()=>{
- const r=await dialog.showOpenDialog(win,{title:'Import MIDI or MML',properties:['openFile'],filters:[{name:'MIDI and MML files',extensions:['mid','midi','mml','ms2mml','mne']}]});
+ const r=await fileDialog('showOpenDialog',{title:'Import MIDI or MML',properties:['openFile'],filters:[{name:'MIDI and MML files',extensions:['mid','midi','mml','ms2mml','mne']}]});
  if(r.canceled)return null;
  const file=r.filePaths[0],bytes=await fs.readFile(file);
  return {name:path.basename(file),bytes:new Uint8Array(bytes)};
 });
-ipcMain.handle('export-mml',async(_,name,text)=>{if(typeof name!=='string'||typeof text!=='string')throw Error('Invalid MML export');const r=await dialog.showSaveDialog(win,{defaultPath:name,filters:[{name:'MapleStory 2 MML',extensions:['ms2mml']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text,'utf8');return true;});
+ipcMain.handle('export-mml',async(_,name,text)=>{if(typeof name!=='string'||typeof text!=='string')throw Error('Invalid MML export');const r=await fileDialog('showSaveDialog',{defaultPath:safeFileStem(name),filters:[{name:'MapleStory 2 MML',extensions:['ms2mml']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text,'utf8');return true;});
 app.on('window-all-closed',()=>app.quit());
 ipcMain.handle('sound-bank',async()=>new Uint8Array(await fs.readFile(path.join(__dirname,'assets','TimGM6mb.sf2'))));
 

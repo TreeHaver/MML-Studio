@@ -1,6 +1,11 @@
 import { $ } from './dom.js';
 export function installChrome() {
-    const menus = [$('file-menu'), $('theme-menu'), $('export-menu')];
+    // Chromium's blocking JavaScript dialogs can leave Electron's renderer
+    // without keyboard focus on Windows. Keep confirmation behavior native.
+    const nativeDialogs = window.nativeDialogs;
+    if (nativeDialogs)
+        window.confirm = message => nativeDialogs.confirm(String(message));
+    const menus = [$('file-menu'), $('theme-menu'), $('export-menu'), $('tools-menu')];
     document.onclick = event => {
         const target = event.target;
         for (const menu of menus)

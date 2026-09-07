@@ -63,6 +63,8 @@ export function readSMF(bytes) {
                 }
                 if (meta === 81 && (data.length !== 3 || data.every(b => b === 0)))
                     throw Error('Invalid MIDI tempo.');
+                if (meta === 88 && (data.length !== 4 || data[0] === 0))
+                    throw Error('Invalid MIDI time signature.');
                 events.push({ tick, track, port, status, data, meta });
                 if (meta === 47) {
                     if (data.length)

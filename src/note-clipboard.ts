@@ -6,6 +6,7 @@ import {refresh} from './commands.ts';
 import {status} from './dom.ts';
 import {valid} from './model/validation.ts';
 import type {Note} from './model/types.ts';
+import {fitsCurrentView} from './segment-session.ts';
 
 let clipboard:{notes:Note[],instructions:boolean,span:number}|null=null;
 let position:number|null=null;
@@ -28,6 +29,7 @@ export function pasteNotes(){
  let id=state.project.notes.reduce((max,n)=>Math.max(max,n.id),0);
  const start=position??0,added=clipboard.notes.map(n=>({...n,id:++id,instrument:state.active,start:start+n.start}));
  const notes=[...state.project.notes,...added];
+ if(!fitsCurrentView({...state.project,notes})){status('The pasted notes extend beyond this view. Return to Project to paste across its boundary.');return;}
  if(!valid(notes)){status('Cannot paste here: the copied tempo instructions conflict with an existing tempo change.');return;}
  checkpoint();state.project.notes=notes;state.selection=new Set(added.map(n=>n.id));position=start+clipboard.span;refresh();
  status(`Pasted ${added.length} notes/events. Drag the selected group to move it; Undo restores the previous project.`);
@@ -42,6 +44,7 @@ export function pasteMml(text:string):boolean{
   let id=project.notes.reduce((max,n)=>Math.max(max,n.id),0);
   const added=imported.project.notes.map(n=>({...n,id:++id,start:start+n.start,instrument:imported.project.instruments[n.instrument].isInstructions?ensureInstructions(project):state.active}));
   project.notes.push(...added);
+  if(!fitsCurrentView(project)){status('The pasted MML extends beyond this view. Return to Project to paste across its boundary.');return true;}
   if(!valid(project.notes)){status('Cannot paste MML: conflicting global tempo instructions.');return true;}
   checkpoint();state.project=project;state.selection=new Set(added.map(n=>n.id));position=start+imported.span;refresh();
   status('Pasted '+imported.noteCount+' MML notes. '+imported.warnings.join(' '));return true;

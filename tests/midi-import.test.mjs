@@ -8,6 +8,23 @@ import {compilePlayback} from '../dist/playback/midi.js';
 import {tempoAt} from '../dist/music/tempo.js';
 const {midi,event:e,end}=fixture;
 
+test('MIDI time signatures become silent persistent Instructions, including signature-only files',()=>{
+ const bytes=midi([[e(0,255,88,4,4,2,24,8),e(0,144,60,100),e(32,255,81,3,15,66,64),e(0,255,88,4,6,3,36,8),e(64,128,60,0),end()]]);
+ const {project,noteCount,warnings}=importMidi(bytes),markers=project.notes.filter(n=>project.instruments[n.instrument].isInstructions);
+ assert.equal(noteCount,1);assert.deepEqual(markers.map(n=>[n.start,n.timeSignature,n.volume]),[[0,'4/4',0],[32,'6/8',0]]);
+ assert.equal(markers[1].tempo,60);assert.equal(project.notes.find(n=>n.instrument===0).timeSignature,undefined);
+ assert.deepEqual(parse(JSON.stringify(project)),project);assert.ok(!warnings.some(w=>/signature/i.test(w)));
+ assert.equal(readSMF(new Uint8Array(compilePlayback(project).binary)).events.filter(e=>(e.status>>4)===9).length,1);
+ const only=importMidi(midi([[e(0,255,88,4,3,2,24,8),end()]]));assert.equal(only.noteCount,0);assert.equal(only.project.notes[0].timeSignature,'3/4');assert.equal(only.project.instruments[0].isInstructions,true);
+});
+
+test('MIDI signature conversion reports rounded positions, conflicts and unsupported denominators',()=>{
+ const {project,warnings}=importMidi(midi([[e(1,255,88,4,3,2,24,8),e(0,255,88,4,5,3,24,8),e(1,255,88,4,7,8,24,8),end()]],96));
+ assert.deepEqual(project.notes.map(n=>[n.start,n.timeSignature]),[[0,'5/8']]);
+ assert.ok(warnings.some(w=>/Timing was rounded/.test(w)));assert.ok(warnings.some(w=>/Coincident time signature/.test(w)));assert.ok(warnings.some(w=>/not representable/.test(w)));
+ for(const data of [[3,4,2,24],[4,0,2,24,8]])assert.throws(()=>importMidi(midi([[e(0,255,88,...data),end()]])),/Invalid MIDI time signature/);
+});
+
 test('large imports exceed the former note/event caps and still save and compile',()=>{
  const {project,noteCount}=importMidi(fixture.repeatedMidi(130000));
  assert.equal(noteCount,130000);assert.equal(project.notes.at(-1).start,129999);
@@ -94,7 +111,7 @@ test('dangling notes end at file end and velocity-zero note-ons act as note-offs
 test('invalid, truncated, empty, format 2 and SMPTE inputs fail clearly',()=>{
  const good=midi([[e(0,144,60,100),e(7,128,60,0),end()]]);
  for(let i=0;i<good.length-3;i++)assert.throws(()=>importMidi(good.subarray(0,i)),`truncation ${i}`);
- assert.throws(()=>importMidi(midi([[end()]])),/no notes/);
+ assert.throws(()=>importMidi(midi([[end()]])),/no supported notes/);
  assert.throws(()=>importMidi(midi([[end()]],32,2)),/formats 0 and 1/);
  assert.throws(()=>importMidi(midi([[end()]],0xe728)),/SMPTE/);
  assert.throws(()=>readSMF(midi([[e(0,60,100),end()]])),/running status/);

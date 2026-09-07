@@ -1,3 +1,4 @@
+import { checkpoint } from './history.js';
 import { importMml } from './import/mml.js';
 import { stopPlayback } from './playback/transport.js';
 import { refresh } from './commands.js';
@@ -7,7 +8,12 @@ import { draw } from './painting.js';
 import { state, resetInstrumentView } from './state.js';
 import { fresh } from './model/project.js';
 import { parse } from './model/serialization.js';
+import { fullProject, resetSegment } from './segment-session.js';
 export function installFiles() {
+    $('project-name').onchange = () => { const name = $('project-name').value.trim() || 'Untitled'; if (name !== (state.project.name || 'Untitled')) {
+        checkpoint();
+        state.project.name = name;
+    } $('project-name').value = name; };
     let importing = false;
     $('import-midi').onclick = async () => {
         if (importing)
@@ -25,7 +31,9 @@ export function installFiles() {
                 return;
             stopPlayback(false);
             resetInstrumentView();
+            resetSegment();
             state.project = imported.project;
+            state.project.name = file.name.replace(/\.[^.]+$/, '') || 'Untitled';
             state.selection.clear();
             state.active = 0;
             state.history = [];
@@ -58,7 +66,7 @@ export function installFiles() {
     };
     $('midi-report-close').onclick = () => $('midi-report').close();
     $('save').onclick = async () => { try {
-        if (await window.files.save(JSON.stringify(state.project, null, 2))) {
+        if (await window.files.save(JSON.stringify(fullProject(), null, 2))) {
             state.dirty = false;
             status('Project saved.');
         }
@@ -75,12 +83,14 @@ export function installFiles() {
         const loaded = parse(text);
         stopPlayback(false);
         resetInstrumentView();
+        resetSegment();
         state.project = loaded;
         state.selection.clear();
         state.active = 0;
         state.history = [];
         state.future = [];
         state.dirty = false;
+        view.scrollLeft = 0;
         refresh();
         status('Project opened.');
     }
@@ -88,7 +98,7 @@ export function installFiles() {
         status('Open failed: ' + e);
     } };
     $('new').onclick = () => { if (state.dirty && !confirm('Discard unsaved changes?'))
-        return; stopPlayback(false); resetInstrumentView(); state.project = fresh(); state.selection.clear(); state.active = 0; state.history = []; state.future = []; state.dirty = false; refresh(); };
+        return; stopPlayback(false); resetInstrumentView(); resetSegment(); state.project = fresh(); state.selection.clear(); state.active = 0; state.history = []; state.future = []; state.dirty = false; view.scrollLeft = 0; refresh(); };
     // Electron owns the native close lifecycle. Do not cancel beforeunload here:
     // after MIDI import, Chromium can otherwise keep the main window alive when
     // the user clicks its native X button.

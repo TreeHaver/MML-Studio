@@ -1,4 +1,6 @@
 import {drawCrowdedRegions} from './rendering/note-density.ts';
+import {refreshSignature} from './toolbar.ts';
+import {refreshSegmentControls,drawSegmentBoundary} from './segment-view.ts';
 import {drawSheetLimit} from './rendering/sheet-limit.ts';
 import {palette} from './appearance.ts';
 import {playback,syncPlaybackControls} from './playback/transport.ts';
@@ -14,6 +16,8 @@ import {drawTempoMarkers} from './rendering/tempo.ts';
 
 export function draw(){
  syncPlaybackControls();
+ refreshSignature();
+ refreshSegmentControls();
  const {width,height}=state;
  ctx.clearRect(0,0,width,height);
  ctx.fillStyle=palette.background;
@@ -29,6 +33,7 @@ export function draw(){
  drawRuler();
  drawKeyboard();
  drawTempoMarkers();
+ drawSegmentBoundary();
  drawSheetLimit();
  if(playback.tick!==null){
   const x=KEY+playback.tick*state.zoom-view.scrollLeft;

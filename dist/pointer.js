@@ -3,7 +3,8 @@ import { anchor, point, musical, hit, edge, boxIds } from './geometry.js';
 import { layout } from './viewport.js';
 import { draw } from './painting.js';
 import { info } from './inspector.js';
-import { commitNotes } from './commands.js';
+import { commitNotes, refresh } from './commands.js';
+import { historySnapshot, fitsCurrentView } from './segment-session.js';
 import { canvas, status, view } from './dom.js';
 import { state, isMuted } from './state.js';
 import { KEY, HEAD, ROW, threshold } from './constants.js';
@@ -12,11 +13,15 @@ import { valid } from './model/validation.js';
 import { move, resize } from './music/note-operations.js';
 import { previewNote } from './playback/preview.js';
 import { seekToTick } from './playback/transport.js';
-import { tempoAt } from './music/tempo.js';
 import { setPastePosition } from './note-clipboard.js';
 export function endGesture(cancel = false) { if (!state.gesture)
     return; if (cancel && state.gesture.before)
-    state.project = JSON.parse(state.gesture.before); state.gesture = null; canvas.style.cursor = 'default'; info(); layout(); }
+    state.project = JSON.parse(state.gesture.before); state.gesture = null; canvas.style.cursor = 'default'; if (state.segment)
+    refresh();
+else {
+    info();
+    layout();
+} }
 export function installPointer() {
     const paint = (from, to) => { const gesture = state.gesture, step = 128 / state.project.grid; if (!gesture || gesture.kind !== 'paint')
         return; const a = Math.floor(Math.max(0, from.tick) / step), b = Math.floor(Math.max(0, to.tick) / step), count = Math.max(Math.abs(b - a), Math.abs(to.pitch - from.pitch)); for (let i = 1; i <= count; i++) {
@@ -85,7 +90,7 @@ export function installPointer() {
                 canvas.focus();
                 const instrument = state.project.instruments[state.active];
                 if (instrument.isInstructions) {
-                    status('Instructions are silent. Draw a marker in the roll and set its tempo.');
+                    status('Instructions are silent. Draw a marker in the roll and edit its tempo, time signature or section.');
                     return;
                 }
                 const pitch = previewKey(p);
@@ -156,7 +161,7 @@ export function installPointer() {
         }
         else {
             const start = Math.max(0, cellStart(m.tick, state.project.grid)), instructions = state.project.instruments[state.active].isInstructions;
-            const newNote = { id: state.project.notes.reduce((id, n) => Math.max(id, n.id), 0) + 1, instrument: state.active, start, length: instructions ? 1 : 128 / state.project.grid, pitch: m.pitch, volume: instructions ? 0 : null, ...(instructions ? { tempo: tempoAt(state.project.notes, start) } : {}) };
+            const newNote = { id: state.project.notes.reduce((id, n) => Math.max(id, n.id), 0) + 1, instrument: state.active, start, length: instructions ? 1 : 128 / state.project.grid, pitch: m.pitch, volume: instructions ? 0 : null, ...(instructions ? { tempo: null } : {}) };
             if (!valid([...state.project.notes, newNote]))
                 return;
             state.project.notes.push(newNote);
@@ -238,8 +243,14 @@ export function installPointer() {
             if (!state.gesture.moved)
                 setPastePosition(Math.max(0, cellStart(state.gesture.music.tick, state.project.grid)));
         }
+        if (!fitsCurrentView(state.project)) {
+            state.project = JSON.parse(state.gesture.before);
+            status('This edit extends beyond the current view. Return to Project to edit across its boundary.');
+        }
         if (JSON.stringify(state.project) !== state.gesture.before) {
-            state.history.push(state.gesture.before);
+            state.history.push(historySnapshot(JSON.parse(state.gesture.before)));
+            if (state.history.length > 100)
+                state.history.shift();
             state.future = [];
             state.dirty = true;
         }

@@ -8,7 +8,7 @@ export function importMidi(bytes) {
     const midi = readSMF(bytes), warnings = new Set(midi.warnings);
     const project = { format: 'mml-studio', version: 2, grid: 4, instruments: [], notes: [] };
     const channels = new Map(), groups = new Map();
-    const tempos = new Map();
+    const tempos = new Map(), signatures = new Map();
     let rounded = false, noteCount = 0;
     const unit = (tick) => { const exact = tick * 32 / midi.ppq, value = Math.round(exact); if (Math.abs(exact - value) > 1e-8)
         rounded = true; return value; };
@@ -47,8 +47,18 @@ export function importMidi(bytes) {
                     warnings.add('Coincident tempo changes were merged; the last event wins.');
                 tempos.set(tick, bpm);
             }
-            if (e.meta === 88 && (e.data[0] !== 4 || e.data[1] !== 2))
-                warnings.add('Time signatures are not imported; the editor ruler remains in 4/4.');
+            if (e.meta === 88) {
+                if (e.data[1] > 7) {
+                    warnings.add('A MIDI time signature denominator finer than 1/128 is not representable by the editor and was skipped.');
+                    continue;
+                }
+                const signature = `${e.data[0]}/${2 ** e.data[1]}`, tick = unit(e.tick);
+                if (signatures.has(tick) && signatures.get(tick) !== signature)
+                    warnings.add('Coincident time signature changes were merged; the last event wins.');
+                signatures.set(tick, signature);
+                if (e.data[3] !== 8)
+                    warnings.add('Nonstandard MIDI notated 32nd-note scaling is not represented; the time signature numerator and denominator were retained.');
+            }
             continue;
         }
         if (e.status >= 240) {
@@ -127,8 +137,8 @@ export function importMidi(bytes) {
         for (const n of remaining)
             finish(n, midi.end);
     }
-    if (!completed.length && !tempos.size)
-        throw Error('This MIDI file contains no notes or tempo instructions to import.');
+    if (!completed.length && !tempos.size && !signatures.size)
+        throw Error('This MIDI file contains no supported notes, tempo or time signature instructions to import.' + [...warnings].map(w => ' ' + w).join(''));
     completed.sort((a, b) => a.note.tick - b.note.tick);
     for (const n of completed)
         close(n.note, n.end);
@@ -157,6 +167,16 @@ export function importMidi(bytes) {
                 tempoLane = ensureInstructions(project);
             project.notes.push({ id: project.notes.length + 1, instrument: tempoLane, start: tick, length: 1, pitch: 60, volume: 0, tempo: bpm });
         }
+    }
+    // Signatures always belong to silent Instructions, even on a musical onset.
+    // Reuse unbound tempo markers at the same position when present.
+    const markers = new Map(project.notes.filter(n => project.instruments[n.instrument].isInstructions).map(n => [n.start, n]));
+    for (const [tick, timeSignature] of signatures) {
+        const marker = markers.get(tick);
+        if (marker)
+            marker.timeSignature = timeSignature;
+        else
+            project.notes.push({ id: project.notes.length + 1, instrument: ensureInstructions(project), start: tick, length: 1, pitch: 60, volume: 0, timeSignature });
     }
     project.notes.sort((a, b) => a.start - b.start || a.id - b.id);
     return { project, warnings: [...warnings], noteCount };

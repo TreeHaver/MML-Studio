@@ -1,3 +1,4 @@
+import {exportSegments} from './music/structure.ts';
 import {state} from './state.ts';
 import {createSheetPlanner,ms2Xml} from './music/sheets.ts';
 import {$,status} from './dom.ts';
@@ -25,8 +26,9 @@ export function installExport(){
    const project=structuredClone(state.project),limit=sheetSettings.limit;
    const indexes=projectExport?project.instruments.map((_,i)=>i):[state.active];
    const files:{name:string,text:string}[]=[];
-   for(const index of indexes){
-    const plan=createSheetPlanner(project,index,limit),name=project.instruments[index].name;
+   for(const segment of exportSegments(project,!state.segment&&($('export-sections') as HTMLInputElement).checked))for(const index of indexes){
+    if(segment.project.instruments[index].isInstructions||!segment.project.notes.some(n=>n.instrument===index))continue;
+    const plan=createSheetPlanner(segment.project,index,limit),prefix=state.segment?.projection.range.name??segment.name,name=(prefix?prefix+'-':'')+project.instruments[index].name;
     if(!plan.whole.channels.length)continue;
     const choice=plan.whole.bytes>limit?await choose(name,plan.whole.bytes,limit):'single';
     if(choice==='cancel'){status('Export canceled.');return;}

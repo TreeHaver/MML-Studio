@@ -10,6 +10,7 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | New project, instrument defaults/colors | `src/model/project.ts` |
 | Mutable editor state (selection, active instrument, viewport, gesture) | `src/state.ts` |
 | Timing units and snapping | `src/music/timing.ts` |
+| Tools menu, timing simplification and same-pitch overlap removal | `src/tools.ts`, `src/music/simplify-timing.ts`, `src/music/remove-overlap.ts` |
 | Note names and sharp pitches | `src/music/pitch.ts` |
 | Collision validation | `src/model/validation.ts` |
 | Group movement and resizing math | `src/music/note-operations.ts` |
@@ -34,6 +35,7 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Shared edit commit and UI refresh | `src/commands.ts` |
 | Save/open/new and unsaved changes prompts | `src/files.ts` |
 | MS2MML export and overlap warnings | `src/export.ts`, `src/music/mml.ts`, `src/import/midi.ts` |
+| Automatic MML L/V compaction, shared by views, counts and exports | `src/music/mml-optimizer.ts`, `src/music/mml.ts` |
 | MIDI binary reader and pure project conversion | `src/import/smf.ts`, `src/import/midi.ts` |
 | MIDI import workflow, limitations and MS2 duration rule | `MIDI_IMPORT.md` |
 | DOM references, status text | `src/dom.ts` |
@@ -100,7 +102,7 @@ Build compatibility: Node 22.12+; `transpile.cjs` owns the TypeScript transpiler
 
 Drum instruments use optional `instrument.isDrum: true` in version-2 JSON (missing/false means melodic). The preset selector offers Standard Drum Kit after the 128 melodic programs and shows the requested non-blocking MS2 incompatibility warning. Channel-10 MIDI import sets this flag; playback and key previews route drums to zero-based channel 9 with Standard Kit program 0. Each drum lane gets its own MIDI port for note isolation. Other channels remain melodic. Alternate kits/GM2 or SysEx drum routing are not implemented.
 
-Native sound-bank loading is a fixed-path IPC in main.cjs/preload.cjs. The desktop needs no MIDI device or runtime network connection. Build bundles pinned SpessaSynth with esbuild. JSON remains version 2 with optional note.tempo and instrument.midiProgram; old files default to inherited tempo/GM Piano. Default tempo is 120; tempo accepts positive integer BPM, including values outside export ranges. T is global; simultaneous differing instructions are rejected. Current playback uses a snapshot; edits are heard on Stop then Play.
+Native sound-bank loading is a fixed-path IPC in main.cjs/preload.cjs. The desktop needs no MIDI device or runtime network connection. Build bundles pinned SpessaSynth with esbuild. JSON remains version 2 with optional note.tempo and instrument.midiProgram; old files default to inherited tempo/GM Piano. Default tempo is 120; tempo accepts positive integer BPM, including values outside export ranges. T is global; simultaneous differing instructions are rejected. Playback snapshots notes, but preset changes (including undo/redo) refresh voices at the same position while preserving playing/paused state. Other musical edits are heard on Stop then Play. Playback speed/master volume and effective BPM display belong to transport.ts; shared preview/song master gain belongs to engine.ts. Native regression: tests/electron-behavior.cjs.
 
 Timeline following, Instructions lanes and yellow tempo indicators: see TIMELINE_UPDATE.md. Primary modules: src/model/instructions.ts, src/playback/follow.ts, src/rendering/tempo.ts; tests/timeline.test.mjs and tests/electron-timeline.cjs.
 
@@ -133,3 +135,11 @@ Saved character-limit preference: src/sheet-settings.ts. DOM-free synchronized s
 ## Overlap warnings and channel-density regions
 
 src/music/note-density.ts owns identical-onset/pitch/instrument warnings and the sweep of sounding note intervals. Used by src/music/mml.ts and src/import/midi.ts. src/rendering/note-density.ts paints yellow boxes behind notes for active-instrument intervals with strictly more than ten simultaneous notes, wired in src/painting.ts. Tests: tests/note-density.test.mjs and existing MIDI/renderer tests. Sustained notes with different start times do not cause overlap warnings.
+
+## Project names and visual song structure
+
+Project naming: src/files.ts, src/model/project.ts, main.cjs. Optional version-2 fields: name on Project; timeSignature, section and resetMeasures on Instructions events. Pure measure/section math and export slicing: src/music/structure.ts. Inspector editing: src/inspector.ts; toolbar navigation: src/toolbar.ts; rendering: src/rendering/grid.ts and src/rendering/ruler.ts; section export: src/export.ts. See PROJECT_STRUCTURE.md for exact-start signature changes, measure reset semantics, opening segments and inherited tempo/volume. Tests: tests/structure.test.mjs, tests/renderer.test.cjs, tests/electron-structure.cjs.
+
+## Temporary Song / Segment views
+
+Pure bounds/projection/reconciliation: src/model/segment-view.ts. State session/save/history helpers: src/segment-session.ts, src/state.ts. View buttons, return and end boundary: src/segment-view.ts (wired by renderer.ts). The active state.project is the local editable projection; fullProject() returns the parent with explicit edits applied. Save and history must use fullProject/historySnapshot, and replacement workflows must resetSegment. Automatic clips/inherited context must never be serialized into the parent merely because a view was opened. MML, playback, exports and sheet limits read the local project; exports disable the extra section-splitting option while scoped. See SEGMENT_VIEW.md. Tests: tests/segment-view.test.mjs, tests/renderer.test.cjs, tests/electron-segment-view.cjs.

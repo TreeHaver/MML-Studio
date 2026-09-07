@@ -19,6 +19,8 @@ export function parse(text) {
     for (const i of p.instruments)
         if (i.ms2Drum !== undefined && (!['snare', 'bass', 'cymbals'].includes(i.ms2Drum) || i.isDrum || i.isInstructions))
             throw Error('Invalid MS2 drum instrument.');
+    if (p.name !== undefined && typeof p.name !== 'string')
+        throw Error('Invalid project name.');
     const ids = new Set();
     for (const n of p.notes) {
         if (!Number.isInteger(n.id) || ids.has(n.id) || !Number.isInteger(n.instrument) || !p.instruments[n.instrument] || !(n.volume === null || (Number.isInteger(n.volume) && n.volume >= 0 && n.volume <= 15)))

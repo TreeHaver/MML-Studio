@@ -22,10 +22,32 @@ function track(events, end) {
     data.push(...variable(Math.max(end, previous) - previous), 255, 47, 0);
     return [77, 84, 114, 107, ...dword(data.length), ...data];
 }
-export function compilePlayback(project) {
+export function heldPlaybackNotes(project, channels, tick) {
+    const routing = new Map(channels.map(c => [c.instrument, c.channel]));
+    const notes = project.notes.filter(n => routing.has(n.instrument) && n.start < tick).sort((a, b) => a.start - b.start || a.id - b.id);
+    const volumes = new Map(), held = [];
+    for (let a = 0; a < notes.length;) {
+        let b = a;
+        while (b < notes.length && notes[b].start === notes[a].start) {
+            const n = notes[b++];
+            if (n.volume !== null)
+                volumes.set(n.instrument, n.volume);
+        }
+        for (; a < b; a++) {
+            const n = notes[a];
+            if (n.start + n.length <= tick)
+                continue;
+            const pitch = playbackPitch(project.instruments[n.instrument], n.pitch), velocity = Math.round((volumes.get(n.instrument) ?? 8) * 127 / 15);
+            if (pitch >= 0 && pitch <= 127 && velocity > 0)
+                held.push({ channel: routing.get(n.instrument), pitch, velocity });
+        }
+    }
+    return held;
+}
+export function compilePlayback(project, minimumEnd = 0) {
     if (!valid(project.notes))
         throw Error('Invalid notes or conflicting tempo instructions.');
-    const map = tempoMap(project.notes), end = project.notes.reduce((end, n) => Math.max(end, n.start + n.length), 0);
+    const map = tempoMap(project.notes), end = project.notes.reduce((end, n) => Math.max(end, n.start + n.length), minimumEnd);
     const conductor = map.map(({ tick, bpm }) => { const micros = Math.round(60000000 / bpm); if (micros < 1 || micros > 0xffffff)
         throw Error('This tempo cannot be represented by the MIDI preview engine. The project is unchanged.'); return { tick, order: 0, data: [255, 81, 3, (micros >>> 16) & 255, (micros >>> 8) & 255, micros & 255] }; });
     const tracks = [track(conductor, end)];

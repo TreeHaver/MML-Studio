@@ -1,6 +1,7 @@
 import {hasOverlappingNotes} from './note-density.ts';
 import type {Note,Project} from '../model/types.ts';
 import {tempoMap,type TempoEvent} from './tempo.ts';
+import {optimizeInstructions} from './mml-optimizer.ts';
 
 export type MmlResult={channels:string[],bytes:number,warnings:string[]};
 const pitches=['c','c+','d','d+','e','f','f+','g','g+','a','a+','b'];
@@ -31,7 +32,7 @@ function voice(notes:Note[],tempos:TempoEvent[],volumes:Map<number,number>,endTi
   span(pitches[((n.pitch%12)+12)%12],n.start+n.length);
  }
  if(endTick!==undefined)span('r',endTick);
- return parts.join('');
+ return optimizeInstructions(parts.join(''));
 }
 export function generateMml(project:Project,index:number,source=project.notes.filter(n=>n.instrument===index),tempos=tempoMap(project.notes),options:{endTick?:number,volumes?:Map<number,number>,skipWarnings?:boolean}={}):MmlResult {
  const instrument=project.instruments[index],warnings:string[]=[];

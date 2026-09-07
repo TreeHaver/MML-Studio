@@ -9,7 +9,7 @@ import { checkpoint } from './history.js';
 import { refresh } from './commands.js';
 import { $, view } from './dom.js';
 import { ROW } from './constants.js';
-import { updatePlaybackMutes } from './playback/transport.js';
+import { updatePlaybackMutes, updatePlaybackVoices } from './playback/transport.js';
 import { state, instrumentView } from './state.js';
 import { colors } from './model/project.js';
 import { name } from './music/pitch.js';
@@ -92,7 +92,7 @@ export function instruments() {
         preset.onchange = () => { checkpoint(); delete i.ms2Drum; if (preset.value in MS2_DRUMS)
             i.ms2Drum = preset.value; i.isDrum = preset.value === 'drums'; i.isInstructions = preset.value === 'instructions'; i.midiProgram = i.isDrum || i.isInstructions || i.ms2Drum ? 0 : Number(preset.value); if (i.isInstructions)
             i.name = INSTRUCTIONS_NAME; if (i.ms2Drum)
-            i.name = MS2_DRUMS[i.ms2Drum].name; instruments(); updateMml(true); info(); draw(); };
+            i.name = MS2_DRUMS[i.ms2Drum].name; void updatePlaybackVoices(); instruments(); updateMml(true); info(); draw(); };
         row.append(color, button, preset);
         $('instruments').append(row);
         if (i.isDrum) {
@@ -104,7 +104,7 @@ export function instruments() {
         if (i.isInstructions) {
             const help = document.createElement('small');
             help.className = 'instrument-help';
-            help.textContent = 'Silent events. Draw a marker, then edit its tempo. Yellow lines indicate changes.';
+            help.textContent = 'Silent events. Draw a marker, then edit tempo, time signature or section in the inspector.';
             row.append(help);
         }
         const controls = document.createElement('div');

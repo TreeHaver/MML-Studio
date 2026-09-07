@@ -1,5 +1,6 @@
 import { hasOverlappingNotes } from './note-density.js';
 import { tempoMap } from './tempo.js';
+import { optimizeInstructions } from './mml-optimizer.js';
 const pitches = ['c', 'c+', 'd', 'd+', 'e', 'f', 'f+', 'g', 'g+', 'a', 'a+', 'b'];
 // Every stored integer duration is exact. Ties are duration decomposition,
 // not snapping to the editor grid. Dots apply to notes, never to L commands.
@@ -49,7 +50,7 @@ function voice(notes, tempos, volumes, endTick) {
     }
     if (endTick !== undefined)
         span('r', endTick);
-    return parts.join('');
+    return optimizeInstructions(parts.join(''));
 }
 export function generateMml(project, index, source = project.notes.filter(n => n.instrument === index), tempos = tempoMap(project.notes), options = {}) {
     const instrument = project.instruments[index], warnings = [];

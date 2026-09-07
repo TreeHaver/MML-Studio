@@ -24,8 +24,8 @@ test('preview ignores invalid pitches and stale initialization, and reports reco
 });
 
 test('preview releases notes, replaces rapid clicks, and uses a synth separate from transport',async()=>{
- const calls=[],timers=new Map();let nextTimer=0,nextSynth=0,contexts=0;
- class Context{constructor(){contexts++;this.destination={};this.audioWorklet={addModule:async()=>{}};}async resume(){}async close(){}}
+ const calls=[],timers=new Map(),gains=[];let nextTimer=0,nextSynth=0,contexts=0;
+ class Context{constructor(){contexts++;this.currentTime=0;this.destination={};this.audioWorklet={addModule:async()=>{}};}createGain(){const output={context:this,connect(){},gain:{value:1,setTargetAtTime(value){this.value=value}}};gains.push(output);return output;}async resume(){}async close(){}}
  class Synth{
   constructor(){this.id=++nextSynth;this.soundBankManager={addSoundBank:async()=>{}};this.isReady=Promise.resolve();}
   connect(){}stopAll(force){calls.push([this.id,'stop',force]);}
@@ -51,5 +51,7 @@ test('preview releases notes, replaces rapid clicks, and uses a synth separate f
  calls.length=0;await preview.preview(36,73,true);[...timers.values()].at(-1)();
  assert.deepEqual(calls,[[1,'stop',false],[1,'bend',0,8192],[1,'program',9,0],[1,'on',9,36,100],[1,'off',9,36]]);
  await engine.namespace.getEngine();assert.equal(nextSynth,2);assert.equal(contexts,2);
+ engine.namespace.setMasterVolume(.35);assert.deepEqual(gains.map(g=>g.gain.value),[.35,.35]);
+ engine.namespace.setMasterVolume(0);assert.deepEqual(gains.map(g=>g.gain.value),[0,0]);
  assert.equal(await engine.namespace.getPreviewEngine(),preview);
 });

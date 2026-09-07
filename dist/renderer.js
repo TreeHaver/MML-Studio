@@ -1,5 +1,7 @@
 import { installPlayback } from './playback/transport.js';
+import { installSegmentView } from './segment-view.js';
 import { installChrome } from './chrome.js';
+import { installTools } from './tools.js';
 import { installAppearance } from './appearance.js';
 import { view } from './dom.js';
 import { state } from './state.js';
@@ -19,7 +21,9 @@ import { installExport } from './export.js';
 // Composition root: wire modules once, then initialize the editor.
 installPointer();
 installChrome();
+installTools();
 installToolbar();
+installSegmentView();
 installInspector();
 installInstruments();
 installHistory();

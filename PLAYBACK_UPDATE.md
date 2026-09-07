@@ -40,3 +40,13 @@ Playback integrates [SpessaSynth's documented WorkletSynthesizer/Sequencer setup
 TimGM6mb.sf2 by Tim Brechbill/David Bolton is distributed unchanged. Its GPL-2 license/attribution and license text are included in assets/. The supplied SF2 is the editable sound-bank data itself. Provenance and source link are recorded in assets/TimGM6mb-LICENSE.txt. This sound bank is separate from the editor source.
 
 Current timeline update: horizontal playback following, silent Instructions lanes and yellow tempo-change lines are implemented. See TIMELINE_UPDATE.md. Local validation now passes 34 automated tests plus native Electron timeline rendering/follow/pause/resume checks; physical speaker output is not a listening test.
+
+## Live playback controls — 2026-09-07
+
+Selecting a section sets the playback start/seek position. Preset changes refresh the current playback snapshot's instrument settings, retaining position and playing/paused state. This includes GM, Standard Kit, fixed MS2 drums and silent Instructions, plus voice undo/redo. Rapid changes are coalesced, Stop cancels pending loads, and held notes are restored with their original inherited velocity and remaining duration. A voice refresh briefly pauses while the sequence reloads and re-attacks sustained notes; it does not promise seamless timbre morphing. Other note/tempo edits retain Stop/Play snapshot behavior.
+
+Playback speed is a session-only 25–400% multiplier (default 100%). Pointer dragging snaps within three percentage points of 50% and 200%; keyboard arrows can step out of snap positions. It changes the sequencer clock without editing tempo instructions, note timing, exports or saved JSON. At non-100% speed, the current source BPM is followed by smaller raised Effective BPM text, calculated from source BPM × speed. Effective values below 32 or above 255 display “Out of bounds!” without clamping playback or project data. Exact boundary values are allowed.
+
+Playback Volume is a session-only 0–100% master gain (default 100%) shared by song playback and piano-key previews. Gain changes apply to existing/future synths and do not alter note V instructions or per-instrument mutes. Both controls work during playback and survive voice reloads, pause/resume and Stop/Play within the session.
+
+Current validation: all 67 automated tests and the incremental build pass. tests/electron-behavior.cjs verifies native section positions, editable signature, live/paused voice changes, held-note AudioWorklet PCM, rewind, 400% clock advance, 0% master silence/50% output and responsive control bounds at 900px. Screenshot inspected. No physical-speaker listening or in-game MS2 test was performed.

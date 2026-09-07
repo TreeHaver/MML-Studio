@@ -1,3 +1,4 @@
+import { exportSegments } from './music/structure.js';
 import { state } from './state.js';
 import { createSheetPlanner, ms2Xml } from './music/sheets.js';
 import { $, status } from './dom.js';
@@ -37,22 +38,25 @@ export function installExport() {
             const project = structuredClone(state.project), limit = sheetSettings.limit;
             const indexes = projectExport ? project.instruments.map((_, i) => i) : [state.active];
             const files = [];
-            for (const index of indexes) {
-                const plan = createSheetPlanner(project, index, limit), name = project.instruments[index].name;
-                if (!plan.whole.channels.length)
-                    continue;
-                const choice = plan.whole.bytes > limit ? await choose(name, plan.whole.bytes, limit) : 'single';
-                if (choice === 'cancel') {
-                    status('Export canceled.');
-                    return;
+            for (const segment of exportSegments(project, !state.segment && $('export-sections').checked))
+                for (const index of indexes) {
+                    if (segment.project.instruments[index].isInstructions || !segment.project.notes.some(n => n.instrument === index))
+                        continue;
+                    const plan = createSheetPlanner(segment.project, index, limit), prefix = state.segment?.projection.range.name ?? segment.name, name = (prefix ? prefix + '-' : '') + project.instruments[index].name;
+                    if (!plan.whole.channels.length)
+                        continue;
+                    const choice = plan.whole.bytes > limit ? await choose(name, plan.whole.bytes, limit) : 'single';
+                    if (choice === 'cancel') {
+                        status('Export canceled.');
+                        return;
+                    }
+                    if (choice === 'parts') {
+                        const parts = plan.split();
+                        parts.forEach((part, i) => files.push({ name: `${name}-part-${String(i + 1).padStart(2, '0')}.ms2mml`, text: ms2Xml(part.channels) }));
+                    }
+                    else
+                        files.push({ name: name + '.ms2mml', text: ms2Xml(plan.whole.channels) });
                 }
-                if (choice === 'parts') {
-                    const parts = plan.split();
-                    parts.forEach((part, i) => files.push({ name: `${name}-part-${String(i + 1).padStart(2, '0')}.ms2mml`, text: ms2Xml(part.channels) }));
-                }
-                else
-                    files.push({ name: name + '.ms2mml', text: ms2Xml(plan.whole.channels) });
-            }
             if (!files.length) {
                 status('No musical MML to export.');
                 return;

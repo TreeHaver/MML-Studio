@@ -1,11 +1,12 @@
 import {refresh} from './commands.ts';
 import {$} from './dom.ts';
 import {state,resetInstrumentView} from './state.ts';
-import {stopPlayback} from './playback/transport.ts';
+import {stopPlayback,updatePlaybackVoices} from './playback/transport.ts';
+import {historySnapshot,restoreProject} from './segment-session.ts';
 
-export function checkpoint(){state.history.push(JSON.stringify(state.project));if(state.history.length>100)state.history.shift();state.future=[];state.dirty=true;}
+export function checkpoint(){state.history.push(historySnapshot());if(state.history.length>100)state.history.shift();state.future=[];state.dirty=true;}
 
-export function undo(redo=false){const src=redo?state.future:state.history,dst=redo?state.history:state.future;if(!src.length)return;dst.push(JSON.stringify(state.project));const restored=JSON.parse(src.pop()!);if(restored.instruments.length!==state.project.instruments.length){stopPlayback(false);resetInstrumentView();}state.project=restored;state.active=Math.min(state.active,state.project.instruments.length-1);state.selection.clear();state.gesture=null;state.dirty=true;refresh();}
+export function undo(redo=false){const src=redo?state.future:state.history,dst=redo?state.history:state.future;if(!src.length)return;dst.push(historySnapshot());const restored=JSON.parse(src.pop()!);if(state.segment||restored.instruments.length!==state.project.instruments.length){stopPlayback(false);resetInstrumentView();}const voicesChanged=restored.instruments.some((i,index)=>["midiProgram","isDrum","ms2Drum","isInstructions"].some(key=>i[key]!==state.project.instruments[index]?.[key]));restoreProject(restored);if(voicesChanged)void updatePlaybackVoices();state.active=Math.min(state.active,state.project.instruments.length-1);state.selection.clear();state.gesture=null;state.dirty=true;refresh();}
 
 export function installHistory(){
  const repeat=(id:string,action:()=>void)=>{

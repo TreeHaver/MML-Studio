@@ -1,5 +1,7 @@
 import {installPlayback} from './playback/transport.ts';
+import {installSegmentView} from './segment-view.ts';
 import {installChrome} from './chrome.ts';
+import {installTools} from './tools.ts';
 import {installAppearance} from './appearance.ts';
 import {view} from './dom.ts';
 import {state} from './state.ts';
@@ -20,7 +22,9 @@ import {installExport} from './export.ts';
 
 installPointer();
 installChrome();
+installTools();
 installToolbar();
+installSegmentView();
 installInspector();
 installInstruments();
 installHistory();

@@ -1,3 +1,4 @@
+import { measureLines } from '../music/structure.js';
 import { palette } from '../appearance.js';
 import { ctx, view } from '../dom.js';
 import { state } from '../state.js';
@@ -19,8 +20,8 @@ export function drawGrid() {
         ctx.fillStyle = pitch % 12 === 0 ? palette.octave : palette.row;
         ctx.fillRect(KEY, y + ROW - 1, state.width, 1);
     }
-    for (let t = Math.floor(view.scrollLeft / state.zoom / 32) * 32; t < (view.scrollLeft + state.width) / state.zoom; t += 32) {
-        ctx.fillStyle = t % 128 === 0 ? palette.bar : palette.beat;
-        ctx.fillRect(KEY + t * state.zoom - view.scrollLeft, HEAD, 1, state.height);
+    for (const line of measureLines(state.project, view.scrollLeft / state.zoom, (view.scrollLeft + state.width) / state.zoom)) {
+        ctx.fillStyle = line.major ? palette.bar : palette.beat;
+        ctx.fillRect(KEY + line.tick * state.zoom - view.scrollLeft, HEAD, 1, state.height);
     }
 }

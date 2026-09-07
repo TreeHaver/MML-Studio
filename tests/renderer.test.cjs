@@ -2,16 +2,17 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 test('renderer handles click, edge resize, group box/delete, rename, grid and scroll without text nodes on notes',async()=>{
  const elements=new Map();class El{constructor(){this.value='';this.children=[];this.style={};this.clientWidth=900;this.clientHeight=600;this.scrollLeft=0;this.scrollTop=0;this.classList={toggle(){}};}append(...e){this.children.push(...e)}replaceChildren(){this.children=[]}replaceWith(e){this.replacement=e}after(e){this.replacement=e}querySelector(){return null}set innerHTML(value){this._html=value;const match=/<span>(.*?)<\/span>/.exec(value);if(match)this.textContent=match[1]}get innerHTML(){return this._html}setAttribute(){}focus(){}select(){}matches(){return false}getBoundingClientRect(){return {left:0,top:0}}setPointerCapture(){this.capture=true}hasPointerCapture(){return this.capture}releasePointerCapture(){this.capture=false}}
  const doc={getElementById:id=>{if(!elements.has(id))elements.set(id,new El());return elements.get(id)},createElement:()=>new El(),querySelectorAll:()=>[]};
- const fills=[];const ctx=new Proxy({fillRect(x,y,w,h){fills.push({x,y,w,h,color:this.fillStyle});}},{get:(target,key)=>key in target?target[key]:()=>{}});doc.getElementById('canvas').getContext=()=>ctx;
- let frame;const seq={currentHighResolutionTime:0,isFinished:false};
+ const fills=[],texts=[];const ctx=new Proxy({measureText(text){return {width:text.length*6}},fillText(text,x,y){texts.push({text,x,y})},fillRect(x,y,w,h){fills.push({x,y,w,h,color:this.fillStyle});}},{get:(target,key)=>key in target?target[key]:()=>{}});doc.getElementById('canvas').getContext=()=>ctx;
+ let frame;const seq={currentHighResolutionTime:0,isFinished:false,get currentTime(){return this.currentHighResolutionTime},set currentTime(value){this.currentHighResolutionTime=value}};
  const sandbox={queueMicrotask,document:doc,window:{setTimeout,clearTimeout},devicePixelRatio:1,ResizeObserver:class{observe(){}},structuredClone,confirm:()=>true,console,requestAnimationFrame:fn=>{frame=fn;return 1;},cancelAnimationFrame:()=>{frame=null;}};vm.createContext(sandbox);
- const previewCalls=[],muteCalls=[];
+ const previewCalls=[],muteCalls=[],songLoads=[],restoredNotes=[],masterVolumes=[];let loadGate=null;
  const path=require('node:path'),cache=new Map();
  async function load(file){file=path.resolve(file);if(cache.has(file))return cache.get(file);
  if(file===path.resolve('src/playback/engine.ts')){
-  const module=new vm.SyntheticModule(['getPreviewEngine','getEngine'],function(){
+  const module=new vm.SyntheticModule(['getPreviewEngine','getEngine','setMasterVolume'],function(){
+   this.setExport('setMasterVolume',value=>masterVolumes.push(value));
    this.setExport('getPreviewEngine',async()=>({preview:async(pitch,program,isDrum)=>previewCalls.push({pitch,program,...(isDrum?{isDrum:true}:{})})}));
-   this.setExport('getEngine',async()=>({seq,mute:(channel,muted)=>muteCalls.push({channel,muted}),load:async()=>{},play:async()=>{},pause(){},stop(){seq.currentHighResolutionTime=0;}}));
+   this.setExport('getEngine',async()=>({seq,mute:(channel,muted)=>muteCalls.push({channel,muted}),load:async binary=>{songLoads.push(binary);if(loadGate)await loadGate;},restoreNotes:notes=>restoredNotes.push(notes),play:async()=>{},pause(){},stop(){seq.currentHighResolutionTime=0;}}));
   },{context:sandbox});cache.set(file,module);return module;
  }
  const module=new vm.SourceTextModule(transpile(fs.readFileSync(file,'utf8'),file),{context:sandbox,identifier:file});cache.set(file,module);return module;}
@@ -197,5 +198,152 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  run('project.notes.at(-1).length=20');fills.length=0;paint.draw();assert.equal(yellow()[0].w,20);
  run('state.active=1');fills.length=0;paint.draw();assert.equal(yellow().length,0);
  run('state.active=0;project.notes.pop()');fills.length=0;paint.draw();assert.equal(yellow().length,0);
+
+ // Project names, visual marker editing/navigation/reset and section exports.
+ const projectName=doc.getElementById('project-name');projectName.value='Named Project';projectName.onchange();assert.equal(run('project.name'),'Named Project');
+ (await load('src/history.ts')).namespace.undo();assert.equal(doc.getElementById('project-name').value,'Untitled');
+ projectName.value='Named Project';projectName.onchange();let savedProject;
+ sandbox.window.files.save=async text=>{savedProject=JSON.parse(text);return true};await doc.getElementById('save').onclick();assert.equal(savedProject.name,'Named Project');assert.equal(run('state.dirty'),false);
+ run('project.instruments=[{name:"Piano",color:"#abcdef"},{name:"Flute",color:"#abcdef"},{name:"Instructions",color:"#f4d35e",isInstructions:true}];project.notes=[{id:1,instrument:0,start:0,length:64,pitch:60,volume:8},{id:2,instrument:1,start:128,length:64,pitch:67,volume:9},{id:3,instrument:2,start:128,length:1,pitch:60,volume:0}];selection=new Set([3]);state.active=2');
+ (await load('src/commands.ts')).namespace.refresh();
+ const signature=doc.getElementById('time-signature'),section=doc.getElementById('section-name'),reset=doc.getElementById('section-reset');
+ signature.value='3/4';signature.onchange();assert.equal(run('project.notes[2].timeSignature'),'3/4');
+ signature.value='0/4';signature.onchange();assert.equal(signature.value,'3/4');
+ section.value='Next song';section.onchange();reset.checked=true;reset.onchange();assert.equal(run('project.notes[2].resetMeasures'),true);
+ assert.equal(doc.getElementById('section-control').hidden,false);const nav=doc.getElementById('section-nav');nav.value='128';nav.onchange();assert.equal(doc.getElementById('view').scrollLeft,128);
+ const structure=(await load('src/music/structure.ts')).namespace;assert.equal(structure.measureLines(run('project'),128,129)[0].bar,1);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('project.notes[2].resetMeasures'),undefined);assert.equal(reset.checked,false);
+ doc.getElementById('export-sections').checked=true;saves.length=0;await doc.getElementById('export-project').onclick();
+ assert.deepEqual(saves.map(s=>s.name),['01-Opening-Piano.ms2mml','02-Next song-Flute.ms2mml']);assert.equal(dialog.open,false);
+ doc.getElementById('new').onclick();assert.equal(projectName.value,'Untitled');assert.equal(doc.getElementById('section-control').hidden,true);
+
+ // Caption signature defaults, editing, validation, inheritance and undo.
+ view.scrollLeft=0;paint.draw();const currentSignature=doc.getElementById('current-signature');
+ assert.equal(currentSignature.value,'4/4');currentSignature.onfocus();currentSignature.value='6/8';currentSignature.onchange();
+ assert.equal(run('project.notes[0].timeSignature'),'6/8');assert.equal(run('project.instruments[project.notes[0].instrument].isInstructions'),true);
+ currentSignature.value='3/3';currentSignature.onchange();assert.equal(currentSignature.value,'6/8');
+ (await load('src/history.ts')).namespace.undo();assert.equal(currentSignature.value,'4/4');
+
+ run('project.instruments=[{name:"Piano",color:"#abcdef"},{name:"Instructions",color:"#f4d35e",isInstructions:true}];project.notes=[{id:1,instrument:0,start:0,length:512,pitch:60,volume:8},{id:2,instrument:1,start:64,length:1,pitch:60,volume:0,tempo:60},{id:3,instrument:1,start:128,length:1,pitch:60,volume:0,timeSignature:"3/4",section:"Verse"}];state.active=0;selection.clear()');
+ (await load('src/commands.ts')).namespace.refresh();nav.value='128';nav.onchange();
+ assert.equal(transport.playback.tick,128);assert.equal(currentSignature.value,'3/4');
+ await transport.play();assert.equal(seq.currentTime,3);assert.equal(transport.playback.tick,128);
+ assert.equal(restoredNotes.at(-1)[0].pitch,60);assert.equal(doc.getElementById('play').title,'Pause');
+ transport.stopPlayback(false);await transport.play();assert.equal(seq.currentTime,3); // selected section survives Stop
+ nav.value='128';nav.onchange();assert.equal(seq.currentTime,3);
+ const changeVoice=value=>{const preset=rows()[0].children[2];preset.value=value;preset.onchange();};
+ const settle=()=>new Promise(setImmediate);
+ const smfModule=await load('src/import/smf.ts');await smfModule.link(()=>{});await smfModule.evaluate();const readMidi=smfModule.namespace.readSMF;
+ const latestEvents=()=>readMidi(new Uint8Array(songLoads.at(-1))).events;
+ changeVoice('40');await settle();assert.equal(seq.currentTime,3);assert.equal(doc.getElementById('play').title,'Pause');
+ assert.ok(latestEvents().some(e=>e.status===192&&e.data[0]===40));assert.equal(restoredNotes.at(-1)[0].pitch,60);
+ // Paused updates stay paused, retain exact position, and remap fixed drums.
+ doc.getElementById('play').onclick();changeVoice('snare');await settle();
+ assert.equal(frame,null);assert.equal(doc.getElementById('play').title,'Resume');assert.equal(transport.playback.tick,128);
+ assert.ok(latestEvents().some(e=>e.status===153&&e.data[0]===38));
+ await transport.play();assert.equal(seq.currentTime,3);assert.equal(restoredNotes.at(-1)[0].pitch,38);
+ transport.seekToTick(32);assert.equal(seq.currentTime,.5); // earlier music survives voice refresh
+ assert.equal(restoredNotes.at(-1)[0].pitch,38);assert.equal(currentSignature.value,'4/4');
+ // Coalesce edits made while the previous SoundFont sequence is still loading.
+ let release;loadGate=new Promise(resolve=>{release=resolve});changeVoice('73');await settle();changeVoice('24');release();loadGate=null;await settle();
+ assert.ok(latestEvents().some(e=>e.status===192&&e.data[0]===24));assert.equal(seq.currentTime,.5);
+ (await load('src/history.ts')).namespace.undo();await settle();assert.ok(latestEvents().some(e=>e.status===192&&e.data[0]===73));
+ changeVoice('instructions');await settle();assert.equal(restoredNotes.at(-1).length,0);assert.ok(!latestEvents().some(e=>(e.status>>4)===9));
+ changeVoice('0');await settle();assert.equal(restoredNotes.at(-1)[0].pitch,60);
+ loadGate=new Promise(resolve=>{release=resolve});changeVoice('40');await settle();transport.stopPlayback(false);release();loadGate=null;await settle();
+ assert.equal(frame,null);assert.equal(transport.playback.tick,null);assert.equal(doc.getElementById('play').title,'Play');
+ // Instruction captions float below the measure bar and stack at close onsets.
+ view.scrollLeft=0;texts.length=0;run('project.notes.push({id:4,instrument:1,start:130,length:1,pitch:60,volume:0,tempo:90,section:"Close section"})');
+ (await load('src/rendering/ruler.ts')).namespace.drawRuler();
+ assert.ok(texts.every(t=>/^\d+$/.test(t.text)));
+ texts.length=0;(await load('src/rendering/tempo.ts')).namespace.drawTempoMarkers();
+ assert.ok(texts.some(t=>t.text.includes('Verse')&&t.text.includes('3/4')));
+ assert.ok(texts.every(t=>t.y>HEAD));
+ const verse=texts.find(t=>t.text.includes('Verse')),close=texts.find(t=>t.text.includes('Close section'));assert.ok(close.y>verse.y);
+ // Playback multipliers and master volume leave all project data untouched.
+ const speed=doc.getElementById('playback-speed'),masterVolume=doc.getElementById('playback-volume'),effective=doc.getElementById('effective-bpm');
+ const projectBeforeSettings=run('JSON.stringify(project)');
+ assert.equal(speed.value,'100');assert.equal(masterVolume.value,'100');assert.equal(effective.hidden,true);
+ speed.onpointerdown();speed.value='198';speed.oninput();assert.equal(speed.value,'200');assert.equal(seq.playbackRate,2);assert.equal(effective.textContent,'Effective BPM 240');
+ speed.value='52';speed.oninput();assert.equal(speed.value,'50');speed.onpointerup();
+ speed.onkeydown();speed.value='51';speed.oninput();assert.equal(speed.value,'51'); // keyboard can leave snap positions
+ speed.value='1';speed.oninput();assert.equal(speed.value,'25');assert.equal(effective.textContent,'Effective BPM 30 (Out of bounds!)');
+ speed.value='500';speed.oninput();assert.equal(speed.value,'400');assert.equal(effective.textContent,'Effective BPM 480 (Out of bounds!)');
+ masterVolume.value='0';masterVolume.oninput();assert.equal(masterVolumes.at(-1),0);
+ masterVolume.value='35';masterVolume.oninput();assert.equal(masterVolumes.at(-1),.35);
+ assert.equal(run('JSON.stringify(project)'),projectBeforeSettings);
+ await transport.play();assert.equal(seq.playbackRate,4);assert.equal(doc.getElementById('playback-bpm').textContent,'60 BPM');assert.equal(effective.textContent,'Effective BPM 240');
+ transport.seekToTick(130);assert.equal(doc.getElementById('playback-bpm').textContent,'90 BPM');assert.equal(effective.textContent,'Effective BPM 360 (Out of bounds!)');
+ speed.value='100';speed.oninput();assert.equal(seq.playbackRate,1);assert.equal(effective.hidden,true);transport.stopPlayback(false);
+
+ // Song/Segment views use a local model and save edits into the complete album.
+ const plain=s=>JSON.parse(JSON.stringify(run(s)));
+ prefs.resetInstrumentView();
+ run('project.name="Album";project.grid=4;project.instruments=[{name:"Piano",color:"#abcdef"},{name:"Instructions",color:"#f4d35e",isInstructions:true}];project.notes=[{id:1,instrument:0,start:0,length:16,pitch:60,volume:5,tempo:90},{id:2,instrument:0,start:70,length:150,pitch:60,volume:null},{id:3,instrument:0,start:110,length:12,pitch:64,volume:null},{id:4,instrument:0,start:230,length:100,pitch:67,volume:null},{id:5,instrument:1,start:0,length:1,pitch:60,volume:0,section:"First song",resetMeasures:true,timeSignature:"6/8"},{id:6,instrument:1,start:96,length:1,pitch:60,volume:0,section:"Solo"},{id:7,instrument:1,start:160,length:1,pitch:60,volume:0,section:"Chorus",tempo:150},{id:8,instrument:1,start:256,length:1,pitch:60,volume:0,section:"Second song",resetMeasures:true}];state.active=0;state.history=[];state.future=[];state.dirty=false;selection.clear();state.zoom=3');
+ const commands=(await load('src/commands.ts')).namespace;commands.refresh();transport.seekToTick(120);
+ const originalAlbum=run('JSON.stringify(project)'),openSong=doc.getElementById('open-song'),openSegment=doc.getElementById('open-segment'),returnProject=doc.getElementById('return-project');
+ assert.equal(openSong.hidden,false);assert.equal(openSegment.hidden,false);openSong.onclick();
+ assert.equal(run('state.segment.projection.range.end'),256);assert.equal(doc.getElementById('section-control').hidden,false);assert.equal(openSong.hidden,true);
+ assert.equal(doc.getElementById('segment-view-label').textContent,'Song: First song');assert.equal(projectName.value,'Album');
+ transport.seekToTick(120);openSegment.onclick();
+ assert.equal(run('state.segment.projection.range.start'),96);assert.equal(run('state.segment.projection.range.end'),160);assert.equal(transport.playback.tick,0);
+ assert.equal(doc.getElementById('section-control').hidden,true);assert.equal(doc.getElementById('export-sections').disabled,true);
+ assert.deepEqual(plain('project.notes.filter(n=>n.instrument===0).map(n=>[n.start,n.length])'),[[0,64],[14,12]]);
+ assert.equal(currentSignature.value,'6/8');assert.equal(doc.getElementById('playback-bpm').textContent,'90 BPM');
+ const generate=(await load('src/music/mml.ts')).namespace.generateMml;const viewMml=generate(run('project'),0);
+ assert.match(mmlBox().children[0].textContent,new RegExp('count: '+viewMml.bytes+' bytes'));
+ limitInput.value=String(viewMml.bytes);limitInput.onchange();fills.length=0;paint.draw();assert.ok(fills.some(f=>f.color==='#e53935'&&f.x===KEY+64*3));
+ limitInput.value='10000';limitInput.onchange();saves.length=0;await doc.getElementById('export-project').onclick();
+ assert.deepEqual(saves.map(s=>s.name),['Solo-Piano.ms2mml']);assert.deepEqual([...saves[0].text.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>/g)].map(m=>m[1]),[...viewMml.channels]);
+ await doc.getElementById('save').onclick();assert.deepEqual(savedProject,JSON.parse(originalAlbum)); // simply viewing cannot cut the album
+ await transport.play();assert.equal(seq.currentTime,0);assert.equal(readMidi(new Uint8Array(songLoads.at(-1))).end,64);transport.stopPlayback(false);
+ run('selection=new Set([2])');(await load('src/inspector.ts')).namespace.info();const lengthField=doc.getElementById('length');lengthField.value='100';lengthField.onchange();assert.equal(run('project.notes.find(n=>n.id===2).length'),64);
+ const pitchField=doc.getElementById('pitch');pitchField.value='72';pitchField.onchange();
+ assert.deepEqual(plain('state.segment.root.notes.filter(n=>n.instrument===0&&n.pitch===72).map(n=>[n.start,n.length])'),[[96,64]]);
+ assert.deepEqual(plain('state.segment.root.notes.filter(n=>n.instrument===0&&n.pitch===60&&n.start>0).map(n=>[n.start,n.length])'),[[70,26],[160,60]]);
+ assert.equal(run('selection.size'),1);assert.equal(run('project.notes.find(n=>selection.has(n.id)).pitch'),72);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('state.segment.root.notes.find(n=>n.id===2).length'),150);
+ (await load('src/history.ts')).namespace.undo(true);assert.equal(run('project.notes.find(n=>n.pitch===72).length'),64);
+ returnProject.onclick();assert.equal(run('state.segment'),null);assert.equal(doc.getElementById('segment-view-label').hidden,true);assert.ok(run('project.notes.some(n=>n.start===96&&n.pitch===72)'));
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project)'),originalAlbum); // undo also works after leaving
+ transport.seekToTick(120);openSegment.onclick();
+ view.scrollTop=(run('state.topPitch')-78)*20;click(KEY+40*3,HEAD+8*20+8);
+ assert.ok(run('state.segment.root.notes.some(n=>n.start===128&&n.pitch===70)'));
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('state.segment.root.notes.some(n=>n.pitch===70)'),false);
+ run('selection=new Set([6])');doc.onkeydown({key:'Delete',target:new El(),preventDefault(){}});
+ assert.equal(run('state.segment.root.notes.some(n=>n.id===6)'),false);assert.equal(doc.getElementById('playback-bpm').textContent,'90 BPM');assert.equal(currentSignature.value,'6/8');
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('state.segment.root.notes.some(n=>n.id===6)'),true);
+ run('selection=new Set([2])');doc.onkeydown({key:'Delete',target:new El(),preventDefault(){}});
+ assert.deepEqual(plain('state.segment.root.notes.filter(n=>n.instrument===0&&n.pitch===60&&n.start>0).map(n=>[n.start,n.length])'),[[70,26],[160,60]]);
+ returnProject.onclick();transport.seekToTick(280);openSong.onclick();assert.equal(doc.getElementById('section-control').hidden,true);
+ (await load('src/instrument-actions.ts')).namespace.removeInstrument(0);assert.equal(run('project.notes.some(n=>n.instrument===0)'),false);assert.ok(run('state.segment.root.notes.some(n=>n.instrument===0&&n.start===0)'));
+ doc.getElementById('new').onclick();assert.equal(run('state.segment'),null);assert.equal(projectName.value,'Untitled');assert.equal(returnProject.hidden,true);
+
+ run('project.notes=[{id:1,instrument:0,start:1,length:4,pitch:60,volume:11},{id:2,instrument:0,start:5,length:3,pitch:64,volume:11}]');commands.refresh();
+ const beforeSimplify=run('JSON.stringify(project.notes)');
+ doc.getElementById('simplify-length').value='64';doc.getElementById('simplify-timing').onclick();
+ assert.deepEqual(plain('project.notes.map(n=>[n.start,n.length,n.volume])'),[[0,4,11],[4,4,11]]);
+ assert.match(doc.getElementById('status').textContent,/2 notes changed/);
+ assert.match(mmlBox().children[0].textContent,new RegExp('count: '+generate(run('project'),0).bytes+' bytes'));
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeSimplify);
+ run('project.notes=[{id:1,instrument:0,start:0,length:20,pitch:60,volume:11},{id:2,instrument:0,start:7,length:16,pitch:60,volume:8}]');commands.refresh();
+ const beforeOverlap=run('JSON.stringify(project.notes)');
+ doc.getElementById('remove-overlap').onclick();
+ assert.deepEqual(plain('project.notes.map(n=>[n.start,n.length,n.volume])'),[[0,7,11],[7,16,8]]);
+ assert.match(doc.getElementById('status').textContent,/1 notes shortened/);
+ assert.match(mmlBox().children[0].textContent,new RegExp('count: '+generate(run('project'),0).bytes+' bytes'));
+ const overlapHistory=run('state.history.length');doc.getElementById('remove-overlap').onclick();assert.equal(run('state.history.length'),overlapHistory);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeOverlap);
+
+ run('project.notes=[{id:1,instrument:0,start:0,length:512,pitch:60,volume:11}]');commands.refresh();transport.seekToTick(170);
+ currentSignature.onfocus();currentSignature.value='6/8';currentSignature.onchange();
+ assert.deepEqual(plain('project.notes.filter(n=>n.timeSignature).map(n=>[n.start,n.timeSignature])'),[[0,'6/8']]);
+ const initialMeter=run('JSON.stringify(project.notes)');
+ transport.seekToTick(170);currentSignature.onfocus();transport.seekToTick(300);
+ currentSignature.value='3/4';currentSignature.onchange();
+ assert.deepEqual(plain('project.notes.filter(n=>n.timeSignature).map(n=>[n.start,n.timeSignature])'),[[0,'6/8'],[96,'3/4']]);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),initialMeter);
+ transport.seekToTick(20);currentSignature.onfocus();currentSignature.value='5/4';currentSignature.onchange();
+ assert.deepEqual(plain('project.notes.filter(n=>n.timeSignature).map(n=>[n.start,n.timeSignature])'),[[0,'5/4']]);
 
 });

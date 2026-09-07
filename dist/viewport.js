@@ -16,6 +16,8 @@ export function layout() {
         nb = Math.min(nb, n.pitch - 12);
         end = Math.max(end, n.start + n.length + 512);
     }
+    if (state.segment)
+        end = state.segment.projection.range.end - state.segment.projection.range.start;
     if (nt !== state.topPitch) {
         view.scrollTop += (nt - state.topPitch) * ROW;
         state.topPitch = nt;
