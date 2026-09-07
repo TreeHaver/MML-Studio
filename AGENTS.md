@@ -13,3 +13,5 @@ Standard Drum Kit is supported for General MIDI import/editing/preview. Per user
 Unbound supported tempo events belong to the silent Instructions instrument (optional isInstructions flag in version-2 JSON). Never synthesize Instructions as notes. Keep note-bound and unbound tempo changes in the same global clock and yellow timeline indicators. See TIMELINE_UPDATE.md.
 
 MS2 MML ties prefix the continued note: emit CT150&C, never C&T150C. Note-bound and unbound global tempo changes must propagate into every generated musical channel through its final note; split held notes at those boundaries and tie their continuations.
+
+Overlap warnings specifically mean identical start time, pitch and instrument; sustained notes starting at different times are not warning overlaps. More than ten simultaneous sounding notes is a separate channel-density condition, highlighted in yellow for the active musical instrument.

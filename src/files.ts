@@ -1,3 +1,4 @@
+import {importMml} from './import/mml.ts';
 import {stopPlayback} from './playback/transport.ts';
 import {refresh} from './commands.ts';
 import {$,status,view} from './dom.ts';
@@ -16,11 +17,12 @@ $('import-midi').onclick=async()=>{
  try{
   const file=await (window as any).files.importMidi();if(file===null)return;
   const {importMidi}=await import('./import/midi.js');
-  const imported=importMidi(new Uint8Array(file.bytes));
-  if(state.dirty&&!confirm('Replace the current project with this MIDI import and discard unsaved changes?'))return;
+  const bytes=new Uint8Array(file.bytes);
+  const imported=/\.(mid|midi)$/i.test(file.name)?importMidi(bytes):importMml(new TextDecoder('utf-8',{fatal:true}).decode(bytes),file.name.replace(/\.[^.]+$/,''));
+  if(state.dirty&&!confirm('Replace the current project with this import and discard unsaved changes?'))return;
   stopPlayback(false);resetInstrumentView();state.project=imported.project;state.selection.clear();state.active=0;
   state.history=[];state.future=[];state.dirty=true;view.scrollLeft=0;
-  refresh();view.scrollTop=Math.max(0,(state.topPitch-state.project.notes.find(n=>n.instrument===0)!.pitch-5)*ROW);draw();
+  refresh();view.scrollTop=Math.max(0,(state.topPitch-(state.project.notes.find(n=>n.instrument===0)?.pitch??60)-5)*ROW);draw();
   const count=state.project.instruments.length;
   const instructions=state.project.notes.filter(n=>state.project.instruments[n.instrument].isInstructions).length;
   const summary=`Imported ${imported.noteCount} note${imported.noteCount===1?'':'s'}${instructions?` and ${instructions} unbound instruction${instructions===1?'':'s'}`:''} from ${file.name} into ${count} instrument${count===1?'':'s'}. Save JSON to keep this project.`;
@@ -28,7 +30,7 @@ $('import-midi').onclick=async()=>{
   $('midi-warnings').replaceChildren();
   for(const warning of imported.warnings){const li=document.createElement('li');li.textContent=warning;$('midi-warnings').append(li);}
   ($('midi-report') as HTMLDialogElement).showModal();
- }catch(error){status('MIDI import failed: '+error);}
+ }catch(error){status('Import failed: '+error);}
  finally{importing=false;($('import-midi') as HTMLButtonElement).disabled=false;}
 };
 $('midi-report-close').onclick=()=>($('midi-report') as HTMLDialogElement).close();

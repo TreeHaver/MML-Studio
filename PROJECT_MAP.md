@@ -116,4 +116,20 @@ Both actions stop playback, checkpoint once, clear selection/gestures and invali
 
 ## Desktop visual refresh
 
-Main editor uses studio.css; style.css remains for the MML pop-out. File and Export are native details menus with outside-click/action/Escape dismissal in chrome.ts. Note fields live in the right inspector and become visible when info() sets has-selection. Instrument details are visible only on the selected lane; other lanes retain name/color and Mute/Solo, while explicit collapse hides their controls. Merge/Delete are under Instrument actions. Selection toggles row classes without rebuilding the name button, preserving double-click rename. Native layout/menu/selection checks and SVG-to-PNG icon rendering: tests/electron-ui.cjs. No musical data format changes.
+Main editor uses studio.css; style.css remains for the MML pop-out. File and Export are native details menus with outside-click/action/Escape dismissal in chrome.ts. Note fields live in the right inspector and become visible when info() sets has-selection. Instrument details are visible only on the selected lane; other lanes retain name/color and Mute/Solo, while explicit collapse hides their controls. Merge/Delete are under Instrument actions. Selection toggles row classes without rebuilding the name button. Renaming uses the dedicated Rename button. Native layout/menu/selection checks and SVG-to-PNG icon rendering: tests/electron-ui.cjs. No musical data format changes.
+
+## MS2 drums and splitting
+
+Fixed-sound MS2 presets and GM category mapping: src/playback/drums.ts. Optional instrument.ms2Drum metadata preserves version 2; playback/pointer map sound keys and music/mml.ts maps export to C4. Exact-note and automatic Drumkit splitting live in model/instrument-operations.ts with UI in instrument-actions.ts. See DRUM_KIT.md for category boundaries and persistence. Tests: instrument-operations.test.mjs and renderer.test.cjs.
+
+## MML import and text paste
+
+Pure parser and container readers: src/import/mml.ts. Existing file import IPC/filter and UI: main.cjs, src/files.ts, index.html. Native copy/paste event ownership: src/keyboard.ts; note insertion and validation: src/note-clipboard.ts. Supported syntax, conversion notices and remaining dialect/encoding limitations: MML_IMPORT.md. Tests: tests/mml-import.test.mjs and tests/renderer.test.cjs.
+
+## Sheet limits and multipart export
+
+Saved character-limit preference: src/sheet-settings.ts. DOM-free synchronized slicing and verified part planning: src/music/sheets.ts; compiler padding/controller support: src/music/mml.ts. Active-instrument red boundary marker: src/rendering/sheet-limit.ts via src/painting.ts. Export setting and three-choice dialog: src/export.ts, index.html, studio.css. See SHEET_LIMITS.md for counting rules, clean-cut behavior, continuation and validation scope. Tests: tests/sheets.test.mjs, tests/renderer.test.cjs, tests/electron-sheets.cjs.
+
+## Overlap warnings and channel-density regions
+
+src/music/note-density.ts owns identical-onset/pitch/instrument warnings and the sweep of sounding note intervals. Used by src/music/mml.ts and src/import/midi.ts. src/rendering/note-density.ts paints yellow boxes behind notes for active-instrument intervals with strictly more than ten simultaneous notes, wired in src/painting.ts. Tests: tests/note-density.test.mjs and existing MIDI/renderer tests. Sustained notes with different start times do not cause overlap warnings.

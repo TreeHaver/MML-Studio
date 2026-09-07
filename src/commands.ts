@@ -9,4 +9,4 @@ import type {Note} from './model/types.ts';
 
 export function refresh(){input('grid').value=String(state.project.grid);instruments();info();layout();}
 
-export function commitNotes(notes:Note[]){if(!valid(notes)){status('That edit would overlap notes or create invalid/conflicting T instructions.');info();return;}checkpoint();state.project.notes=notes;refresh();}
+export function commitNotes(notes:Note[]){if(!valid(notes)){status('That edit would create invalid timing or conflicting T instructions.');info();return;}checkpoint();state.project.notes=notes;refresh();}

@@ -5,17 +5,19 @@ import { commitNotes } from './commands.js';
 import { endGesture } from './pointer.js';
 import { setTool } from './toolbar.js';
 import { state } from './state.js';
-import { copyNotes, pasteNotes } from './note-clipboard.js';
+import { copyNotes, pasteNotes, pasteMml } from './note-clipboard.js';
 export function installKeyboard() {
+    document.oncopy = e => { if (e.target.matches('input,select,textarea') || e.target.isContentEditable)
+        return; e.preventDefault(); copyNotes(); e.clipboardData?.setData('application/x-mml-studio-notes', '1'); e.clipboardData?.setData('text/plain', ''); };
+    document.onpaste = e => { if (e.target.matches('input,select,textarea') || e.target.isContentEditable)
+        return; e.preventDefault(); const text = e.clipboardData?.getData('text/plain') ?? ''; if (e.clipboardData?.getData('application/x-mml-studio-notes') === '1' || !text.trim())
+        pasteNotes();
+    else
+        pasteMml(text); };
     document.onkeydown = e => {
         if (e.target.matches('input,select,textarea') || e.target.isContentEditable)
             return;
         if ((e.ctrlKey || e.metaKey) && !e.altKey && ['c', 'v'].includes(e.key.toLowerCase())) {
-            e.preventDefault();
-            if (e.key.toLowerCase() === 'c')
-                copyNotes();
-            else
-                pasteNotes();
             return;
         }
         if (e.key === 'Escape') {

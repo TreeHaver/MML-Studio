@@ -1,3 +1,4 @@
+import {playbackPitch} from './drums.ts';
 import type {Project} from '../model/types.ts';
 import {tempoMap,secondsAtTick} from '../music/tempo.ts';
 import {valid} from '../model/validation.ts';
@@ -28,7 +29,7 @@ export function compilePlayback(project:Project){
  used.forEach(instrument=>{
   // Each drum lane gets channel 10 on its own port, so overlapping drum
   // notes in separate editor instruments cannot cut each other off.
-  const drums=project.instruments[instrument]?.isDrum===true;
+  const drums=project.instruments[instrument]?.isDrum===true||!!project.instruments[instrument]?.ms2Drum;
   const slot=drums?drumSlot++:melodicSlot++;
   const port=drums?slot:Math.floor(slot/15),local=slot%15,channel=drums?9:local>=9?local+1:local;
   channels.push({instrument,channel:port*16+channel});
@@ -43,10 +44,10 @@ export function compilePlayback(project:Project){
    // Same-start V instructions use the highest ID, matching volumeAt.
    for(let i=begin;i<finish;i++)if(notes[i].volume!==null)inherited=notes[i].volume!;
    const velocity=Math.round(inherited*127/15);
-   for(let i=begin;i<finish;i++){const n=notes[i];
-   if(n.pitch<0||n.pitch>127){skipped++;continue;}
+   for(let i=begin;i<finish;i++){const n=notes[i],pitch=playbackPitch(project.instruments[instrument],n.pitch);
+   if(pitch<0||pitch>127){skipped++;continue;}
    if(velocity===0)continue;
-   events.push({tick:n.start,order:2,data:[144+channel,n.pitch,velocity]},{tick:n.start+n.length,order:1,data:[128+channel,n.pitch,0]});
+   events.push({tick:n.start,order:2,data:[144+channel,pitch,velocity]},{tick:n.start+n.length,order:1,data:[128+channel,pitch,0]});
    }
    begin=finish;
   }

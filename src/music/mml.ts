@@ -1,3 +1,4 @@
+import {hasOverlappingNotes} from './note-density.ts';
 import type {Note,Project} from '../model/types.ts';
 import {tempoMap,type TempoEvent} from './tempo.ts';
 
@@ -13,7 +14,7 @@ function duration(symbol:string,units:number):string {
  for(const l of lengths)while(units>=l.units){parts.push(symbol+l.text);units-=l.units;}
  return parts.join(symbol==='r'?'':'&');
 }
-function voice(notes:Note[],tempos:TempoEvent[],volumes:Map<number,number>):string {
+function voice(notes:Note[],tempos:TempoEvent[],volumes:Map<number,number>,endTick?:number):string {
  const parts:string[]=[];let tick=0,event=0,octave=-99,volume=-1;
  const tempo=()=>{while(event<tempos.length&&tempos[event].tick===tick)parts.push('t'+tempos[event++].bpm);};
  const span=(symbol:string,end:number)=>{
@@ -29,11 +30,14 @@ function voice(notes:Note[],tempos:TempoEvent[],volumes:Map<number,number>):stri
   if(o!==octave){parts.push('o'+o);octave=o;}if(v!==volume){parts.push('v'+v);volume=v;}
   span(pitches[((n.pitch%12)+12)%12],n.start+n.length);
  }
+ if(endTick!==undefined)span('r',endTick);
  return parts.join('');
 }
-export function generateMml(project:Project,index:number,source=project.notes.filter(n=>n.instrument===index),tempos=tempoMap(project.notes)):MmlResult {
+export function generateMml(project:Project,index:number,source=project.notes.filter(n=>n.instrument===index),tempos=tempoMap(project.notes),options:{endTick?:number,volumes?:Map<number,number>,skipWarnings?:boolean}={}):MmlResult {
  const instrument=project.instruments[index],warnings:string[]=[];
  if(instrument.isInstructions)return {channels:[],bytes:0,warnings:['Global tempo instructions are included in every musical channel.']};
+ const overlap=!options.skipWarnings&&hasOverlappingNotes(source);
+ if(instrument.ms2Drum)source=source.map(n=>({...n,pitch:60}));
  if(instrument.isDrum)warnings.push('Standard Drum Kit is not a valid MS2 instrument.');
  if(tempos.some(t=>t.bpm<32||t.bpm>255))warnings.push('Tempo outside MS2 T32–T255: retained unchanged; resolve before export.');
  if(source.some(n=>n.pitch<12||n.pitch>119))warnings.push('Pitch outside MS2 O0–O8: retained unchanged; resolve before export.');
@@ -48,8 +52,9 @@ export function generateMml(project:Project,index:number,source=project.notes.fi
   lanes[lane].push(n);heap.push({end:n.start+n.length,index:lane});let p=heap.length-1;
   while(p>0){const parent=(p-1)>>1;if(heap[parent].end<=heap[p].end)break;[heap[parent],heap[p]]=[heap[p],heap[parent]];p=parent;}
  }
- const channels=lanes.map(lane=>voice(lane,tempos,volumes));
- if(source.some((a,i)=>source.some((b,j)=>i<j&&a.pitch===b.pitch&&a.start<b.start+a.length&&b.start<a.start+b.length)))warnings.push('Overlapping notes detected in this instrument; MS2 may produce strange behavior.');
+ if(!lanes.length&&options.endTick)lanes.push([]);
+ const channels=lanes.map(lane=>voice(lane,tempos,options.volumes??volumes,options.endTick));
+ if(overlap)warnings.push('Overlapping notes: same start time and pitch in this instrument; MS2 may produce strange behavior.');
  if(channels.length>10)warnings.push(`Over 10 Channels: ${channels.length} required. All instructions are retained.`);
  // Generated syntax is ASCII only: one character is exactly one UTF-8 byte.
  const bytes=channels.reduce((total,text)=>total+text.length,0);

@@ -1,3 +1,4 @@
+import { hasOverlappingNotes } from '../music/note-density.js';
 import { readSMF } from './smf.js';
 import { colors } from '../model/project.js';
 import { GM_PROGRAMS } from '../playback/gm-programs.js';
@@ -6,9 +7,9 @@ import { ensureInstructions } from '../model/instructions.js';
 export function importMidi(bytes) {
     const midi = readSMF(bytes), warnings = new Set(midi.warnings);
     const project = { format: 'mml-studio', version: 2, grid: 4, instruments: [], notes: [] };
-    const channels = new Map(), groups = new Map(), ends = [];
+    const channels = new Map(), groups = new Map();
     const tempos = new Map();
-    let rounded = false, noteCount = 0, overlap = false;
+    let rounded = false, noteCount = 0;
     const unit = (tick) => { const exact = tick * 32 / midi.ppq, value = Math.round(exact); if (Math.abs(exact - value) > 1e-8)
         rounded = true; return value; };
     function close(n, tick) {
@@ -27,12 +28,8 @@ export function importMidi(bytes) {
             instrument = project.instruments.length;
             const label = n.channel === 9 ? DRUM_KIT_NAME : GM_PROGRAMS[n.program];
             project.instruments.push({ name: `${midi.names[n.track]} · Ch ${n.channel + 1} · ${label}`, color: colors[instrument % colors.length], midiProgram: n.channel === 9 ? 0 : n.program, ...(n.channel === 9 ? { isDrum: true } : {}) });
-            ends.push(new Map());
             lanes.push(instrument);
         }
-        if ((ends[instrument].get(n.pitch) ?? 0) > start)
-            overlap = true;
-        ends[instrument].set(n.pitch, end);
         project.notes.push({ id: noteCount, instrument, start, length: end - start, pitch: n.pitch, volume: Math.max(1, Math.round(n.velocity * 15 / 127)) });
     }
     // Pair notes first; sorting completed notes by start avoids unnecessary voice
@@ -137,8 +134,8 @@ export function importMidi(bytes) {
         close(n.note, n.end);
     if (rounded)
         warnings.add('Timing was rounded to the nearest 1/128-whole-note unit, without snapping to the grid or power-of-two lengths.');
-    if (overlap)
-        warnings.add('Overlapping notes of the same pitch were preserved in the same instrument; MML export will warn about this.');
+    if (hasOverlappingNotes(project.notes))
+        warnings.add('Overlapping notes with the same start time and pitch were preserved in the same instrument; MML export will warn about this.');
     if (noteCount)
         warnings.add('MIDI velocity was mapped to the editor’s V1–V15 range.');
     // Version 2 attaches tempo to notes. Silent V0 markers preserve changes in

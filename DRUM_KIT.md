@@ -32,3 +32,9 @@ Song playback uses channel 10 on a separate MIDI port per drum instrument, preve
 ## Validation
 
 Automated tests cover selection/warning visibility, melodic/drum switching, preview note-on/off routing, JSON validation/round trips, MIDI import and distinct drum ports. The bank renders non-silent PCM for all 47 GM percussion keys. The native Electron smoke test verifies the warning, actual key-click kick preview, and sequenced kick/snare AudioWorklet output. Physical speaker output is not independently verified by listening.
+
+## MS2 single-sound drum instruments
+
+Snare Drum, Bass Drum and Cymbals use optional version-2 ms2Drum metadata (snare, bass, cymbals). Playback and keyboard preview always use Standard Kit MIDI keys 38, 35 and 49 respectively, regardless of the stored note pitch. Export maps every note to C4 without mutating the project. These presets are valid MS2 drums and do not show the Standard Kit incompatibility warning.
+
+Under Instrument actions, Split Notes moves an exact named pitch into another existing musical instrument. Split Drumkit appears only on Standard Drum Kit and creates new populated category lanes: kicks 35/36, snares 38/40, cymbals 42/44/46/49/51/52/53/55/57/59. Hi-hats and ride bells count as cymbals; side sticks, claps and other percussion remain. Empty categories create no lane. Tempo, IDs, durations and original pitches survive; volumes are materialized to preserve inheritance. Both operations support undo.

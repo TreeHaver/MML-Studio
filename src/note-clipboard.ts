@@ -1,3 +1,5 @@
+import {importMml} from './import/mml.ts';
+import {ensureInstructions} from './model/instructions.ts';
 import {state,isMuted} from './state.ts';
 import {checkpoint} from './history.ts';
 import {refresh} from './commands.ts';
@@ -29,4 +31,19 @@ export function pasteNotes(){
  if(!valid(notes)){status('Cannot paste here: the copied tempo instructions conflict with an existing tempo change.');return;}
  checkpoint();state.project.notes=notes;state.selection=new Set(added.map(n=>n.id));position=start+clipboard.span;refresh();
  status(`Pasted ${added.length} notes/events. Drag the selected group to move it; Undo restores the previous project.`);
+}
+
+export function pasteMml(text:string):boolean{
+ if(!text.trim())return false;
+ try{
+  const imported=importMml(text);
+  if(state.gesture||isMuted(state.active)||state.project.instruments[state.active].isInstructions){status('Select an unmuted musical instrument to paste MML.');return true;}
+  const project=structuredClone(state.project),start=position??0;
+  let id=project.notes.reduce((max,n)=>Math.max(max,n.id),0);
+  const added=imported.project.notes.map(n=>({...n,id:++id,start:start+n.start,instrument:imported.project.instruments[n.instrument].isInstructions?ensureInstructions(project):state.active}));
+  project.notes.push(...added);
+  if(!valid(project.notes)){status('Cannot paste MML: conflicting global tempo instructions.');return true;}
+  checkpoint();state.project=project;state.selection=new Set(added.map(n=>n.id));position=start+imported.span;refresh();
+  status('Pasted '+imported.noteCount+' MML notes. '+imported.warnings.join(' '));return true;
+ }catch(error){status('Text is not supported MML: '+error);return false;}
 }

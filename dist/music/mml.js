@@ -1,3 +1,4 @@
+import { hasOverlappingNotes } from './note-density.js';
 import { tempoMap } from './tempo.js';
 const pitches = ['c', 'c+', 'd', 'd+', 'e', 'f', 'f+', 'g', 'g+', 'a', 'a+', 'b'];
 // Every stored integer duration is exact. Ties are duration decomposition,
@@ -14,7 +15,7 @@ function duration(symbol, units) {
         }
     return parts.join(symbol === 'r' ? '' : '&');
 }
-function voice(notes, tempos, volumes) {
+function voice(notes, tempos, volumes, endTick) {
     const parts = [];
     let tick = 0, event = 0, octave = -99, volume = -1;
     const tempo = () => { while (event < tempos.length && tempos[event].tick === tick)
@@ -46,12 +47,17 @@ function voice(notes, tempos, volumes) {
         }
         span(pitches[((n.pitch % 12) + 12) % 12], n.start + n.length);
     }
+    if (endTick !== undefined)
+        span('r', endTick);
     return parts.join('');
 }
-export function generateMml(project, index, source = project.notes.filter(n => n.instrument === index), tempos = tempoMap(project.notes)) {
+export function generateMml(project, index, source = project.notes.filter(n => n.instrument === index), tempos = tempoMap(project.notes), options = {}) {
     const instrument = project.instruments[index], warnings = [];
     if (instrument.isInstructions)
         return { channels: [], bytes: 0, warnings: ['Global tempo instructions are included in every musical channel.'] };
+    const overlap = !options.skipWarnings && hasOverlappingNotes(source);
+    if (instrument.ms2Drum)
+        source = source.map(n => ({ ...n, pitch: 60 }));
     if (instrument.isDrum)
         warnings.push('Standard Drum Kit is not a valid MS2 instrument.');
     if (tempos.some(t => t.bpm < 32 || t.bpm > 255))
@@ -106,9 +112,11 @@ export function generateMml(project, index, source = project.notes.filter(n => n
             p = parent;
         }
     }
-    const channels = lanes.map(lane => voice(lane, tempos, volumes));
-    if (source.some((a, i) => source.some((b, j) => i < j && a.pitch === b.pitch && a.start < b.start + a.length && b.start < a.start + b.length)))
-        warnings.push('Overlapping notes detected in this instrument; MS2 may produce strange behavior.');
+    if (!lanes.length && options.endTick)
+        lanes.push([]);
+    const channels = lanes.map(lane => voice(lane, tempos, options.volumes ?? volumes, options.endTick));
+    if (overlap)
+        warnings.push('Overlapping notes: same start time and pitch in this instrument; MS2 may produce strange behavior.');
     if (channels.length > 10)
         warnings.push(`Over 10 Channels: ${channels.length} required. All instructions are retained.`);
     // Generated syntax is ASCII only: one character is exactly one UTF-8 byte.

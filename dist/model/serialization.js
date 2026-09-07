@@ -16,6 +16,9 @@ export function parse(text) {
         if (i.isInstructions && i.isDrum)
             throw Error('Instructions cannot also be a drum kit.');
     }
+    for (const i of p.instruments)
+        if (i.ms2Drum !== undefined && (!['snare', 'bass', 'cymbals'].includes(i.ms2Drum) || i.isDrum || i.isInstructions))
+            throw Error('Invalid MS2 drum instrument.');
     const ids = new Set();
     for (const n of p.notes) {
         if (!Number.isInteger(n.id) || ids.has(n.id) || !Number.isInteger(n.instrument) || !p.instruments[n.instrument] || !(n.volume === null || (Number.isInteger(n.volume) && n.volume >= 0 && n.volume <= 15)))
@@ -23,7 +26,7 @@ export function parse(text) {
         ids.add(n.id);
     }
     if (!valid(p.notes))
-        throw Error('Invalid timing or overlapping notes.');
+        throw Error('Invalid timing or conflicting tempo instructions.');
     recognizeLegacyInstructions(p);
     return p;
 }

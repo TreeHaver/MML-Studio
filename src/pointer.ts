@@ -1,3 +1,4 @@
+import {playbackPitch} from './playback/drums.ts';
 import {anchor,point,musical,hit,edge,boxIds} from './geometry.ts';
 import {layout} from './viewport.ts';
 import {draw} from './painting.ts';
@@ -35,7 +36,7 @@ export function installPointer(){
   edgeFrame=requestAnimationFrame(edgeScroll);
  };
  let keyHighlightTimer:number|undefined;
- const previewKey=(p:any)=>{const instrument=state.project.instruments[state.active],pitch=musical(p).pitch;if(pitch<0||pitch>127)return;state.previewPitch=pitch;draw();if(keyHighlightTimer!==undefined)window.clearTimeout(keyHighlightTimer);keyHighlightTimer=window.setTimeout(()=>{if(state.previewPitch===pitch){state.previewPitch=null;draw();}},500);void previewNote(pitch,instrument.midiProgram??0,instrument.isDrum===true);return pitch;};
+ const previewKey=(p:any)=>{const instrument=state.project.instruments[state.active],pitch=musical(p).pitch;if(pitch<0||pitch>127)return;state.previewPitch=pitch;draw();if(keyHighlightTimer!==undefined)window.clearTimeout(keyHighlightTimer);keyHighlightTimer=window.setTimeout(()=>{if(state.previewPitch===pitch){state.previewPitch=null;draw();}},500);void previewNote(playbackPitch(instrument,pitch),instrument.midiProgram??0,instrument.isDrum===true||!!instrument.ms2Drum);return pitch;};
 canvas.onpointerdown=e=>{
  if(e.button!==0&&e.button!==2)return;const p=point(e);
  if(p.y<HEAD){if(e.button===0&&p.x>=KEY){e.preventDefault();scrubbing=true;canvas.setPointerCapture(e.pointerId);seekToTick(musical(p).tick);}return;}

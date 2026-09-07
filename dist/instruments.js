@@ -1,7 +1,7 @@
 import { mmlControls, updateMml } from './mml.js';
 import { instrumentActions, removeInstrument } from './instrument-actions.js';
 import { GM_PROGRAMS } from './playback/gm-programs.js';
-import { DRUM_KIT_NAME, DRUM_MS2_WARNING } from './playback/drums.js';
+import { DRUM_KIT_NAME, DRUM_MS2_WARNING, MS2_DRUMS } from './playback/drums.js';
 import { INSTRUCTIONS_NAME } from './model/instructions.js';
 import { draw } from './painting.js';
 import { info } from './inspector.js';
@@ -62,15 +62,14 @@ export function instruments() {
         };
         row.onclick = e => { if (!e.target.closest?.('button,select,input,label,summary'))
             select(); };
-        const beginRename = () => { if (row.querySelector('input[type=text]'))
-            return; const field = document.createElement('input'); field.type = 'text'; field.value = i.name; field.setAttribute('aria-label', 'Rename ' + i.name); button.after(field); field.focus({ preventScroll: true }); field.select(); let done = false; const finish = (save) => { if (done)
+        const beginRename = () => { if (row.querySelector('.instrument-rename-field'))
+            return; const field = document.createElement('input'); field.type = 'text'; field.className = 'instrument-rename-field'; field.value = i.name; field.setAttribute('aria-label', 'Rename ' + i.name); button.after(field); field.focus({ preventScroll: true }); field.select(); let done = false; const finish = (save) => { if (done)
             return; done = true; if (save && field.value.trim() && i.name !== field.value.trim()) {
             checkpoint();
             i.name = field.value.trim();
         } instruments(); }; field.onblur = () => finish(true); field.onkeydown = e => { if (e.key === 'Enter')
             finish(true); if (e.key === 'Escape')
             finish(false); }; };
-        button.ondblclick = beginRename;
         const preset = document.createElement('select');
         preset.title = 'General MIDI playback instrument';
         preset.setAttribute('aria-label', 'Playback preset for ' + i.name);
@@ -79,13 +78,21 @@ export function instruments() {
         drums.value = 'drums';
         drums.textContent = `${DRUM_KIT_NAME} (not valid in MS2)`;
         preset.append(drums);
+        for (const [key, drum] of Object.entries(MS2_DRUMS)) {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = drum.name;
+            preset.append(option);
+        }
         const instructions = document.createElement('option');
         instructions.value = 'instructions';
         instructions.textContent = 'Instructions (silent)';
         preset.append(instructions);
-        preset.value = i.isInstructions ? 'instructions' : i.isDrum ? 'drums' : String(i.midiProgram ?? 0);
-        preset.onchange = () => { checkpoint(); i.isDrum = preset.value === 'drums'; i.isInstructions = preset.value === 'instructions'; i.midiProgram = i.isDrum || i.isInstructions ? 0 : Number(preset.value); if (i.isInstructions)
-            i.name = INSTRUCTIONS_NAME; instruments(); updateMml(true); info(); draw(); };
+        preset.value = i.isInstructions ? 'instructions' : i.isDrum ? 'drums' : i.ms2Drum ?? String(i.midiProgram ?? 0);
+        preset.onchange = () => { checkpoint(); delete i.ms2Drum; if (preset.value in MS2_DRUMS)
+            i.ms2Drum = preset.value; i.isDrum = preset.value === 'drums'; i.isInstructions = preset.value === 'instructions'; i.midiProgram = i.isDrum || i.isInstructions || i.ms2Drum ? 0 : Number(preset.value); if (i.isInstructions)
+            i.name = INSTRUCTIONS_NAME; if (i.ms2Drum)
+            i.name = MS2_DRUMS[i.ms2Drum].name; instruments(); updateMml(true); info(); draw(); };
         row.append(color, button, preset);
         $('instruments').append(row);
         if (i.isDrum) {

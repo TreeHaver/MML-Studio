@@ -1,3 +1,5 @@
+import {drawCrowdedRegions} from './rendering/note-density.ts';
+import {drawSheetLimit} from './rendering/sheet-limit.ts';
 import {palette} from './appearance.ts';
 import {playback,syncPlaybackControls} from './playback/transport.ts';
 import {view} from './dom.ts';
@@ -21,11 +23,13 @@ export function draw(){
  ctx.rect(KEY,HEAD,width-KEY,height-HEAD);
  ctx.clip();
  drawGrid();
+ drawCrowdedRegions();
  drawNotes();
  ctx.restore();
  drawRuler();
  drawKeyboard();
  drawTempoMarkers();
+ drawSheetLimit();
  if(playback.tick!==null){
   const x=KEY+playback.tick*state.zoom-view.scrollLeft;
   ctx.save();ctx.beginPath();ctx.rect(KEY,HEAD,width-KEY,height-HEAD);ctx.clip();

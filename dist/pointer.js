@@ -1,3 +1,4 @@
+import { playbackPitch } from './playback/drums.js';
 import { anchor, point, musical, hit, edge, boxIds } from './geometry.js';
 import { layout } from './viewport.js';
 import { draw } from './painting.js';
@@ -64,7 +65,7 @@ export function installPointer() {
         window.clearTimeout(keyHighlightTimer); keyHighlightTimer = window.setTimeout(() => { if (state.previewPitch === pitch) {
         state.previewPitch = null;
         draw();
-    } }, 500); void previewNote(pitch, instrument.midiProgram ?? 0, instrument.isDrum === true); return pitch; };
+    } }, 500); void previewNote(playbackPitch(instrument, pitch), instrument.midiProgram ?? 0, instrument.isDrum === true || !!instrument.ms2Drum); return pitch; };
     canvas.onpointerdown = e => {
         if (e.button !== 0 && e.button !== 2)
             return;

@@ -1,3 +1,4 @@
+import { importMml } from './import/mml.js';
 import { stopPlayback } from './playback/transport.js';
 import { refresh } from './commands.js';
 import { $, status, view } from './dom.js';
@@ -18,8 +19,9 @@ export function installFiles() {
             if (file === null)
                 return;
             const { importMidi } = await import('./import/midi.js');
-            const imported = importMidi(new Uint8Array(file.bytes));
-            if (state.dirty && !confirm('Replace the current project with this MIDI import and discard unsaved changes?'))
+            const bytes = new Uint8Array(file.bytes);
+            const imported = /\.(mid|midi)$/i.test(file.name) ? importMidi(bytes) : importMml(new TextDecoder('utf-8', { fatal: true }).decode(bytes), file.name.replace(/\.[^.]+$/, ''));
+            if (state.dirty && !confirm('Replace the current project with this import and discard unsaved changes?'))
                 return;
             stopPlayback(false);
             resetInstrumentView();
@@ -31,7 +33,7 @@ export function installFiles() {
             state.dirty = true;
             view.scrollLeft = 0;
             refresh();
-            view.scrollTop = Math.max(0, (state.topPitch - state.project.notes.find(n => n.instrument === 0).pitch - 5) * ROW);
+            view.scrollTop = Math.max(0, (state.topPitch - (state.project.notes.find(n => n.instrument === 0)?.pitch ?? 60) - 5) * ROW);
             draw();
             const count = state.project.instruments.length;
             const instructions = state.project.notes.filter(n => state.project.instruments[n.instrument].isInstructions).length;
@@ -47,7 +49,7 @@ export function installFiles() {
             $('midi-report').showModal();
         }
         catch (error) {
-            status('MIDI import failed: ' + error);
+            status('Import failed: ' + error);
         }
         finally {
             importing = false;

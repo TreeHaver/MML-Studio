@@ -62,7 +62,7 @@ test('format 1 ports, tracks and changes of program create distinct instruments'
 test('sustain and same-pitch overlap are retained without trimming notes',()=>{
  const {project,warnings}=importMidi(midi([[e(0,176,64,127),e(0,144,60,100),e(5,128,60,0),e(1,144,60,100),e(4,128,60,0),e(3,176,64,0),end()]]));
  assert.deepEqual(project.notes.map(n=>[n.start,n.length]),[[0,13],[6,7]]);
- assert.equal(project.instruments.length,1);assert.ok(warnings.some(w=>w.includes('same instrument')));
+ assert.equal(project.instruments.length,1);assert.equal(warnings.some(w=>w.includes('Overlapping')),false);
  assert.doesNotThrow(()=>parse(JSON.stringify(project)));
 });
 test('tempo changes in a rest and inside a held note use silent markers, without retriggering',()=>{
@@ -101,3 +101,4 @@ test('invalid, truncated, empty, format 2 and SMPTE inputs fail clearly',()=>{
  assert.throws(()=>readSMF(midi([[[128,128,128,128,0],end()]])),/variable-length/);
  assert.throws(()=>readSMF(midi([[e(0,144,255,100),end()]])),/channel data/);
 });
+

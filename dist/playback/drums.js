@@ -11,3 +11,13 @@ const names = [
     'Claves', 'Hi Wood Block', 'Low Wood Block', 'Mute Cuica', 'Open Cuica', 'Mute Triangle', 'Open Triangle'
 ];
 export const drumName = (pitch) => names[pitch - 35] ?? `Drum note ${pitch} (outside GM standard map)`;
+export const MS2_DRUMS = { snare: { name: 'Snare Drum', pitch: 38 }, bass: { name: 'Bass Drum', pitch: 35 }, cymbals: { name: 'Cymbals', pitch: 49 } };
+export function drumCategory(pitch) {
+    if ([35, 36].includes(pitch))
+        return 'bass';
+    if ([38, 40].includes(pitch))
+        return 'snare';
+    if ([42, 44, 46, 49, 51, 52, 53, 55, 57, 59].includes(pitch))
+        return 'cymbals';
+}
+export const playbackPitch = (instrument, pitch) => instrument.ms2Drum ? MS2_DRUMS[instrument.ms2Drum].pitch : pitch;

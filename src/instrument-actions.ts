@@ -3,7 +3,7 @@ import {checkpoint} from './history.ts';
 import {refresh} from './commands.ts';
 import {status} from './dom.ts';
 import {stopPlayback} from './playback/transport.ts';
-import {deleteInstrument,mergeInstruments} from './model/instrument-operations.ts';
+import {deleteInstrument,mergeInstruments,splitNotes,splitDrumkit,parseSplitPitch} from './model/instrument-operations.ts';
 import type {Project} from './model/types.ts';
 
 function apply(project:Project,source:number,active:number){
@@ -49,5 +49,30 @@ export function instrumentActions(row:HTMLElement,index:number){
  destination.value='';destination.disabled=destination.children.length===1;
  destination.title=destination.disabled?'Add another instrument of the same kind to merge.':'Destination keeps its sound and settings.';
  const merge=document.createElement('button');merge.textContent='Merge';merge.disabled=true;merge.onclick=()=>{if(destination.value!=='')mergeInstrument(index,Number(destination.value));};destination.onchange=()=>{merge.disabled=destination.value==='';};
+
+ if(!state.project.instruments[index].isInstructions){
+  const label=document.createElement('label');label.className='instrument-split-label';label.textContent='Split Notes';
+  const pitch=document.createElement('input');pitch.type='text';pitch.placeholder='B1';pitch.setAttribute('aria-label','Note to split');label.append(pitch);
+  const target=document.createElement('select');target.setAttribute('aria-label','Split destination instrument');
+  const empty=document.createElement('option');empty.value='';empty.textContent='Instruments…';target.append(empty);
+  state.project.instruments.forEach((instrument,other)=>{if(other===index||instrument.isInstructions)return;const option=document.createElement('option');option.value=String(other);option.textContent=instrument.name;target.append(option);});target.value='';
+  const split=document.createElement('button');split.textContent='Split';split.onclick=()=>{if(target.value===''){status('Choose a destination instrument.');return;}splitInstrumentNote(index,Number(target.value),pitch.value);};
+  body.append(label,target,split);
+  if(state.project.instruments[index].isDrum){const kit=document.createElement('button');kit.className='instrument-split-kit';kit.textContent='Split Drumkit';kit.onclick=()=>splitKitInstrument(index);body.append(kit);}
+ }
  body.append(destination,merge);box.append(summary,body);row.append(box);
+}
+
+function applySplit(project:Project,count:number){
+ if(!count){status('No matching notes to split.');return;}
+ stopPlayback(false);checkpoint();state.project=project;state.selection.clear();state.gesture=null;refresh();status('Moved '+count+' notes. Undo to restore.');
+}
+export function splitInstrumentNote(source:number,target:number,text:string){
+ try{const result=splitNotes(state.project,source,target,parseSplitPitch(text));
+ if(result.volumeConflict&&!confirm('Some simultaneous destination notes have different volumes and will share one volume after splitting. Continue?'))return;
+ applySplit(result.project,result.count);
+ }catch(error){status(String(error));}
+}
+export function splitKitInstrument(source:number){
+ try{const result=splitDrumkit(state.project,source);applySplit(result.project,result.count);}catch(error){status(String(error));}
 }
