@@ -19,9 +19,38 @@ export function installAppearance() {
         chevron.setAttribute('aria-hidden', 'true');
         select.replaceWith(shell);
         shell.append(select, chevron);
-        let panel = null;
-        const close = () => { panel?.remove(); panel = null; shell.classList.remove('open'); if (closeOpenList === close)
+        let panel = null, items = [], active = -1, typed = '', typedTimer;
+        // Options read "12. Vibraphone", so type-ahead has to match the name, not the number.
+        const label = (option) => (option.textContent ?? '').replace(/^\s*\d+\.\s*/, '').toLowerCase();
+        const close = () => { panel?.remove(); panel = null; items = []; active = -1; typed = ''; shell.classList.remove('open'); if (closeOpenList === close)
             closeOpenList = null; };
+        const highlight = (index) => {
+            if (!panel || index < 0 || index >= items.length)
+                return;
+            items[active]?.classList.remove('current');
+            active = index;
+            const item = items[index];
+            item.classList.add('current');
+            if (item.offsetTop < panel.scrollTop)
+                panel.scrollTop = item.offsetTop - 4;
+            else if (item.offsetTop + item.offsetHeight > panel.scrollTop + panel.clientHeight)
+                panel.scrollTop = item.offsetTop + item.offsetHeight - panel.clientHeight + 4;
+        };
+        const typeAhead = (character) => {
+            window.clearTimeout(typedTimer);
+            typedTimer = window.setTimeout(() => { typed = ''; }, 900);
+            typed += character.toLowerCase();
+            const options = [...select.options];
+            let found = options.findIndex(option => label(option).startsWith(typed));
+            // A dead end usually means a new word was started rather than a typo.
+            if (found < 0 && typed.length > 1) {
+                typed = character.toLowerCase();
+                found = options.findIndex(option => label(option).startsWith(typed));
+            }
+            if (found < 0)
+                found = options.findIndex(option => label(option).includes(typed));
+            highlight(found);
+        };
         const open = () => {
             if (panel) {
                 close();
@@ -31,18 +60,16 @@ export function installAppearance() {
             panel = document.createElement('div');
             panel.className = 'menu-panel select-panel';
             panel.onpointerdown = e => e.preventDefault();
-            let current = null;
-            for (const option of [...select.options]) {
+            items = [...select.options].map(option => {
                 const item = document.createElement('button');
                 item.type = 'button';
                 item.textContent = option.textContent;
                 item.disabled = option.disabled;
-                if (option.selected)
-                    current = item;
                 item.onclick = () => { const changed = select.value !== option.value; select.value = option.value; close(); select.focus({ preventScroll: true }); if (changed)
                     select.dispatchEvent(new Event('change', { bubbles: true })); };
                 panel.append(item);
-            }
+                return item;
+            });
             document.body.append(panel);
             shell.classList.add('open');
             closeOpenList = close;
@@ -54,20 +81,52 @@ export function installAppearance() {
             panel.style.maxHeight = height + 'px';
             panel.style.left = Math.round(Math.max(8, Math.min(box.left, innerWidth - panel.offsetWidth - 8))) + 'px';
             panel.style.top = Math.round(below >= height ? box.bottom + 4 : box.top - height - 4) + 'px';
-            if (height < full && current)
-                panel.scrollTop = Math.max(0, current.offsetTop - height / 2);
+            const chosen = Math.max(0, select.selectedIndex);
+            items[chosen]?.classList.add('current');
+            active = chosen;
+            if (height < full && items[chosen])
+                panel.scrollTop = Math.max(0, items[chosen].offsetTop - height / 2);
+            select.focus({ preventScroll: true });
         };
         select.addEventListener('pointerdown', e => { e.preventDefault(); open(); });
-        select.addEventListener('keydown', e => { if (e.key === 'Escape')
-            close();
-        else if (e.key === 'Enter' || e.key === ' ' || (e.key === 'ArrowDown' && e.altKey)) {
-            e.preventDefault();
-            open();
-        } });
+        select.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                close();
+                return;
+            }
+            if (!panel) {
+                if (e.key === 'Enter' || e.key === ' ' || (e.key === 'ArrowDown' && e.altKey)) {
+                    e.preventDefault();
+                    open();
+                }
+                return;
+            }
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                highlight(Math.max(0, Math.min(items.length - 1, active + (e.key === 'ArrowDown' ? 1 : -1))));
+                return;
+            }
+            if (e.key === 'Home' || e.key === 'End') {
+                e.preventDefault();
+                highlight(e.key === 'Home' ? 0 : items.length - 1);
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                items[active]?.click();
+                return;
+            }
+            if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                typeAhead(e.key);
+            }
+        });
     };
     document.addEventListener('pointerdown', e => { const target = e.target; if (!target?.closest?.('.select-control') && !target?.closest?.('.select-panel'))
         closeOpenList?.(); }, true);
-    document.addEventListener('scroll', () => closeOpenList?.(), true);
+    // An ancestor scrolling detaches the fixed panel from its select, but scrolling the panel itself must not.
+    document.addEventListener('scroll', e => { const target = e.target; if (!target?.closest?.('.select-panel'))
+        closeOpenList?.(); }, true);
     window.addEventListener('resize', () => closeOpenList?.());
     window.addEventListener('keydown', e => { if (e.key === 'Escape')
         closeOpenList?.(); });
