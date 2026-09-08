@@ -22,9 +22,11 @@ The binary reader accepts **Standard MIDI File format 0/1 with PPQ timing**. It 
 | Channel 10 percussion | Standard Drum Kit, with the requested non-blocking MS2 warning. Alternate kit programs reduce to Standard Kit with a notice. |
 | Dangling notes / unmatched note-offs | End dangling notes at the last file event and report; ignore/report unmatched note-offs. Zero-duration notes become one unit. |
 
-Bank selection reduces to GM program and is reported as unrepresented. Other controllers, pitch bend, aftertouch, SysEx, lyrics/text/key-signature metadata and nonstandard drum routing are not represented. Signature denominators finer than 1/128 are skipped with a model-limitation notice; malformed payloads/zero numerators fail validation. Nonstandard notated 32nd-note scaling is reported.
+Bank selection reduces to GM program and is reported as unrepresented. Other controllers, pitch bend, aftertouch, SysEx, lyrics/text/key-signature metadata and nonstandard drum routing are not represented. Signature denominators finer than 1/128 are skipped with a model-limitation notice; malformed payloads/zero numerators are skipped with a recovery notice. Nonstandard notated 32nd-note scaling is reported.
 
 Format 2 independent sequences, SMPTE timing and RIFF/RMID wrappers are rejected as unsupported decoder formats. Independent trailing silence after all notes/events has no dedicated version-2 song-length field and is not preserved simply from a MIDI end-of-track event.
+
+Malformed instruction recovery reports counts per category and leaves source bytes untouched. Note-on velocities above 127 become 127 (V15); invalid release velocities become 0 while preserving note-off timing. Invalid pitches, controller values/numbers, programs, aftertouch and pitch bends cause that event to be skipped, retaining previous channel settings. Invalid port, tempo and signature payloads are skipped, retaining the previous setting (or the normal default). Unexpected end-of-track payloads are ignored while honoring the marker. Skipped events still advance the source clock. This does not infer replacement pitches, presets, tempos or signatures. Truncated chunks/events/payloads, unreadable variable-length timing, missing running status and unknown system-event boundaries still fail; files with no remaining supported music/instructions cannot create an import.
 
 Owners: `src/import/smf.ts` reads validated binary chunks; `src/import/midi.ts` converts to the project; `src/files.ts` and main/preload own dialogs/IPC/reporting. Import dispatch currently recognizes MIDI by `.mid`/`.midi` filename extension; other selected files use UTF-8 MML parsing.
 
@@ -51,6 +53,8 @@ External grid paste uses this parser before committing notes/history. Musical pa
 ## Generated channel text
 
 Each instrument's Instrument actions contains its total Character count, channel count, Real time updating checkbox, Update MML and Open MML. Real-time updating defaults on. Turning it off retains a visibly Out of date snapshot until Update; selection/scroll/Mute/Solo do not regenerate unchanged strings. New/Open/Import reset session caches. Generated strings are never stored in JSON.
+
+The warning triangle is a keyboard-accessible button: click it to activate the instrument, select its first overlapping notes and scroll both axes to reveal them. Other warning types have no overlap destination; stale warnings use current notes when clicked. The active instrument continuously shows red vertical lines at every overlap onset while scrolling/scrubbing, independent of triangle clicks and automatic MML updates. Markers follow current-view and expanded-loop warning semantics, mapping repeated positions back to the editable source. Navigation changes neither music nor history/dirty state.
 
 Open MML is a non-modal native window. Channel tabs show individual counts; Copy to clipboard copies exactly the selected raw string without wrappers/whitespace/newlines. The window follows its instrument, clamps removed tabs and clears on project replacement.
 

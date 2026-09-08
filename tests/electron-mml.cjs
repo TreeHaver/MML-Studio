@@ -30,5 +30,19 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  fs.mkdirSync('.validation',{recursive:true});fs.writeFileSync('.validation/electron-mml.png',(await popup.webContents.capturePage()).toPNG());
  await evaluate(`document.getElementById('new').click()`);
  assert.equal(await inspect(`document.querySelectorAll('[role=tab]').length`),0);
- popup.close();finish();
+ popup.close();
+ await evaluate(`testState.project.instruments=[{name:'Piano',color:'#abcdef'},{name:'Other',color:'#abcdef'}];testState.project.notes=[{id:1,instrument:0,start:600,length:32,pitch:20,volume:8},{id:2,instrument:0,start:600,length:16,pitch:20,volume:8},{id:3,instrument:0,start:700,length:32,pitch:40,volume:8},{id:4,instrument:0,start:700,length:16,pitch:40,volume:8}];testState.active=0;testState.zoom=1;testRefresh();document.getElementById('view').scrollLeft=500;`);
+ // Inspect actual canvas draws before any jump; scrolling must retain both lines.
+ assert.deepEqual(await evaluate(`import('./dist/painting.js').then(({draw})=>{const ctx=document.getElementById('canvas').getContext('2d'),original=ctx.fillRect,lines=[];ctx.fillRect=function(x,y,w,h){if(this.fillStyle==='#e5484d')lines.push(x);return original.call(this,x,y,w,h)};draw();ctx.fillRect=original;return lines;})`),await evaluate(`import('./dist/constants.js').then(({KEY})=>[KEY+100,KEY+200])`));
+ await evaluate(`testState.active=1;testRefresh();window.beforeJump=JSON.stringify([testState.project,testState.history,testState.dirty]);`);
+ const box=await evaluate(`(()=>{const r=document.querySelector('.instrument-flag').getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()`);
+ win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...box});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...box});
+ await evaluate(`new Promise(resolve=>setTimeout(resolve,100))`);
+ assert.deepEqual(await evaluate(`[testState.active,[...testState.selection]]`),[0,[1,2]]);
+ assert.equal(await evaluate(`JSON.stringify([testState.project,testState.history,testState.dirty])===beforeJump`),true);
+ assert.equal(await evaluate(`document.getElementById('view').scrollLeft>0&&document.getElementById('view').scrollTop>0`),true);
+ fs.writeFileSync('.validation/electron-overlap.png',(await win.webContents.capturePage()).toPNG());
+ await evaluate(`document.querySelector('[data-instrument="0"] .instrument-mml input').click();testState.project.notes=testState.project.notes.filter(n=>n.id!==2&&n.id!==4);testRefresh();`);
+ assert.equal(await evaluate(`import('./dist/painting.js').then(({draw})=>{const ctx=document.getElementById('canvas').getContext('2d'),original=ctx.fillRect;let lines=0;ctx.fillRect=function(...args){if(this.fillStyle==='#e5484d')lines++;return original.apply(this,args)};draw();ctx.fillRect=original;return lines;})`),0);
+ finish();
  }catch(error){finish(error);}});});require('../main.cjs');

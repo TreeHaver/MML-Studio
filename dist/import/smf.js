@@ -30,7 +30,9 @@ export function readSMF(bytes) {
     if (!ppq)
         throw Error('Invalid MIDI timing resolution.');
     const events = [], names = [], warnings = [];
-    let end = 0;
+    let end = 0, invalidVelocities = 0, invalidBends = 0;
+    const recoveries = new Map();
+    const report = (reason) => recoveries.set(reason, (recoveries.get(reason) ?? 0) + 1);
     for (let track = 0; track < tracks; track++) {
         limit = bytes.length;
         if (tag() !== 'MTrk')
@@ -57,18 +59,24 @@ export function readSMF(bytes) {
                 if (meta === 3)
                     names[track] = new TextDecoder().decode(data).replace(/[\x00-\x1f]/g, '').trim() || names[track];
                 if (meta === 33) {
-                    if (data.length !== 1 || data[0] > 127)
-                        throw Error('Invalid MIDI port.');
+                    if (data.length !== 1 || data[0] > 127) {
+                        report('invalid MIDI port events were skipped; the previous port was retained.');
+                        continue;
+                    }
                     port = data[0];
                 }
-                if (meta === 81 && (data.length !== 3 || data.every(b => b === 0)))
-                    throw Error('Invalid MIDI tempo.');
-                if (meta === 88 && (data.length !== 4 || data[0] === 0))
-                    throw Error('Invalid MIDI time signature.');
+                if (meta === 81 && (data.length !== 3 || data.every(b => b === 0))) {
+                    report('invalid MIDI tempo events were skipped; the previous tempo was retained.');
+                    continue;
+                }
+                if (meta === 88 && (data.length !== 4 || data[0] === 0)) {
+                    report('invalid MIDI time signature events were skipped; the previous signature was retained.');
+                    continue;
+                }
                 events.push({ tick, track, port, status, data, meta });
                 if (meta === 47) {
                     if (data.length)
-                        throw Error('Invalid end-of-track event.');
+                        report('end-of-track events had unexpected payloads; payloads were ignored.');
                     ended = true;
                     pos = limit;
                     break;
@@ -82,9 +90,30 @@ export function readSMF(bytes) {
                 if (status < 128 || status >= 240)
                     throw Error('Unsupported MIDI system event.');
                 running = status;
-                const data = take((status >> 4) === 12 || (status >> 4) === 13 ? 1 : 2);
-                if (data.some(b => b > 127))
-                    throw Error('Invalid MIDI channel data.');
+                let data = take((status >> 4) === 12 || (status >> 4) === 13 ? 1 : 2);
+                if (data.some(b => b > 127)) {
+                    // Event widths are known, so invalid values need not discard the file.
+                    // Never guess a pitch/controller/program; skip those events. Release
+                    // velocity is unused by the model, so retain the note-off at its tick.
+                    // Copy repairs to keep the caller's source bytes untouched.
+                    if (data[0] <= 127 && data[1] > 127 && (status >> 4) === 9) {
+                        data = new Uint8Array([data[0], 127]);
+                        invalidVelocities++;
+                    }
+                    else if (data[0] <= 127 && data[1] > 127 && (status >> 4) === 8) {
+                        data = new Uint8Array([data[0], 0]);
+                        report('invalid MIDI release velocities were ignored; note-off timing was retained.');
+                    }
+                    else if ((status >> 4) === 14) {
+                        invalidBends++;
+                        continue;
+                    }
+                    else {
+                        const kind = { 8: 'note-off', 9: 'note-on', 10: 'polyphonic aftertouch', 11: 'controller', 12: 'program change', 13: 'channel aftertouch' }[status >> 4];
+                        report(`invalid MIDI ${kind} events were skipped; previous channel settings were retained.`);
+                        continue;
+                    }
+                }
                 events.push({ tick, track, port, status, data });
             }
         }
@@ -92,6 +121,12 @@ export function readSMF(bytes) {
             warnings.push(`Track ${track + 1} has no end-of-track marker.`);
         end = Math.max(end, tick);
     }
+    if (invalidVelocities)
+        warnings.push(`${invalidVelocities} invalid MIDI note-on velocities above 127 were reduced to 127 (maximum volume).`);
+    if (invalidBends)
+        warnings.push(`${invalidBends} invalid MIDI pitch-bend events were skipped; pitch bend is not imported.`);
+    for (const [reason, count] of recoveries)
+        warnings.push(`${count} ${reason}`);
     // Stable sorting keeps track/event order when timestamps coincide.
     events.sort((a, b) => a.tick - b.tick);
     return { ppq, names, events, end, warnings };

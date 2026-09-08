@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {hasOverlappingNotes,crowdedRegions} from '../dist/music/note-density.js';
+import {hasOverlappingNotes,crowdedRegions,overlapLocations} from '../dist/music/note-density.js';
 import {generateMml} from '../dist/music/mml.js';
 import {projectSegment,mergeSegment} from '../dist/model/segment-view.js';
 import {parse} from '../dist/model/serialization.js';
@@ -14,6 +14,7 @@ test('clipped and loop-restarted same-pitch notes warn without correcting or rej
  const projection=projectSegment(p,{kind:'segment',name:'Overlap',start:32,end:96}),scoped=projection.project;
  const mml=generateMml(scoped,0);
  assert.match(mml.warnings.join(' '),/Overlapping notes/);assert.equal(mml.channels.length,2);
+ assert.deepEqual(overlapLocations(scoped,0),[{start:0,pitch:60,ids:[1,2]}]);
  assert.deepEqual(scoped.notes.filter(n=>n.instrument===0).map(n=>[n.start,n.length]),[[0,64],[0,64]]);
  assert.deepEqual(parse(JSON.stringify(scoped)),scoped);assert.doesNotThrow(()=>compilePlayback(scoped));
  assert.deepEqual(mergeSegment(p,projection,scoped,scoped.instruments.map((_,i)=>i<p.instruments.length?i:-1)).notes,p.notes);
@@ -22,6 +23,7 @@ test('clipped and loop-restarted same-pitch notes warn without correcting or rej
  p.notes.push({...note(3,32,1,60,1),loopEntry:true,loopCount:2},{...note(4,64,1,60,1),loopExit:true});
  const loopBefore=structuredClone(p),loopMml=generateMml(p,0);
  assert.match(loopMml.warnings.join(' '),/Overlapping notes/);assert.equal(loopMml.channels.length,2);
+ assert.deepEqual(overlapLocations(p,0),[{start:32,pitch:60,ids:[1,2]}]);
  assert.equal(compilePlayback(p).project.notes.filter(n=>n.instrument===0).length,4);
  assert.deepEqual(parse(JSON.stringify(p)),p);assert.deepEqual(p,loopBefore);
 });
@@ -33,6 +35,15 @@ test('overlap means same onset, pitch and instrument only',()=>{
  assert.equal(hasOverlappingNotes([note(1,0,100),note(2,0,20,60,1)]),false);
  assert.match(generateMml(project([note(1,0,100),note(2,0,20)]),0).warnings.join(' '),/Overlapping/);
  const drums=project([note(1,0,100),note(2,0,20,61)]);drums.instruments[0].ms2Drum='snare';assert.equal(generateMml(drums,0).warnings.length,0);
+});
+
+test('overlap locations are chronological, keep owners separate and ignore Instructions',()=>{
+ const p=project([note(1,200,10),note(2,200,20),note(3,10,20,72),note(4,10,30,72),note(5,5,10,60,1),note(6,5,20,60,1),note(7,0,1,60,2),note(8,0,1,60,2)]);
+ p.instruments.push({name:'Other',color:'#abcdef'},{name:'Instructions',color:'#abcdef',isInstructions:true});
+ const before=structuredClone(p);
+ assert.deepEqual(overlapLocations(p,0).map(o=>o.start),[10,200]);
+ assert.deepEqual(overlapLocations(p).map(o=>o.start),[5,10,200]);
+ assert.deepEqual(overlapLocations(p,2),[]);assert.deepEqual(p,before);
 });
 test('yellow regions identify strictly more than ten sounding notes, with exact endpoint handling',()=>{
  const base=Array.from({length:10},(_,i)=>note(i,0,100,60+i));

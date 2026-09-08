@@ -17090,7 +17090,9 @@ function readSMF(bytes) {
   if (ppq & 32768) throw Error("SMPTE-timed MIDI is not supported; export with ticks-per-quarter-note timing.");
   if (!ppq) throw Error("Invalid MIDI timing resolution.");
   const events = [], names = [], warnings = [];
-  let end = 0;
+  let end = 0, invalidVelocities = 0, invalidBends = 0;
+  const recoveries = /* @__PURE__ */ new Map();
+  const report = (reason) => recoveries.set(reason, (recoveries.get(reason) ?? 0) + 1);
   for (let track2 = 0; track2 < tracks; track2++) {
     limit = bytes.length;
     if (tag() !== "MTrk") throw Error("Expected a MIDI track chunk.");
@@ -17113,14 +17115,23 @@ function readSMF(bytes) {
         const meta = byte(), data = take(vlq());
         if (meta === 3) names[track2] = new TextDecoder().decode(data).replace(/[\x00-\x1f]/g, "").trim() || names[track2];
         if (meta === 33) {
-          if (data.length !== 1 || data[0] > 127) throw Error("Invalid MIDI port.");
+          if (data.length !== 1 || data[0] > 127) {
+            report("invalid MIDI port events were skipped; the previous port was retained.");
+            continue;
+          }
           port = data[0];
         }
-        if (meta === 81 && (data.length !== 3 || data.every((b) => b === 0))) throw Error("Invalid MIDI tempo.");
-        if (meta === 88 && (data.length !== 4 || data[0] === 0)) throw Error("Invalid MIDI time signature.");
+        if (meta === 81 && (data.length !== 3 || data.every((b) => b === 0))) {
+          report("invalid MIDI tempo events were skipped; the previous tempo was retained.");
+          continue;
+        }
+        if (meta === 88 && (data.length !== 4 || data[0] === 0)) {
+          report("invalid MIDI time signature events were skipped; the previous signature was retained.");
+          continue;
+        }
         events.push({ tick, track: track2, port, status, data, meta });
         if (meta === 47) {
-          if (data.length) throw Error("Invalid end-of-track event.");
+          if (data.length) report("end-of-track events had unexpected payloads; payloads were ignored.");
           ended = true;
           pos = limit;
           break;
@@ -17131,14 +17142,32 @@ function readSMF(bytes) {
       } else {
         if (status < 128 || status >= 240) throw Error("Unsupported MIDI system event.");
         running = status;
-        const data = take(status >> 4 === 12 || status >> 4 === 13 ? 1 : 2);
-        if (data.some((b) => b > 127)) throw Error("Invalid MIDI channel data.");
+        let data = take(status >> 4 === 12 || status >> 4 === 13 ? 1 : 2);
+        if (data.some((b) => b > 127)) {
+          if (data[0] <= 127 && data[1] > 127 && status >> 4 === 9) {
+            data = new Uint8Array([data[0], 127]);
+            invalidVelocities++;
+          } else if (data[0] <= 127 && data[1] > 127 && status >> 4 === 8) {
+            data = new Uint8Array([data[0], 0]);
+            report("invalid MIDI release velocities were ignored; note-off timing was retained.");
+          } else if (status >> 4 === 14) {
+            invalidBends++;
+            continue;
+          } else {
+            const kind = { 8: "note-off", 9: "note-on", 10: "polyphonic aftertouch", 11: "controller", 12: "program change", 13: "channel aftertouch" }[status >> 4];
+            report(`invalid MIDI ${kind} events were skipped; previous channel settings were retained.`);
+            continue;
+          }
+        }
         events.push({ tick, track: track2, port, status, data });
       }
     }
     if (!ended) warnings.push(`Track ${track2 + 1} has no end-of-track marker.`);
     end = Math.max(end, tick);
   }
+  if (invalidVelocities) warnings.push(`${invalidVelocities} invalid MIDI note-on velocities above 127 were reduced to 127 (maximum volume).`);
+  if (invalidBends) warnings.push(`${invalidBends} invalid MIDI pitch-bend events were skipped; pitch bend is not imported.`);
+  for (const [reason, count] of recoveries) warnings.push(`${count} ${reason}`);
   events.sort((a, b) => a.tick - b.tick);
   return { ppq, names, events, end, warnings };
 }

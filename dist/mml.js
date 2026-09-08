@@ -1,6 +1,12 @@
 import { state, instrumentView } from './state.js';
 import { generateMml } from './music/mml.js';
 import { tempoMap } from './music/tempo.js';
+import { overlapLocations } from './music/note-density.js';
+import { view, status } from './dom.js';
+import { KEY, HEAD } from './constants.js';
+import { pitchTop, pitchHeight } from './pitch-viewport.js';
+import { refresh as refreshEditor } from './commands.js';
+import { draw } from './painting.js';
 const entries = new Map();
 let epoch = instrumentView.mmlEpoch;
 let previous, count = -1, revision = 0, buckets = new Map(), tempos = [];
@@ -63,10 +69,24 @@ export function mmlControls(row, body, index) {
     const i = state.project.instruments[index], e = entry(index), box = document.createElement('div');
     box.className = 'instrument-mml';
     e.label = document.createElement('small');
-    // A marker, not a control: it says what is wrong on hover and does nothing when clicked.
-    e.warning = document.createElement('span');
+    e.warning = document.createElement('button');
     e.warning.className = 'instrument-flag';
-    e.warning.setAttribute('role', 'img');
+    e.warning.setAttribute('type', 'button');
+    e.warning.title = 'Jump to the first overlapping notes in this instrument.';
+    e.warning.onclick = () => {
+        const target = overlapLocations(state.project, index)[0];
+        if (!target) {
+            status('No overlapping notes in this instrument in the current view.');
+            return;
+        }
+        state.active = index;
+        state.selection = new Set(target.ids);
+        refreshEditor();
+        view.scrollLeft = Math.max(0, target.start * state.zoom - (state.width - KEY) / 3);
+        view.scrollTop = Math.max(0, pitchTop(state.topPitch, target.pitch) + pitchHeight(target.pitch) / 2 - (state.height - HEAD) / 2);
+        draw();
+        status('Selected the first overlapping notes in this instrument.');
+    };
     e.warning.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
     const label = document.createElement('label'), toggle = document.createElement('input');
     toggle.type = 'checkbox';

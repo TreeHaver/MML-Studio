@@ -1,4 +1,4 @@
-import { drawCrowdedRegions, drawCrowdedMarkers } from './rendering/note-density.js';
+import { drawCrowdedRegions, drawCrowdedMarkers, drawOverlapMarkers } from './rendering/note-density.js';
 import { refreshSignature } from './toolbar.js';
 import { refreshSegmentControls, drawSegmentBoundary } from './segment-view.js';
 import { drawSheetLimit } from './rendering/sheet-limit.js';
@@ -30,6 +30,7 @@ export function draw() {
     drawInstructionLines();
     drawCrowdedRegions();
     drawNotes();
+    drawOverlapMarkers();
     ctx.restore();
     drawRuler();
     drawCrowdedMarkers();

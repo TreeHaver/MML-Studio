@@ -8,6 +8,47 @@ import {compilePlayback} from '../dist/playback/midi.js';
 import {tempoAt} from '../dist/music/tempo.js';
 const {midi,event:e,end}=fixture;
 
+test('exporter overflow in velocity and pitch bend recovers with notices without changing source bytes',()=>{
+ const bytes=midi([[e(0,224,80,147),e(0,80,130),e(5,144,60,129),e(0,64,135),e(7,128,60,0),e(4,64,0),end()]]);
+ const original=bytes.slice(),{project,noteCount,warnings}=importMidi(bytes);
+ assert.equal(noteCount,2);
+ assert.deepEqual(project.notes.map(n=>[n.start,n.length,n.pitch,n.volume]),[[5,7,60,15],[5,11,64,15]]);
+ assert.ok(warnings.includes('2 invalid MIDI note-on velocities above 127 were reduced to 127 (maximum volume).'));
+ assert.ok(warnings.includes('2 invalid MIDI pitch-bend events were skipped; pitch bend is not imported.'));
+ assert.deepEqual(bytes,original);
+ assert.deepEqual(parse(JSON.stringify(project)),project);
+});
+
+test('invalid channel instructions are skipped and release velocity preserves note-off timing',()=>{
+ for(const data of [[144,128,100],[128,60,129],[176,7,129],[192,129],[224,128,64]]){
+  assert.ok(readSMF(midi([[e(0,...data),end()]])).warnings.some(w=>/invalid MIDI/.test(w)));
+ }
+ for(const status of [144,224])assert.throws(()=>readSMF(midi([[e(0,status,60)]])),/Truncated MIDI/);
+ const bytes=midi([[e(0,192,40),e(0,192,200),e(0,176,64,127),e(0,176,64,200),e(0,176,200,0),e(5,144,60,100),e(7,128,60,200),e(3,176,64,0),e(0,160,60,200),e(0,208,200),end(9)]]);
+ const original=bytes.slice(),{project,warnings}=importMidi(bytes);
+ assert.equal(project.instruments[0].midiProgram,40);
+ assert.deepEqual(project.notes.map(n=>[n.start,n.length]),[[5,10]]);
+ for(const kind of ['program change','controller','release velocities','polyphonic aftertouch','channel aftertouch'])assert.ok(warnings.some(w=>w.includes(kind)),kind);
+ assert.deepEqual(bytes,original);assert.deepEqual(parse(JSON.stringify(project)),project);
+ const off=importMidi(midi([[e(0,144,60,100),e(7,128,60,200),end(20)]]));
+ assert.equal(off.project.notes[0].length,7);
+});
+
+test('malformed metadata retains previous instructions and port, with counted notices',()=>{
+ const bytes=midi([[e(0,255,33,1,2),e(0,255,81,3,15,66,64),e(0,255,88,4,3,2,24,8),
+  e(0,144,60,100),e(4,255,33,1,200),e(0,255,33,0),e(0,255,81,3,0,0,0),e(0,255,81,2,1,2),
+  e(0,255,88,4,0,2,24,8),e(0,255,88,3,4,2,24),e(3,128,60,0),e(0,255,47,1,99)]]);
+ const original=bytes.slice(),{project,warnings}=importMidi(bytes);
+ assert.equal(project.notes.find(n=>n.volume>0).length,7);
+ assert.equal(tempoAt(project.notes,10),60);
+ assert.deepEqual(project.notes.filter(n=>n.timeSignature).map(n=>n.timeSignature),['3/4']);
+ for(const kind of ['port','tempo','time signature'])assert.ok(warnings.some(w=>w.startsWith(`2 invalid MIDI ${kind} events`)),kind);
+ assert.ok(warnings.some(w=>/end-of-track.*payloads/.test(w)));
+ assert.deepEqual(bytes,original);assert.deepEqual(parse(JSON.stringify(project)),project);
+ // Declared payload lengths remain structural: do not read into another chunk.
+ assert.throws(()=>readSMF(midi([[e(0,255,81,3,1,2)]])),/Truncated/);
+});
+
 test('MIDI time signatures become silent persistent Instructions, including signature-only files',()=>{
  const bytes=midi([[e(0,255,88,4,4,2,24,8),e(0,144,60,100),e(32,255,81,3,15,66,64),e(0,255,88,4,6,3,36,8),e(64,128,60,0),end()]]);
  const {project,noteCount,warnings}=importMidi(bytes),markers=project.notes.filter(n=>project.instruments[n.instrument].isInstructions);
@@ -22,7 +63,7 @@ test('MIDI signature conversion reports rounded positions, conflicts and unsuppo
  const {project,warnings}=importMidi(midi([[e(1,255,88,4,3,2,24,8),e(0,255,88,4,5,3,24,8),e(1,255,88,4,7,8,24,8),end()]],96));
  assert.deepEqual(project.notes.map(n=>[n.start,n.timeSignature]),[[0,'5/8']]);
  assert.ok(warnings.some(w=>/Timing was rounded/.test(w)));assert.ok(warnings.some(w=>/Coincident time signature/.test(w)));assert.ok(warnings.some(w=>/not representable/.test(w)));
- for(const data of [[3,4,2,24],[4,0,2,24,8]])assert.throws(()=>importMidi(midi([[e(0,255,88,...data),end()]])),/Invalid MIDI time signature/);
+ for(const data of [[3,4,2,24],[4,0,2,24,8]])assert.ok(readSMF(midi([[e(0,255,88,...data),end()]])).warnings.some(w=>/invalid MIDI time signature/.test(w)));
 });
 
 test('large imports exceed the former note/event caps and still save and compile',()=>{
@@ -116,6 +157,6 @@ test('invalid, truncated, empty, format 2 and SMPTE inputs fail clearly',()=>{
  assert.throws(()=>importMidi(midi([[end()]],0xe728)),/SMPTE/);
  assert.throws(()=>readSMF(midi([[e(0,60,100),end()]])),/running status/);
  assert.throws(()=>readSMF(midi([[[128,128,128,128,0],end()]])),/variable-length/);
- assert.throws(()=>readSMF(midi([[e(0,144,255,100),end()]])),/channel data/);
+ assert.ok(readSMF(midi([[e(0,144,255,100),end()]])).warnings.some(w=>/invalid MIDI note-on/.test(w)));
 });
 

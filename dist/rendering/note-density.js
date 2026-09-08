@@ -1,7 +1,29 @@
 import { ctx, view } from '../dom.js';
 import { state } from '../state.js';
 import { KEY, HEAD } from '../constants.js';
-import { crowdedRegions } from '../music/note-density.js';
+import { crowdedRegions, overlapLocations } from '../music/note-density.js';
+let overlapNotes, overlapCount = -1, overlapActive = -1, overlapInstruments, overlaps = [];
+/** Red onset lines use the same current-view/performance definition as MML. */
+export function drawOverlapMarkers() {
+    if (overlapNotes !== state.project.notes || overlapCount !== state.project.notes.length || overlapInstruments !== state.project.instruments || overlapActive !== state.active) {
+        overlapNotes = state.project.notes;
+        overlapCount = overlapNotes.length;
+        overlapInstruments = state.project.instruments;
+        overlapActive = state.active;
+        overlaps = overlapLocations(state.project, state.active);
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(KEY, HEAD, state.width - KEY, state.height - HEAD);
+    ctx.clip();
+    ctx.fillStyle = '#e5484d';
+    for (const start of new Set(overlaps.map(o => o.start))) {
+        const x = KEY + start * state.zoom - view.scrollLeft;
+        if (x >= KEY && x < state.width)
+            ctx.fillRect(x, HEAD, 2, state.height - HEAD);
+    }
+    ctx.restore();
+}
 let previous, count = -1, active = -1, regions = [];
 function current() {
     if (state.project.instruments[state.active]?.isInstructions)

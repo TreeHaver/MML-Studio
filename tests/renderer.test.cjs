@@ -503,4 +503,13 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  prefs.instrumentView.muted.add(0);transport.updatePlaybackMutes();assert.deepEqual(muteCalls.slice(-3),[{channel:0,muted:true},{channel:1,muted:true},{channel:2,muted:false}]);
  prefs.instrumentView.muted.clear();prefs.instrumentView.solo=0;transport.updatePlaybackMutes();assert.deepEqual(muteCalls.slice(-3),[{channel:0,muted:false},{channel:1,muted:false},{channel:2,muted:true}]);
  transport.stopPlayback(false);prefs.resetInstrumentView();
+ // Active-lane markers are visible before jumping and remain while scrolling.
+ run('project.instruments=[{name:"Piano",color:"#abcdef"},{name:"Other",color:"#abcdef"}];project.notes=[{id:1,instrument:0,start:600,length:32,pitch:20,volume:8},{id:2,instrument:0,start:600,length:16,pitch:20,volume:8},{id:3,instrument:1,start:700,length:16,pitch:72,volume:8},{id:4,instrument:1,start:700,length:32,pitch:72,volume:8}];state.active=1;selection.clear();state.zoom=1');commands.refresh();
+ prefs.instrumentView.muted.add(0);view.scrollLeft=500;fills.length=0;paint.draw();
+ assert.ok(fills.some(f=>f.color==='#e5484d'&&f.x===KEY+700-500&&f.y===HEAD&&f.h===600-HEAD));
+ assert.ok(!fills.some(f=>f.color==='#e5484d'&&f.x===KEY+600-500));
+ const overlapBefore=run('JSON.stringify([project,state.history,state.dirty])');
+ flag().onclick();assert.equal(run('state.active'),0);assert.deepEqual(plain('[...selection]'),[1,2]);
+ assert.ok(view.scrollLeft>0);assert.ok(view.scrollTop>0);assert.equal(run('JSON.stringify([project,state.history,state.dirty])'),overlapBefore);
+ prefs.resetInstrumentView();
 });

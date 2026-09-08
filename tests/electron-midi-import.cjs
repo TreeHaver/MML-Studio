@@ -52,6 +52,22 @@ app.on('browser-window-created',(_,win)=>{
    assert.equal(await run(`document.getElementById('play').classList.contains('is-playing')`),true);
    await run(`document.getElementById('stop').click()`);
    result.checks.push('130,000-note import renders and starts/stops native playback without argument-count errors');
+   const overflowFile=path.join(output,'overflow-midi-import.fixture.mid');
+   fs.writeFileSync(overflowFile,midi([[e(0,224,80,147),e(0,255,81,3,0,0,0),e(0,255,88,0),e(0,255,33,1,200),e(0,192,200),e(0,176,64,200),e(5,144,60,129),e(7,128,60,200),end()]]));
+   for(const file of [overflowFile,...process.argv.filter(arg=>/\.mid(i)?$/i.test(arg))]){
+    selection=path.resolve(file);await importClick();
+    assert.equal(await run(`document.getElementById('midi-report-title').textContent`),'Import complete');
+    const current=await state();assert.equal(current.dirty,true);assert.ok(current.project.notes.length>0);
+    assert.equal(await run(`import('./dist/model/serialization.js').then(({parse})=>import('./dist/state.js').then(({state})=>JSON.stringify(parse(JSON.stringify(state.project)))===JSON.stringify(state.project)))`),true);
+    const warnings=await run(`document.getElementById('midi-warnings').textContent`);
+    assert.match(warnings,/invalid MIDI (note-on velocities|pitch-bend events)/);
+    if(file===overflowFile){
+     assert.deepEqual(current.project.notes.map(n=>[n.start,n.length,n.volume]),[[5,7,15]]);
+     for(const kind of ['tempo','time signature','port','program change','controller','release velocities'])assert.ok(warnings.includes(`invalid MIDI ${kind}`),kind);
+    }
+    result.checks.push({file:path.basename(file),notes:current.project.notes.length,warnings,version2RoundTrip:true});
+    await run(`document.getElementById('midi-report-close').click()`);
+   }
    await run(`import('./dist/state.js').then(({state})=>{state.dirty=false;})`);finish();
   }catch(error){finish(error);}
  });

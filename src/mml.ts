@@ -2,6 +2,12 @@ import {state,instrumentView} from './state.ts';
 import {generateMml,type MmlResult} from './music/mml.ts';
 import {tempoMap} from './music/tempo.ts';
 import type {Note,Project} from './model/types.ts';
+import {overlapLocations} from './music/note-density.ts';
+import {view,status} from './dom.ts';
+import {KEY,HEAD} from './constants.ts';
+import {pitchTop,pitchHeight} from './pitch-viewport.ts';
+import {refresh as refreshEditor} from './commands.ts';
+import {draw} from './painting.ts';
 
 type Entry={live:boolean,result?:MmlResult,revision:number,label?:HTMLElement,warning?:HTMLElement};
 const entries=new Map<number,Entry>();let epoch=instrumentView.mmlEpoch;
@@ -31,8 +37,16 @@ export function mmlControls(row:HTMLElement,body:HTMLElement,index:number){
  reset();
  const i=state.project.instruments[index],e=entry(index),box=document.createElement('div');box.className='instrument-mml';
  e.label=document.createElement('small');
- // A marker, not a control: it says what is wrong on hover and does nothing when clicked.
- e.warning=document.createElement('span');e.warning.className='instrument-flag';e.warning.setAttribute('role','img');
+ e.warning=document.createElement('button');e.warning.className='instrument-flag';e.warning.setAttribute('type','button');
+ e.warning.title='Jump to the first overlapping notes in this instrument.';
+ e.warning.onclick=()=>{
+  const target=overlapLocations(state.project,index)[0];
+  if(!target){status('No overlapping notes in this instrument in the current view.');return;}
+  state.active=index;state.selection=new Set(target.ids);refreshEditor();
+  view.scrollLeft=Math.max(0,target.start*state.zoom-(state.width-KEY)/3);
+  view.scrollTop=Math.max(0,pitchTop(state.topPitch,target.pitch)+pitchHeight(target.pitch)/2-(state.height-HEAD)/2);
+  draw();status('Selected the first overlapping notes in this instrument.');
+ };
  e.warning.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
  const label=document.createElement('label'),toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=e.live;toggle.onchange=()=>{e.live=toggle.checked;updateMml();};const caption=document.createElement('span');caption.textContent='Real time updating';label.append(toggle,caption);
  const refresh=document.createElement('button');refresh.textContent='Update MML';refresh.title='Regenerate this instrument’s MML from the notes now. Only needed with real time updating off.';refresh.onclick=()=>{e.result=generateMml(state.project,index);e.revision=revision;publish(i,e,index);};
