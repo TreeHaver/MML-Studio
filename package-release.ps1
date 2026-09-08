@@ -41,7 +41,10 @@ try {
     $compiledFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Filter '*.ts' -Recurse -File | ForEach-Object {
         'dist\' + [IO.Path]::ChangeExtension($_.FullName.Substring((Join-Path $projectRoot 'src').Length + 1), '.js')
     })
-    $files = @($runtimeFiles) + @($assetFiles | ForEach-Object { 'assets\' + $_ }) + @($vendorFiles | ForEach-Object { 'vendor\' + $_ }) + $compiledFiles
+    $exampleFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'Example Project') -Recurse -File | ForEach-Object {
+        $_.FullName.Substring($projectRoot.Length + 1)
+    })
+    $files = @($runtimeFiles) + @($assetFiles | ForEach-Object { 'assets\' + $_ }) + @($vendorFiles | ForEach-Object { 'vendor\' + $_ }) + $compiledFiles + $exampleFiles
     foreach ($file in $files) {
         if (-not (Test-Path -LiteralPath (Join-Path $projectRoot $file) -PathType Leaf)) { throw "Missing runtime file: $file. Run build.bat after npm ci." }
     }

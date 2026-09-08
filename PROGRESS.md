@@ -947,3 +947,11 @@ Added npm's prestart hook to run check-ffmpeg.cjs before the existing build/laun
 Changed: new check-ffmpeg.cjs, package.json, AUDIO_EXPORT.md, PROJECT_MAP.md, PROGRESS.md. Actual validation: isolated fixture checks passed for missing, empty and present files, warning URL/destination, local encoder and manifest hook. The npm prestart lifecycle passed via the installed npm-cli.js. The shell's default npm shim failed because it resolved to a missing AppData/Roaming npm-cli.js; no system npm changes made. Renderer integration and incremental node build.cjs passed. No native UI testing needed or claimed for this console-only setup hook. git diff --check passed.
 
 Delivery: ffmpeg-startup-check-patch.zip. No outstanding task-specific work.
+
+## Include Example Project in build staging — 2026-09-08
+
+Packaging now includes every file in the source Example Project folder, preserving its relative path under staging/app/Example Project and the release resources/app/Example Project. The generated release ZIP includes Song of Storms.json. Source example contents remain unchanged.
+
+Changed: package-release.ps1, tests/release.test.cjs, PROGRESS.md. Actual validation: incremental build and full package-release.ps1 passed; both existing release tests passed, with added source-to-stage byte comparison for example files. Confirmed Song of Storms.json is present in the completed release ZIP. No native UI testing claimed. git diff --check passed.
+
+Delivery: updated releases/MML Music Studio-win32-x64.zip and focused example-project-staging-patch.zip. No outstanding task-specific work.
