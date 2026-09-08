@@ -9,7 +9,7 @@ import { info } from './inspector.js';
 import { checkpoint } from './history.js';
 import { refresh } from './commands.js';
 import { $, view } from './dom.js';
-import { pitchTop } from './music/pitch-layout.js';
+import { pitchTop } from './pitch-viewport.js';
 import { updatePlaybackMutes, updatePlaybackVoices } from './playback/transport.js';
 import { state, instrumentView } from './state.js';
 import { colors } from './model/project.js';

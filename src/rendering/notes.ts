@@ -4,7 +4,7 @@ import {KEY,HEAD} from '../constants.ts';
 import {rect,boxIds,musical} from '../geometry.ts';
 import {name,sharp} from '../music/pitch.ts';
 import {INSTRUCTIONS_COLOR} from '../model/instructions.ts';
-import {pitchAtY} from '../music/pitch-layout.ts';
+import {pitchAtY} from '../pitch-viewport.ts';
 import {createNoteVisibility} from '../music/note-visibility.ts';
 import type {Note} from '../model/types.ts';
 

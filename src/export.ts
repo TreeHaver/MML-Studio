@@ -1,6 +1,7 @@
 import {expandLoops} from './music/loops.ts';
 import {exportSegments} from './music/structure.ts';
-import {state} from './state.ts';
+import {playbackSettings} from './playback/transport.ts';
+import {state,isMuted} from './state.ts';
 import {createSheetPlanner,ms2Xml} from './music/sheets.ts';
 import {compilePlayback} from './playback/midi.ts';
 import {$,status} from './dom.ts';
@@ -29,7 +30,7 @@ export function installExport(){
  $('export-open').onclick=()=>{
   // The scope reads as a sentence, so it names the instrument it would export.
   $('scope-name').textContent=state.project.instruments[state.active]?.name||'the selected instrument';
-  dialog.showModal();
+  refreshFormat();dialog.showModal();
  };
  $('export-cancel').onclick=()=>dialog.close();
  // Each format names what it writes; the two buttons remain the choice of how much to write.
@@ -37,13 +38,42 @@ export function installExport(){
   ms2mml:{ext:'.ms2mml',render:channels=>ms2Xml(channels)},
   text:{ext:'.txt',render:channels=>channels.join(SEPARATOR)+'\n'}
  };
- const FORMATS=['ms2mml','text','midi'];
+ const FORMATS=['ms2mml','text','midi','audio'];
  const chosenFormat=()=>FORMATS.find(name=>($('format-'+name) as HTMLInputElement|null)?.checked)??'ms2mml';
+ const refreshFormat=()=>{
+  const format=chosenFormat(),audio=format==='audio',performance=audio||format==='midi';
+  $('scope-all-label').textContent=performance?'All instruments — one mixed file':'All instruments — one file each';
+  $('export-scope-hint').textContent=audio?'Renders the current view with loops, playback speed, volume, mute and solo settings. Includes the natural sound release.':performance?'All instruments share one MIDI performance.':'Each instrument is its own sheet: a band loads one file per player.';
+  $('export-section-options').hidden=audio;
+ };
+ for(const format of FORMATS)$('format-'+format).onchange=refreshFormat;
+ const audioDialog=$('audio-export-dialog') as HTMLDialogElement;
+ const cancelAudio=()=>{(window as any).files.cancelAudioExport();$('audio-export-message').textContent='Canceling audio export…';};
+ $('audio-export-cancel').onclick=cancelAudio;
+ audioDialog.oncancel=e=>{e.preventDefault();cancelAudio();};
+ (window as any).files?.onAudioProgress?.((fraction:number)=>{
+  ($('audio-export-progress') as HTMLProgressElement).value=fraction;
+  $('audio-export-message').textContent=fraction>=.99?'Finishing the recording and sound release…':`Rendering audio… ${Math.round(fraction*100)}%`;
+ });
  const run=async(projectExport:boolean)=>{
   if(exporting)return;exporting=true;action.disabled=true;dialog.close();
   try{
    const format=chosenFormat();
    const project=structuredClone(state.project),limit=sheetSettings.limit;
+   if(format==='audio'){
+    const active=state.active,range=state.segment?.projection.range;
+    if(!project.notes.some(n=>!project.instruments[n.instrument]?.isInstructions&&(projectExport||n.instrument===active))){status('No notes to export.');return;}
+    const muted=project.instruments.map((_,i)=>i).filter(i=>isMuted(i)||(!projectExport&&i!==active));
+    const name=(range?range.name+'-':'')+(projectExport?(project.name?.trim()||'Project'):project.instruments[active].name);
+    const request={project,minimumEnd:range?range.end-range.start:0,speed:playbackSettings.speed,volume:playbackSettings.volume,muted};
+    $('audio-export-message').textContent='Choose the audio file type in the save dialog.';
+    ($('audio-export-progress') as HTMLProgressElement).value=0;audioDialog.showModal();
+    try{
+     const result=await (window as any).files.exportAudio(name,request);
+     status(result.canceled?'Audio export canceled.':`Exported ${result.format.toUpperCase()} audio (${result.seconds.toFixed(1)} seconds).${result.warnings.length?' '+result.warnings.join(' '):''}`);
+    }finally{audioDialog.close();}
+    return;
+   }
    const indexes=projectExport?project.instruments.map((_,i)=>i):[state.active];
    const separate=!state.segment&&($('export-sections') as HTMLInputElement).checked;
    const segments=exportSegments(separate?expandLoops(project).project:project,separate);

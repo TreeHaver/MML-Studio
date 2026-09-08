@@ -3,7 +3,7 @@ import { importMml } from './import/mml.js';
 import { stopPlayback } from './playback/transport.js';
 import { refresh, refreshTitle } from './commands.js';
 import { $, input, status, view } from './dom.js';
-import { pitchTop } from './music/pitch-layout.js';
+import { pitchTop } from './pitch-viewport.js';
 import { draw } from './painting.js';
 import { state, resetInstrumentView } from './state.js';
 import { fresh } from './model/project.js';

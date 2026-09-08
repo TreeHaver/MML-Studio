@@ -5,7 +5,7 @@ export function installChrome() {
     const nativeDialogs = window.nativeDialogs;
     if (nativeDialogs)
         window.confirm = message => nativeDialogs.confirm(String(message));
-    const menus = [$('file-menu'), $('theme-menu'), $('tools-menu'), $('playback-menu')];
+    const menus = [$('file-menu'), $('theme-menu'), $('tools-menu'), $('section-menu'), $('playback-menu')];
     document.onclick = event => {
         const target = event.target;
         // Our select lists are appended to <body>, so a click in one is not outside its menu.

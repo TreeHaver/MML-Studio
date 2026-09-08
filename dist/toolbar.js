@@ -2,6 +2,7 @@ import { sections, signatureAt, signatureChangeTick, typedSignature } from './mu
 import { ensureInstructions } from './model/instructions.js';
 import { layout } from './viewport.js';
 import { draw } from './painting.js';
+import { HEAD } from './constants.js';
 import { $, view, input } from './dom.js';
 import { state } from './state.js';
 import { checkpoint } from './history.js';
@@ -34,6 +35,20 @@ export function refreshStructure() {
     $('section-control').hidden = state.segment ? state.segment.projection.range.kind === 'segment' || !sectionMarkers(state.project).some(m => !m.song && m.start > 0) : !markers.length;
     if ($('section-control').hidden)
         list.value = '';
+}
+// Sliders keep the visible top-left position; wheel zoom keeps the pitch under the pointer.
+function setZoom(horizontal, vertical, anchorY = 0) {
+    if (state.gesture)
+        return;
+    const time = view.scrollLeft / state.zoom, pitchPosition = (view.scrollTop + anchorY) / state.verticalZoom;
+    state.zoom = Math.max(1, Math.min(8, horizontal));
+    state.verticalZoom = Math.max(.5, Math.min(3, vertical));
+    input('zoom').value = String(state.zoom);
+    input('vertical-zoom').value = String(state.verticalZoom);
+    layout();
+    view.scrollLeft = time * state.zoom;
+    view.scrollTop = Math.max(0, pitchPosition * state.verticalZoom - anchorY);
+    draw();
 }
 export function installToolbar() {
     $('section-nav').onchange = () => { const value = input('section-nav').value; if (value === '')
@@ -80,7 +95,18 @@ export function installToolbar() {
         $('grid').append(option);
     }
     $('grid').onchange = () => { state.project.grid = Number(input('grid').value); draw(); };
-    $('zoom').oninput = () => { const time = view.scrollLeft / state.zoom; state.zoom = Number(input('zoom').value); layout(); view.scrollLeft = time * state.zoom; draw(); };
+    $('zoom').oninput = () => setZoom(Number(input('zoom').value), state.verticalZoom);
+    $('vertical-zoom').oninput = () => setZoom(state.zoom, Number(input('vertical-zoom').value));
+    $('reset-zoom').onclick = () => setZoom(3, 1);
+    view.addEventListener('wheel', (event) => {
+        if (!event.ctrlKey)
+            return;
+        event.preventDefault();
+        if (!event.deltaY)
+            return;
+        const anchor = Math.max(0, Math.min(view.clientHeight - HEAD, event.clientY - view.getBoundingClientRect().top - HEAD));
+        setZoom(state.zoom, Math.round((state.verticalZoom + (event.deltaY < 0 ? .1 : -.1)) * 100) / 100, anchor);
+    }, { passive: false });
     $('clear-all').onclick = () => { const count = state.project.notes.length; if (!count)
         return; if (!confirm(`Delete all ${count} notes and instructions from this project?\nYou can undo this action.`))
         return; stopPlayback(false); checkpoint(); state.project.notes = []; state.selection.clear(); refresh(); status(`Deleted all ${count} notes and instructions.`); };

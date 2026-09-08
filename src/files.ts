@@ -3,7 +3,7 @@ import {importMml} from './import/mml.ts';
 import {stopPlayback} from './playback/transport.ts';
 import {refresh,refreshTitle} from './commands.ts';
 import {$,input,status,view} from './dom.ts';
-import {pitchTop} from './music/pitch-layout.ts';
+import {pitchTop} from './pitch-viewport.ts';
 import {draw} from './painting.ts';
 import {state,resetInstrumentView} from './state.ts';
 import {fresh} from './model/project.ts';

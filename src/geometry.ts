@@ -2,7 +2,7 @@ import {instructionCaptionHit} from './rendering/tempo.ts';
 import {canvas,view} from './dom.ts';
 import {state,isMuted} from './state.ts';
 import {KEY,HEAD} from './constants.ts';
-import {pitchTop,pitchHeight,pitchAtY} from './music/pitch-layout.ts';
+import {pitchTop,pitchHeight,pitchAtY} from './pitch-viewport.ts';
 import type {Note} from './model/types.ts';
 
 export function anchor(){return state.project.notes.find(n=>n.id===[...state.selection][0]);}

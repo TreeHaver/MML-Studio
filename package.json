@@ -7,6 +7,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "prestart": "node check-ffmpeg.cjs",
     "build": "node build.cjs",
     "start": "npm run build && electron .",
     "test": "node tests/run.cjs"

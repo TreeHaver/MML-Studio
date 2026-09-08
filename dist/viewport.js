@@ -2,7 +2,7 @@ import { draw } from './painting.js';
 import { $, canvas, ctx, view } from './dom.js';
 import { state } from './state.js';
 import { KEY, HEAD } from './constants.js';
-import { pitchTop, pitchHeight } from './music/pitch-layout.js';
+import { pitchTop, pitchHeight } from './pitch-viewport.js';
 import { playheadScroll } from './playback/follow.js';
 export function followPlayback(tick) {
     const left = playheadScroll(tick, state.zoom, view.clientWidth, view.scrollLeft, KEY);

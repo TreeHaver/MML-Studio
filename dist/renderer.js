@@ -5,7 +5,7 @@ import { installTools } from './tools.js';
 import { installAppearance } from './appearance.js';
 import { view } from './dom.js';
 import { state } from './state.js';
-import { pitchTop } from './music/pitch-layout.js';
+import { pitchTop } from './pitch-viewport.js';
 import { draw } from './painting.js';
 import { layout } from './viewport.js';
 import { refresh } from './commands.js';

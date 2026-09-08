@@ -19,3 +19,7 @@ Run `npm ci` followed by `node tests/run.cjs`. The lockfile contains no upstream
 ## Validation
 
 Clean lockfile installation, incremental build, automated tests (including all 128 GM presets rendering non-silent PCM), and native Electron AudioWorklet smoke testing completed locally. The native test clicks real canvas keys for three GM presets, measures PCM, and checks transport alongside preview. Physical speaker output was not independently heard.
+
+## Offline export — 2026-09-08
+
+The new audio worker uses the same SF2-only rejection adapter, enforced by the build dependency graph check. The bundled FFmpeg executable encodes application-generated stereo PCM; it does not replace the synth sound-bank loader or enable SF3 decoding. Its original license/build provenance accompanies the Windows runtime. See AUDIO_EXPORT.md.

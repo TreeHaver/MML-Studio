@@ -23,7 +23,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  assert.equal(await evaluate(`document.getElementById('export-dialog').open`),true,'Export opens a dialog');
  assert.equal(await evaluate(`document.getElementById('export-run').textContent`),'Export','One action, so it is obvious which button exports');
  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.export-format input')].map(i=>i.id)`),
-  ['format-ms2mml','format-text','format-midi']);
+  ['format-ms2mml','format-text','format-midi','format-audio']);
  assert.equal(await evaluate(`document.getElementById('format-ms2mml').checked`),true,'MS2MML is the default format');
  await evaluate(`document.getElementById('export-cancel').click()`);await settle();
  assert.equal(await evaluate(`document.getElementById('export-dialog').open`),false,'Cancel closes the dialog');
@@ -86,7 +86,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
 
  // The caption no longer repeats the selected instrument, which the panel already shows.
  assert.equal(await evaluate(`!!document.getElementById('editing-instrument')`),false);
- assert.equal(await evaluate(`Math.round(document.querySelector('.editor-caption').getBoundingClientRect().height)`),40,'The caption stays one row');
+ assert.ok(await evaluate(`(()=>{const a=document.getElementById('zoom').getBoundingClientRect(),b=document.getElementById('vertical-zoom').getBoundingClientRect();return b.left-a.right>=8&&Math.abs(b.top-a.top)<1})()`),'Zoom sliders keep separate hit areas');
  fs.writeFileSync('.validation/electron-export-formats.png',(await win.webContents.capturePage()).toPNG());
  finish();
  }catch(error){finish(error);}});});

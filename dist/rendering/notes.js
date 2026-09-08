@@ -4,7 +4,7 @@ import { KEY, HEAD } from '../constants.js';
 import { rect, boxIds, musical } from '../geometry.js';
 import { name, sharp } from '../music/pitch.js';
 import { INSTRUCTIONS_COLOR } from '../model/instructions.js';
-import { pitchAtY } from '../music/pitch-layout.js';
+import { pitchAtY } from '../pitch-viewport.js';
 import { createNoteVisibility } from '../music/note-visibility.js';
 let indexedNotes, indexedCount = -1, indexedRoles = '', query;
 function visibleNotes() {

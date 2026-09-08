@@ -9,7 +9,7 @@ import { historySnapshot, fitsCurrentView } from './segment-session.js';
 import { canvas, status, view } from './dom.js';
 import { state, isMuted } from './state.js';
 import { KEY, HEAD, threshold } from './constants.js';
-import { pitchTop, pitchAtY, pitchHeight } from './music/pitch-layout.js';
+import { pitchTop, pitchAtY, pitchHeight } from './pitch-viewport.js';
 import { cellStart } from './music/timing.js';
 import { valid } from './model/validation.js';
 import { move, resize, stretchBack } from './music/note-operations.js';

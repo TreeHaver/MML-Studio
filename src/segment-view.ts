@@ -15,6 +15,9 @@ export function refreshSegmentControls(){
  $('open-segment').hidden=session?.projection.range.kind==='segment'||!segments;
  ($('open-song') as HTMLButtonElement).disabled=!!state.gesture||!rangeAt(state.project,tick,'song',lastEnd);
  ($('open-segment') as HTMLButtonElement).disabled=!!state.gesture||!rangeAt(state.project,tick,'segment',lastEnd);
+ const menu=$('section-menu') as HTMLDetailsElement;
+ menu.hidden=$('section-control').hidden&&$('open-segment').hidden&&$('open-song').hidden;
+ if(menu.hidden)menu.open=false;
  $('segment-view-label').hidden=!session;$('return-project').hidden=session?.projection.range.kind!=='segment';$('return-song-project').hidden=session?.projection.range.kind!=='song';
  $('segment-view-label').textContent=session?`${session.projection.range.kind==='song'?'Song':'Segment'}: ${session.projection.range.name}`:'';
  ($('export-sections') as HTMLInputElement).disabled=!!session;

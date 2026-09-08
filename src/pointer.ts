@@ -9,7 +9,7 @@ import {historySnapshot,fitsCurrentView} from './segment-session.ts';
 import {canvas,status,view} from './dom.ts';
 import {state,isMuted} from './state.ts';
 import {KEY,HEAD,threshold} from './constants.ts';
-import {pitchTop,pitchAtY,pitchHeight} from './music/pitch-layout.ts';
+import {pitchTop,pitchAtY,pitchHeight} from './pitch-viewport.ts';
 import {cellStart} from './music/timing.ts';
 import {valid} from './model/validation.ts';
 import {move,resize,stretchBack} from './music/note-operations.ts';

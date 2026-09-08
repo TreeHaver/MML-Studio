@@ -2,7 +2,7 @@ import { instructionCaptionHit } from './rendering/tempo.js';
 import { canvas, view } from './dom.js';
 import { state, isMuted } from './state.js';
 import { KEY, HEAD } from './constants.js';
-import { pitchTop, pitchHeight, pitchAtY } from './music/pitch-layout.js';
+import { pitchTop, pitchHeight, pitchAtY } from './pitch-viewport.js';
 export function anchor() { return state.project.notes.find(n => n.id === [...state.selection][0]); }
 export function rect(n) { if (state.project.instruments[n.instrument]?.isInstructions)
     return { x: KEY + n.start * state.zoom - view.scrollLeft, y: HEAD, w: 15, h: state.height - HEAD }; return { x: KEY + n.start * state.zoom - view.scrollLeft, y: HEAD + pitchTop(state.topPitch, n.pitch) - view.scrollTop, w: state.project.instruments[n.instrument]?.isInstructions ? 48 : Math.max(1, n.length * state.zoom - 1), h: pitchHeight(n.pitch) - 1 }; }

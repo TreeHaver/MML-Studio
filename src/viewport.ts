@@ -2,7 +2,7 @@ import {draw} from './painting.ts';
 import {$,canvas,ctx,view} from './dom.ts';
 import {state} from './state.ts';
 import {KEY,HEAD} from './constants.ts';
-import {pitchTop,pitchHeight} from './music/pitch-layout.ts';
+import {pitchTop,pitchHeight} from './pitch-viewport.ts';
 import {playheadScroll} from './playback/follow.ts';
 
 export function followPlayback(tick:number){

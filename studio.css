@@ -82,7 +82,7 @@ dialog{max-width:620px;max-height:85vh;overflow:auto;padding:26px;background:var
 
 /* Scoped return stays below the sticky 30px measure ruler, aligned with the meter. */
 .roll-surface{position:relative;display:flex;flex:1;min-height:0;min-width:0}
-#return-project{position:absolute;z-index:3;top:36px;right:19px;padding:6px 10px;font-size:11px;white-space:nowrap;box-shadow:0 2px 6px #0003}
+#return-project{position:absolute;z-index:3;top:30px;right:19px;padding:6px 10px;font-size:11px;white-space:nowrap;box-shadow:0 2px 6px #0003}
 #return-project[hidden]{display:none}
 /* Keep scoped names within the header column instead of spilling over transport. */
 .project-identity{flex:1;min-width:0}.segment-identity{flex:1;overflow:hidden}#segment-view-label{max-width:100%}
@@ -108,3 +108,59 @@ dialog{max-width:620px;max-height:85vh;overflow:auto;padding:26px;background:var
 .export-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:26px}
 .export-dialog-actions button{padding:9px 16px;border:1px solid var(--line);border-radius:6px}
 #export-cancel{margin-right:auto}
+
+/* Both zoom axes share a compact pair of sliders beside the reset action. */
+.zoom-sliders{display:flex;align-items:center;gap:12px}
+.zoom-sliders label{display:flex;align-items:center;gap:6px;height:28px}
+.zoom-sliders label>span{font-size:11px;letter-spacing:0;width:24px;text-align:center;white-space:nowrap}
+.editor-caption .zoom-sliders input{height:18px;margin:0}
+#reset-zoom{padding:0;width:24px;height:24px;flex:0 0 24px;font-size:20px;line-height:1;letter-spacing:0}
+.editor-caption>.caption-side:first-child{flex-wrap:wrap;overflow:visible;gap:6px 12px}
+@media(max-width:1400px){.caption-field>span{display:none}}
+
+#audio-export-dialog{width:420px;max-width:calc(100vw - 48px);padding:24px}#audio-export-progress{width:100%;height:16px;accent-color:var(--accent)}
+#export-dialog{max-height:calc(100vh - 48px);overflow-y:auto}
+
+/* Compact editor bars; each zoom axis retains its own full-height hit area. */
+.editor .editor-toolbar{min-height:48px;padding-top:4px;padding-bottom:4px}
+.toolbar-left{gap:10px}
+
+.editor{container-type:inline-size}
+@container (max-width:1100px){
+ .editor-caption{grid-template-columns:auto 1fr auto}
+ .caption-field>span,.editor-caption .zoom-control>span,.editor-caption .meter-label>span{display:none}
+ .editor-caption .zoom-sliders input{width:48px}
+ .caption-side{gap:8px}
+}
+@container (max-width:760px){
+ .editor-caption{grid-template-columns:auto 1fr auto;padding-left:10px;padding-right:10px;gap:8px}
+ .editor-caption #playback-position{min-width:0;font-size:10px}
+ .editor-caption .zoom-sliders input{width:40px}
+ .toolbar-left{flex-wrap:wrap;gap:6px}
+ .editor-toolbar{grid-template-columns:minmax(0,1fr) auto;row-gap:6px}
+ .editor-toolbar>.tool-group{grid-column:1;grid-row:2;justify-self:start}
+ .toolbar-right{grid-column:2;grid-row:1 / 3}
+}
+@container (max-width:760px){#return-project{right:10px}}
+@container (max-width:500px){
+ .editor-caption{grid-template-columns:1fr auto}
+ .editor-caption>.caption-side:first-child{grid-column:1 / -1;flex-wrap:nowrap}
+ .editor-caption #playback-position{grid-column:1;justify-self:start}
+ .caption-right{grid-column:2}
+}
+
+
+/* Section navigation and scoped views share one header menu. */
+#section-menu .section-panel{left:auto;right:0;width:260px}
+#section-menu #section-control{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:8px;font-size:11px;color:var(--secondary)}
+#section-menu #section-nav{width:100%;max-width:none}
+#section-menu .select-control{width:100%;min-width:0}
+#section-menu .section-panel>button{padding:10px 8px;font-size:12px;border-radius:0;border-top:1px solid var(--line)}
+#section-menu summary{white-space:nowrap}
+.header-right>.menu{flex-shrink:0}
+@media(max-width:1200px){.header-right{gap:6px}.header-right .menu summary{padding-left:8px;padding-right:8px}.header-right .menu summary>svg{display:none}}
+@media(max-width:1100px){
+ .app-header:has(#section-menu:not([hidden])) .brand{min-width:0}
+ .app-header:has(#section-menu:not([hidden])) .brand>div{display:none}
+ .app-header:has(#section-menu:not([hidden])){grid-template-columns:minmax(0,1fr) auto auto}
+}

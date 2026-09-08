@@ -34,9 +34,9 @@ function Reset-Output([string]$Target) {
 }
 try {
     $manifest = Get-Content -LiteralPath (Join-Path $projectRoot 'package.json') -Raw | ConvertFrom-Json
-    $runtimeFiles = @('main.cjs', 'preload.cjs', 'index.html', 'mml.html', 'studio.css', 'themes.css', 'style.css')
+    $runtimeFiles = @('audio-export.cjs', 'main.cjs', 'preload.cjs', 'index.html', 'mml.html', 'studio.css', 'themes.css', 'style.css')
     $assetFiles = @('logo.ico', 'logo.png', 'logo.svg', 'TimGM6mb.sf2', 'TimGM6mb-LICENSE.txt', 'GPL-2.txt')
-    $vendorFiles = @('synth.js', 'spessasynth_processor.min.js', 'SpessaSynth-LICENSE.txt', 'SpessaSynth-Core-LICENSE.txt')
+    $vendorFiles = @('audio-worker.cjs', 'ffmpeg.exe', 'FFmpeg-LICENSE.txt', 'FFmpeg-README.txt', 'synth.js', 'spessasynth_processor.min.js', 'SpessaSynth-LICENSE.txt', 'SpessaSynth-Core-LICENSE.txt')
     # Derive module paths from current source to exclude stale compiled files.
     $compiledFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Filter '*.ts' -Recurse -File | ForEach-Object {
         'dist\' + [IO.Path]::ChangeExtension($_.FullName.Substring((Join-Path $projectRoot 'src').Length + 1), '.js')

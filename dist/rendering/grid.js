@@ -3,7 +3,7 @@ import { palette } from '../appearance.js';
 import { ctx, view } from '../dom.js';
 import { state } from '../state.js';
 import { KEY, HEAD } from '../constants.js';
-import { pitchTop, pitchAtY, pitchHeight } from '../music/pitch-layout.js';
+import { pitchTop, pitchAtY, pitchHeight } from '../pitch-viewport.js';
 import { sharp } from '../music/pitch.js';
 export function drawGrid() {
     const step = 128 / state.project.grid, first = Math.floor(view.scrollLeft / (step * state.zoom));

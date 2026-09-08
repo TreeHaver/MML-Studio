@@ -5,7 +5,7 @@ import {installTools} from './tools.ts';
 import {installAppearance} from './appearance.ts';
 import {view} from './dom.ts';
 import {state} from './state.ts';
-import {pitchTop} from './music/pitch-layout.ts';
+import {pitchTop} from './pitch-viewport.ts';
 import {draw} from './painting.ts';
 import {layout} from './viewport.ts';
 import {refresh} from './commands.ts';

@@ -4,7 +4,7 @@ export function installChrome(){
  // without keyboard focus on Windows. Keep confirmation behavior native.
  const nativeDialogs=(window as any).nativeDialogs;
  if(nativeDialogs)window.confirm=message=>nativeDialogs.confirm(String(message));
- const menus=[$('file-menu'),$('theme-menu'),$('tools-menu'),$('playback-menu')] as HTMLDetailsElement[];
+ const menus=[$('file-menu'),$('theme-menu'),$('tools-menu'),$('section-menu'),$('playback-menu')] as HTMLDetailsElement[];
  document.onclick=event=>{
   const target=event.target as HTMLElement;
   // Our select lists are appended to <body>, so a click in one is not outside its menu.

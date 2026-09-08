@@ -1,6 +1,7 @@
 import { expandLoops } from './music/loops.js';
 import { exportSegments } from './music/structure.js';
-import { state } from './state.js';
+import { playbackSettings } from './playback/transport.js';
+import { state, isMuted } from './state.js';
 import { createSheetPlanner, ms2Xml } from './music/sheets.js';
 import { compilePlayback } from './playback/midi.js';
 import { $, status } from './dom.js';
@@ -38,6 +39,7 @@ export function installExport() {
     $('export-open').onclick = () => {
         // The scope reads as a sentence, so it names the instrument it would export.
         $('scope-name').textContent = state.project.instruments[state.active]?.name || 'the selected instrument';
+        refreshFormat();
         dialog.showModal();
     };
     $('export-cancel').onclick = () => dialog.close();
@@ -46,8 +48,24 @@ export function installExport() {
         ms2mml: { ext: '.ms2mml', render: channels => ms2Xml(channels) },
         text: { ext: '.txt', render: channels => channels.join(SEPARATOR) + '\n' }
     };
-    const FORMATS = ['ms2mml', 'text', 'midi'];
+    const FORMATS = ['ms2mml', 'text', 'midi', 'audio'];
     const chosenFormat = () => FORMATS.find(name => $('format-' + name)?.checked) ?? 'ms2mml';
+    const refreshFormat = () => {
+        const format = chosenFormat(), audio = format === 'audio', performance = audio || format === 'midi';
+        $('scope-all-label').textContent = performance ? 'All instruments — one mixed file' : 'All instruments — one file each';
+        $('export-scope-hint').textContent = audio ? 'Renders the current view with loops, playback speed, volume, mute and solo settings. Includes the natural sound release.' : performance ? 'All instruments share one MIDI performance.' : 'Each instrument is its own sheet: a band loads one file per player.';
+        $('export-section-options').hidden = audio;
+    };
+    for (const format of FORMATS)
+        $('format-' + format).onchange = refreshFormat;
+    const audioDialog = $('audio-export-dialog');
+    const cancelAudio = () => { window.files.cancelAudioExport(); $('audio-export-message').textContent = 'Canceling audio export…'; };
+    $('audio-export-cancel').onclick = cancelAudio;
+    audioDialog.oncancel = e => { e.preventDefault(); cancelAudio(); };
+    window.files?.onAudioProgress?.((fraction) => {
+        $('audio-export-progress').value = fraction;
+        $('audio-export-message').textContent = fraction >= .99 ? 'Finishing the recording and sound release…' : `Rendering audio… ${Math.round(fraction * 100)}%`;
+    });
     const run = async (projectExport) => {
         if (exporting)
             return;
@@ -57,6 +75,27 @@ export function installExport() {
         try {
             const format = chosenFormat();
             const project = structuredClone(state.project), limit = sheetSettings.limit;
+            if (format === 'audio') {
+                const active = state.active, range = state.segment?.projection.range;
+                if (!project.notes.some(n => !project.instruments[n.instrument]?.isInstructions && (projectExport || n.instrument === active))) {
+                    status('No notes to export.');
+                    return;
+                }
+                const muted = project.instruments.map((_, i) => i).filter(i => isMuted(i) || (!projectExport && i !== active));
+                const name = (range ? range.name + '-' : '') + (projectExport ? (project.name?.trim() || 'Project') : project.instruments[active].name);
+                const request = { project, minimumEnd: range ? range.end - range.start : 0, speed: playbackSettings.speed, volume: playbackSettings.volume, muted };
+                $('audio-export-message').textContent = 'Choose the audio file type in the save dialog.';
+                $('audio-export-progress').value = 0;
+                audioDialog.showModal();
+                try {
+                    const result = await window.files.exportAudio(name, request);
+                    status(result.canceled ? 'Audio export canceled.' : `Exported ${result.format.toUpperCase()} audio (${result.seconds.toFixed(1)} seconds).${result.warnings.length ? ' ' + result.warnings.join(' ') : ''}`);
+                }
+                finally {
+                    audioDialog.close();
+                }
+                return;
+            }
             const indexes = projectExport ? project.instruments.map((_, i) => i) : [state.active];
             const separate = !state.segment && $('export-sections').checked;
             const segments = exportSegments(separate ? expandLoops(project).project : project, separate);

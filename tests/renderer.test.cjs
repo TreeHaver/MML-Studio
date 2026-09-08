@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),{transpile}=require('../transpile.cjs');
 test('renderer handles click, edge resize, group box/delete, rename, grid and scroll without text nodes on notes',async()=>{
- const elements=new Map();class El{constructor(){this.value='';this.children=[];this.style={};this.dataset={};this.clientWidth=900;this.clientHeight=600;this.scrollLeft=0;this.scrollTop=0;this.classList={names:new Set(),toggle(name,on){on?this.names.add(name):this.names.delete(name)},add(name){this.names.add(name)},remove(name){this.names.delete(name)},contains(name){return this.names.has(name)}};}append(...e){this.children.push(...e)}replaceChildren(){this.children=[]}replaceWith(e){this.replacement=e}after(e){this.replacement=e}querySelector(){return null}set innerHTML(value){this._html=value;const match=/<span>(.*?)<\/span>/.exec(value);if(match)this.textContent=match[1]}get innerHTML(){return this._html}setAttribute(name,value){(this.attributes??={})[name]=String(value)}getAttribute(name){return this.attributes?.[name]??null}focus(){}select(){}matches(){return false}getBoundingClientRect(){return {left:0,top:0}}setPointerCapture(){this.capture=true}hasPointerCapture(){return this.capture}releasePointerCapture(){this.capture=false}}
+ const elements=new Map();class El{constructor(){this.value='';this.children=[];this.style={};this.dataset={};this.clientWidth=900;this.clientHeight=600;this.scrollLeft=0;this.scrollTop=0;this.classList={names:new Set(),toggle(name,on){on?this.names.add(name):this.names.delete(name)},add(name){this.names.add(name)},remove(name){this.names.delete(name)},contains(name){return this.names.has(name)}};}addEventListener(type,handler){this["on"+type]=handler}append(...e){this.children.push(...e)}replaceChildren(){this.children=[]}replaceWith(e){this.replacement=e}after(e){this.replacement=e}querySelector(){return null}set innerHTML(value){this._html=value;const match=/<span>(.*?)<\/span>/.exec(value);if(match)this.textContent=match[1]}get innerHTML(){return this._html}setAttribute(name,value){(this.attributes??={})[name]=String(value)}getAttribute(name){return this.attributes?.[name]??null}focus(){}select(){}matches(){return false}getBoundingClientRect(){return {left:0,top:0}}setPointerCapture(){this.capture=true}hasPointerCapture(){return this.capture}releasePointerCapture(){this.capture=false}}
  const doc={getElementById:id=>{if(!elements.has(id))elements.set(id,new El());return elements.get(id)},createElement:()=>new El(),querySelectorAll:()=>[]};
  const fills=[],texts=[];const ctx=new Proxy({measureText(text){return {width:text.length*6}},fillText(text,x,y){texts.push({text,x,y})},fillRect(x,y,w,h){fills.push({x,y,w,h,color:this.fillStyle,alpha:this.globalAlpha});}},{get:(target,key)=>key in target?target[key]:()=>{}});doc.getElementById('canvas').getContext=()=>ctx;
  let frame;const seq={currentHighResolutionTime:0,isFinished:false,get currentTime(){return this.currentHighResolutionTime},set currentTime(value){this.currentHighResolutionTime=value}};
@@ -21,6 +21,21 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  sandbox.state=(await load('src/state.ts')).namespace.state;
  sandbox.setTool=(await load('src/toolbar.ts')).namespace.setTool;
  const run=s=>vm.runInContext(s.replace(/\bproject\b/g,'state.project').replace(/\bselection\b/g,'state.selection'),sandbox);const c=doc.getElementById('canvas');const event=(x,y)=>({clientX:x,clientY:y,button:0,pointerId:1,preventDefault(){}});
+ // View zoom changes geometry and scroll anchoring without changing project contents.
+ const zoomView=doc.getElementById('view'),zoomGeometry=(await load('src/geometry.ts')).namespace;
+ const zoomBefore=run('JSON.stringify([project,state.history,state.dirty])'),oldTop=zoomView.scrollTop;
+ doc.getElementById('vertical-zoom').value='2';doc.getElementById('vertical-zoom').oninput();
+ assert.equal(run('state.verticalZoom'),2);assert.equal(zoomView.scrollTop,oldTop*2);
+ assert.equal(zoomGeometry.rect({start:0,length:32,pitch:60,instrument:0}).h,39);
+ const anchored=zoomGeometry.musical({x:100,y:240}).pitch;let prevented=false;
+ zoomView.onwheel({ctrlKey:true,deltaY:-100,clientY:240,preventDefault(){prevented=true}});
+ assert.equal(prevented,true);assert.equal(run('state.verticalZoom'),2.1);
+ assert.equal(zoomGeometry.musical({x:100,y:240}).pitch,anchored);
+ zoomView.onwheel({ctrlKey:false,deltaY:100,preventDefault(){throw Error('ordinary scroll blocked')}});
+ doc.getElementById('zoom').value='6';doc.getElementById('zoom').oninput();
+ doc.getElementById('reset-zoom').onclick();assert.equal(run('state.zoom'),3);assert.equal(run('state.verticalZoom'),1);
+ assert.equal(doc.getElementById('zoom').value,'3');assert.equal(doc.getElementById('vertical-zoom').value,'1');
+ assert.equal(run('JSON.stringify([project,state.history,state.dirty])'),zoomBefore);zoomView.scrollTop=oldTop;
  assert.equal(doc.getElementById('play').disabled,true);
  const click=(x,y)=>{c.onpointerdown(event(x,y));c.onpointerup(event(x,y));};const drag=(x,y,xx,yy)=>{c.onpointerdown(event(x,y));c.onpointermove(event(xx,yy));c.onpointerup(event(xx,yy));};
  click(158,240);assert.equal(run('project.notes.length'),1);
@@ -37,7 +52,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  mmlBox().children[1].children[0].checked=true;mmlBox().children[1].children[0].onchange();
  click(158,240);assert.equal(run('project.notes.length'),1);
  drag(252,240,348,240);assert.equal(run('project.notes[0].length'),64);
- drag(165,240,261,200);assert.equal(run('project.notes[0].start'),64);assert.equal(run('project.notes[0].pitch'),69);
+ drag(165,240,261,194);assert.equal(run('project.notes[0].start'),64);assert.equal(run('project.notes[0].pitch'),69);
  run("setTool('select')");drag(245,175,455,220);assert.equal(run('selection.size'),1);
  doc.onkeydown({key:'Delete',target:new El(),preventDefault(){}});assert.equal(run('project.notes.length'),0);
  run("setTool('spray')");drag(250,240,538,240);assert.deepEqual(run('project.notes.map(n=>n.start)'),[32,64,96,128]);run("selection.clear();setTool('select')");const moveGeometry=(await load('src/geometry.ts')).namespace,firstPaint=moveGeometry.rect(run('project.notes[0]'));drag(firstPaint.x+4,firstPaint.y+4,firstPaint.x+100,firstPaint.y+4);assert.equal(run('selection.size'),1);assert.equal(run('project.notes[0].start'),64);run('selection=new Set(project.notes.map(n=>n.id))');doc.onkeydown({key:'Delete',target:new El(),preventDefault(){}});

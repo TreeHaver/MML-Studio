@@ -9,7 +9,7 @@ import {info} from './inspector.ts';
 import {checkpoint} from './history.ts';
 import {refresh} from './commands.ts';
 import {$,view} from './dom.ts';
-import {pitchTop} from './music/pitch-layout.ts';
+import {pitchTop} from './pitch-viewport.ts';
 import {updatePlaybackMutes,updatePlaybackVoices} from './playback/transport.ts';
 import {state,instrumentView} from './state.ts';
 import {colors} from './model/project.ts';

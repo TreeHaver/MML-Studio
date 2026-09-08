@@ -876,3 +876,74 @@ A grid cannot wrap, so the strip would clip instead of falling to two rows. Belo
 Correction to what this entry first said: the strip measured 47px and I put it down to the zoom slider being taller than a text label. That was wrong. The regrouping had left the markup malformed - the right-hand group was opened inside the still-open playback-position span, so the browser recovered by dropping the left group out of the strip and pushing the time signature onto a second row. The strip was rewritten whole rather than spliced, and measures 40px again, three groups in order, the readout centred and the signature 19px from the right edge at every width tested.
 
 Changed: index.html, studio.css. Actual validation: incremental build, node tests/run.cjs 112 passing, tests/electron-ui.cjs, and Electron probes of the icon geometry and of the readout's centring at four layouts.
+
+
+## Vertical zoom and a reset for both axes — 2026-09-08
+
+The caption now has stacked horizontal and vertical zoom sliders, marked with direction arrows, and a reset button next to Zoom. Vertical zoom ranges from 50% to 300%; Ctrl + wheel over the roll changes it in 10% steps while preserving the pitch position under the pointer. Ordinary wheel scrolling remains available. Reset restores horizontal zoom to 3 pixels per timing unit and vertical zoom to 100%, retaining the top-left musical position where scrolling bounds allow. Zoom is session view state and does not edit the project, history, or version-2 JSON. Zoom changes are ignored during an active pointer gesture.
+
+A small UI geometry adapter scales the pure pitch layout consistently for notes, grid, piano keys, culling, hit testing, dragging, scroll extent, startup and file-open positioning. The caption hides the Character limit label below 1400px and allows its left controls to wrap when space is tight.
+
+Changed: index.html, studio.css, src/state.ts, src/toolbar.ts, new src/pitch-viewport.ts, src/geometry.ts, src/viewport.ts, src/pointer.ts, src/files.ts, src/instruments.ts, src/renderer.ts, src/rendering/grid.ts, src/rendering/keyboard.ts, src/rendering/notes.ts, and their generated dist outputs; tests/renderer.test.cjs, tests/electron-pitch-layout.cjs, PROJECT_MAP.md, PROGRESS.md.
+
+Actual validation: incremental node build.cjs passed; node tests/run.cjs passed all 112 tests, including renderer integration. Native electron-pitch-layout passed wheel anchoring, ordinary wheel handling, scale limits, reset/slider synchronization, unchanged project data, and real sendInputEvent drawing, selection, dragging, edge resizing, and piano preview at horizontal/vertical combinations 1/0.5, 3/1.7, and 8/3. Click coordinates use the base pitch layout multiplied by the current vertical scale. Native electron-ui passed all 19 checks, including 900px and 1320px overflow checks, on rerun; its first run hit the previously recorded Undo-hold timing failure. Captured native screenshot inspected for caption and piano layout. The first sandboxed build failed on esbuild dependency directory access; the authorized build outside the sandbox passed.
+
+Delivery: focused vertical-zoom-patch.zip with changed source, generated modules, tests and notes. No outstanding task-specific work.
+
+## Give the zoom sliders separate click targets — 2026-09-08
+
+The two zoom rows were only 16px apart, putting the enlarged slider thumbs almost on top of one another. Each row is now 28px tall with an 8px gap, giving the slider centres 36px of separation. The inputs have taller hit areas, and H / V labels accompany the direction arrows. The caption grows to accommodate them.
+
+Changed: index.html, studio.css, PROGRESS.md. Actual validation: incremental node build.cjs passed; renderer integration passed; native electron-pitch-layout passed including real drawing, selection, dragging, resizing and piano previews at multiple zoom scales; native electron-ui passed all 19 checks including narrow-window overflow. Inspected the updated native screenshot. Delivery: zoom-spacing-patch.zip. No outstanding work for this adjustment.
+
+## Audio export renders the current performance — 2026-09-08
+
+Export now offers Audio. The native Save dialog offers WAV, MP3, OGG Vorbis, FLAC, M4A/AAC and Opus. All instruments produce one mixed recording; selected-instrument scope records only that instrument with the global tempo clock retained. Audio reads the active project projection, so an open Segment or Song exports only that view. Section-sheet splitting is hidden for audio.
+
+The offline renderer shares compilePlayback, expanded loops, the bundled sound bank and SpessaSynth core with live playback. It keeps exact note lifetimes and encoded MIDI tempo scheduling, leading/trailing rests, drum mappings, velocities and pitch fallback. It respects snapshotted playback speed/master volume and Instrument mute/solo state. Confirmed to the user during implementation: muted instruments are silent in the recording. Natural release/reverb follows the final note-off; an exceptionally long tail is stopped at 30 seconds and reported, without truncating the musical timeline.
+
+A worker streams PCM into the bundled encoder without blocking the renderer or storing the entire audio file in memory. The progress dialog supports Cancel/Escape. The destination is replaced only after encoding succeeds; cancellation and encoder failure preserve existing files and remove temporary output. Export does not touch project JSON or the live synth. Runtime staging includes the worker, encoder and original license/provenance. See AUDIO_EXPORT.md for codec settings, ownership and limitations.
+
+Changed: new src/audio/render.ts, src/audio/worker.ts and generated dist/audio modules; audio-export.cjs; src/export.ts and dist/export.js; index.html, studio.css, main.cjs, preload.cjs, build-audio.cjs, package-release.ps1; new vendor/audio-worker.cjs, vendor/ffmpeg.exe, vendor/FFmpeg-LICENSE.txt, vendor/FFmpeg-README.txt; tests/audio-export.test.mjs, tests/electron-audio-export.cjs, tests/electron-export-formats.cjs, tests/run.cjs; AUDIO_EXPORT.md, AUDIO_SECURITY.md, PROJECT_MAP.md and PROGRESS.md.
+
+Actual validation: incremental build passed; full node tests/run.cjs passed 116 tests. Native electron-audio-export passed all six actual encode/decode checks, loop onsets/rests, mute, scoped rendering and both cancellation paths; it also passed against staging/app without runtime npm dependencies. Native electron-export-formats, electron-dialog-focus and electron-ui (19 checks) passed. The export-format test had a stale 40px caption-height assertion from before the requested slider spacing; replaced it with a check for separate zoom hit areas. The first Segment duration assertion was too short for the actual flute release/reverb and was corrected to distinguish the clipped Segment from the longer parent note. Inspected the native Audio dialog screenshot. No physical listening or manual native file-picker testing claimed. git diff --check passed.
+
+Delivery: complete mml-studio-audio-export-source.zip, including encoder/runtime assets, because this adds a runtime worker and encoder dependency. No outstanding task-specific work.
+
+## Extra offline channels need a full reset — 2026-09-08
+
+The supplied Touhou project exposed an offline-renderer initialization bug. Its 30,893 notes/instructions allocate 52 melodic routes: 37 for the first instrument, then 15 for the second. Extra synth channels were created after loading the sound bank, so they missed the bank-load reset. They retained zeroed volume/expression controllers and drum mode. Inspection showed first-instrument routes above channel 15 using the Jazz kit and second-instrument routes using the Electronic kit instead of the selected bass/guitar presets. This depends on route count, not duration itself.
+
+The renderer now resets after allocating every channel, explicitly sets each route's melodic/drum role from its owning Instrument, and only then applies mute and scheduled MIDI presets/controllers. Project data and playback routing are unchanged. A sound-level regression compares identical melodic and drum presets on the first port and later ports, including the supplied project's 37-route pattern. It failed before the fix; changing drum roles alone still failed because controllers also needed initialization.
+
+Changed: src/audio/render.ts, dist/audio/render.js, vendor/audio-worker.cjs, tests/audio-export.test.mjs, AUDIO_EXPORT.md, PROGRESS.md. Actual validation: incremental build and all 117 tests pass. Native electron-audio-export passes all six codecs, loop/rest checks, mute, Segment scope and cancellation. The supplied project completed a full FLAC export at 1x speed: 3123.09 seconds of music plus natural release, with no warnings, using 70% master volume for validation. A separate full-length second-instrument render has nonzero signal in every minute containing its notes; its final note-off is 3116.64 seconds, followed by the expected silent ending. Original user JSON was verified byte-for-byte unchanged. Physical listening is not claimed. User music stays in local validation output and is excluded from the patch.
+
+Delivery: audio-channel-fix-patch.zip. No outstanding task-specific work.
+
+## Compact editor bars and a keyboard below the ruler — 2026-09-08
+
+The measure ruler is 24px instead of 30px, with vertically centred numbers. Both keyboard styles clip below it, leaving a clean ruler corner even while scrolling; measure labels also clip outside the keyboard column. Horizontal and vertical zoom now sit side by side with separate hit areas in a 40px caption at normal widths. The editing toolbar is 48px, with equal 76x36px Open Segment / Open Song buttons, 11px type and room for two lines. Kept the direct buttons. Container-based compact layouts accommodate open side panels: narrow captions can use extra rows while the two sliders remain horizontal, and scoped controls wrap without colliding with editing tools. Return to Project stays 6px below the shortened ruler and aligned under Time signature.
+
+Changed: src/constants.ts, src/rendering/keyboard.ts, src/rendering/ruler.ts, their generated dist modules, studio.css; tests/renderer.test.cjs, tests/electron-pitch-layout.cjs, tests/electron-export-formats.cjs, tests/electron-segment-view.cjs; PROGRESS.md. Existing uncommitted work retained.
+
+Actual validation: incremental node build.cjs passed (esbuild requires execution outside the filesystem sandbox); renderer integration passed. Native electron-pitch-layout passed including real note drawing, selection, move/resize and piano preview at multiple zoom settings. Native electron-ui passed all 19 checks, including 900px/1320px overflow. Native electron-export-formats passed including horizontal slider separation. Native electron-segment-view passed scoped editing, export/save and floating return positioning. Updated stale ruler-coordinate/vertical-slider assertions; an initial narrow return alignment failure was fixed and rerun. Inspected final native Sky and Night screenshots. git diff --check passed. No physical listening or manual native UI testing claimed.
+
+Delivery: compact-editor-bars-patch.zip. No outstanding task-specific work.
+
+## Section navigation replaces the toolbar controls — 2026-09-08
+
+Replaced the editing toolbar's Section selector, Open Segment and Open Song with one Section dropdown immediately beside Tools in the header. It uses the shared menu icon/chevron and theme styling. Inside: Go to label and the existing combined Song/Segment selector, separator, Open Segment, separator, Open Song. Action rows have equal dimensions. Existing conditional visibility and scope availability remain; the whole menu hides when none of its controls are available, including a project without sections. Navigation keeps the menu available for opening the chosen scope; action clicks, outside clicks and Escape use the shared menu dismissal. Removed obsolete section-specific toolbar wrapping. At narrow widths with Section visible, the header uses its logo mark and reserves space for transport and menus to prevent overlap.
+
+Changed: index.html, studio.css, src/chrome.ts, src/segment-view.ts and generated dist/chrome.js, dist/segment-view.js; tests/electron-segment-view.cjs; PROGRESS.md.
+
+Actual validation: incremental node build.cjs passed; renderer integration passed; native electron-ui passed all 19 checks. Extended native electron-segment-view passed hidden startup, removal from the editing toolbar, header placement and action row geometry, custom list opening/selection, navigation, Escape dismissal, 900px header non-overlap, and existing scoped editing/save/export/return checks. Inspected native Section menu screenshots in Sky and Night (including 900px). No manual native testing claimed. git diff --check passed.
+
+Delivery: section-menu-patch.zip. No outstanding task-specific work.
+
+## npm start warns when the optional encoder is missing — 2026-09-08
+
+Added npm's prestart hook to run check-ffmpeg.cjs before the existing build/launch command. It resolves vendor/ffmpeg.exe relative to the checkout, checks for a nonempty regular file, and otherwise prints a warning, the Gyan Windows builds URL, extraction instructions and the absolute destination. Startup continues: the encoder is needed for audio export, not editing or preview. No automatic download or browser launch. Existing .gitignore already excludes the executable. AUDIO_EXPORT.md explains fresh-checkout setup and matching downloaded license/provenance; presence checks do not certify newer encoder compatibility.
+
+Changed: new check-ffmpeg.cjs, package.json, AUDIO_EXPORT.md, PROJECT_MAP.md, PROGRESS.md. Actual validation: isolated fixture checks passed for missing, empty and present files, warning URL/destination, local encoder and manifest hook. The npm prestart lifecycle passed via the installed npm-cli.js. The shell's default npm shim failed because it resolved to a missing AppData/Roaming npm-cli.js; no system npm changes made. Renderer integration and incremental node build.cjs passed. No native UI testing needed or claimed for this console-only setup hook. git diff --check passed.
+
+Delivery: ffmpeg-startup-check-patch.zip. No outstanding task-specific work.

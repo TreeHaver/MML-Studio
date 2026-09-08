@@ -8,9 +8,9 @@ function writeChanged(file, data) {
 
 module.exports = function buildAudio() {
   const options = { bundle: true, format: 'esm', platform: 'browser', target: 'chrome138', write: false, metafile: true };
-  function bundle(entry) {
-    const result = esbuild.buildSync({ ...options, entryPoints: [entry] });
-    // Both outputs must use our rejection adapter, never the upstream decoder.
+  function bundle(entry, extra = {}) {
+    const result = esbuild.buildSync({ ...options, ...extra, entryPoints: [entry] });
+    // Every synth bundle must use our rejection adapter, never the upstream decoder.
     const inputs = Object.keys(result.metafile.inputs).map(p => p.replaceAll('\\', '/'));
     if (inputs.some(p => p.includes('node_modules/stb-vorbis/')) ||
         !inputs.some(p => p.endsWith('packages/sf2-only-decoder/index.js'))) {
@@ -18,6 +18,9 @@ module.exports = function buildAudio() {
     }
     return result.outputFiles[0].text;
   }
+  const worker=bundle('src/audio/worker.ts',{format:'cjs',platform:'node',target:'node22'});
+  fs.mkdirSync('vendor',{recursive:true});
+  writeChanged('vendor/audio-worker.cjs',worker);
   const synth = bundle('./node_modules/spessasynth_lib/dist/index.js');
   // The distributed processor embeds stb-vorbis. Rebuild the wrapper from the
   // original TypeScript included in the pinned release's source map, using the

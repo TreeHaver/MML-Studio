@@ -2,17 +2,16 @@ import {palette,keyboardView} from '../appearance.ts';
 import {ctx,view} from '../dom.ts';
 import {state} from '../state.ts';
 import {KEY,HEAD} from '../constants.ts';
-import {pitchTop,pitchAtY,pitchHeight} from '../music/pitch-layout.ts';
+import {pitchTop,pitchAtY,pitchHeight} from '../pitch-viewport.ts';
 import {name,sharp} from '../music/pitch.ts';
 
 /** A black key covers this much of the column, leaving the white key's front visible. */
 const BLACK=Math.round(KEY*0.62);
 
 export function drawKeyboard(){
- // Drawn from the very top so the keys look like they continue past the edge, with no
- // header block above them. Rows above the ruler line are clipped away.
- const firstPitch=pitchAtY(state.topPitch,view.scrollTop-HEAD),lastPitch=pitchAtY(state.topPitch,view.scrollTop+state.height-HEAD);
- ctx.save();ctx.beginPath();ctx.rect(0,0,KEY,state.height);ctx.clip();
+ // Keep both keyboard styles below the fixed measure ruler while scrolling.
+ const firstPitch=pitchAtY(state.topPitch,view.scrollTop),lastPitch=pitchAtY(state.topPitch,view.scrollTop+state.height-HEAD);
+ ctx.save();ctx.beginPath();ctx.rect(0,HEAD,KEY,state.height-HEAD);ctx.clip();
  if(keyboardView.piano)piano(firstPitch,lastPitch);else names(firstPitch,lastPitch);
  ctx.restore();
 }

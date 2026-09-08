@@ -6,17 +6,45 @@ function finish(error){clearTimeout(timer);fs.writeFileSync('.validation/electro
 dialog.showSaveDialog=async(_,options)=>{const filePath=path.join(root,options.defaultPath);written.push(filePath);return {canceled:false,filePath};};
 app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.webContents.once('did-finish-load',async()=>{try{
  const evaluate=code=>{stage=code;return win.webContents.executeJavaScript(code,true);};
+ assert.ok(await evaluate(`document.getElementById('section-menu').hidden`),'Section menu starts hidden without sections');
  await evaluate(`import("./dist/music/pitch-layout.js").then(layout=>{window.pitchTop=layout.pitchTop;window.pitchHeight=layout.pitchHeight;})`);
  await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/commands.js'),import('./dist/playback/transport.js'),import('./dist/music/mml.js'),import('./dist/history.js')]).then(([{state},{refresh},transport,{generateMml},history])=>{window.s=state;window.refresh=refresh;window.transport=transport;window.generateMml=generateMml;window.historyApi=history;s.project.name='Album';s.project.instruments=[{name:'Piano',color:'#ff9c33',midiProgram:0},{name:'Instructions',color:'#f4d35e',isInstructions:true}];s.project.notes=[{id:1,instrument:0,start:0,length:16,pitch:60,volume:5,tempo:90},{id:2,instrument:0,start:70,length:150,pitch:60,volume:null},{id:3,instrument:0,start:110,length:12,pitch:64,volume:null},{id:4,instrument:0,start:230,length:100,pitch:67,volume:null},{id:5,instrument:1,start:0,length:1,pitch:60,volume:0,section:'First Song',resetMeasures:true,timeSignature:'6/8'},{id:6,instrument:1,start:96,length:1,pitch:60,volume:0,section:'Solo'},{id:7,instrument:1,start:160,length:1,pitch:60,volume:0,section:'Chorus',tempo:150},{id:8,instrument:1,start:256,length:1,pitch:60,volume:0,section:'Second Song',resetMeasures:true}];for(let i=0;i<12;i++)s.project.notes.push({id:20+i,instrument:0,start:270,length:40,pitch:60+i,volume:null});s.active=0;s.zoom=3;s.dirty=false;window.originalAlbum=JSON.stringify(s.project);refresh();document.getElementById('view').scrollTop=pitchTop(s.topPitch,72);transport.seekToTick(120);})`);
  assert.ok(await evaluate(`document.getElementById('return-project').hidden`));
+ assert.ok(await evaluate(`!document.getElementById('section-menu').hidden&&!document.querySelector('.editor-toolbar #section-control')&&!document.querySelector('.editor-toolbar #open-segment')&&!document.querySelector('.editor-toolbar #open-song')`),'Section controls replace the old toolbar controls');
+ await evaluate(`document.querySelector('#section-menu summary').click()`);
+ assert.ok(await evaluate(`document.getElementById('section-menu').open`));
+ const menuBoxes=await evaluate(`(()=>{const box=id=>{const r=document.getElementById(id).getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};return {menu:box('section-menu'),tools:box('tools-menu'),go:box('section-control'),segment:box('open-segment'),song:box('open-song'),transport:document.querySelector('.transport').getBoundingClientRect().right}})()`);
+ assert.ok(menuBoxes.menu.right<=menuBoxes.tools.x&&menuBoxes.menu.x>=menuBoxes.transport,JSON.stringify(menuBoxes));
+ assert.ok(menuBoxes.go.bottom<=menuBoxes.segment.y&&menuBoxes.segment.bottom<=menuBoxes.song.y,JSON.stringify(menuBoxes));
+ assert.equal(menuBoxes.segment.width,menuBoxes.song.width);assert.equal(menuBoxes.segment.height,menuBoxes.song.height);
+ await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`);
+ fs.writeFileSync('.validation/electron-section-menu.png',(await win.webContents.capturePage()).toPNG());
+ await evaluate(`document.getElementById('section-nav').value='160';document.getElementById('section-nav').dispatchEvent(new Event('change'));`);
+ assert.equal(await evaluate(`transport.playback.tick`),160);
+ await evaluate(`document.getElementById('section-nav').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,button:0}))`);
+ assert.ok(await evaluate(`document.getElementById('section-menu').open&&!!document.querySelector('.select-panel')`));
+ await evaluate(`[...document.querySelectorAll('.select-panel button')].find(b=>b.textContent.includes('Solo')).click()`);
+ assert.equal(await evaluate(`transport.playback.tick`),96);
+ assert.ok(await evaluate(`document.getElementById('section-menu').open`),'Selecting a section keeps the scoped actions available');
+
+ await evaluate(`document.dispatchEvent(new KeyboardEvent('keyup',{key:'Escape',bubbles:true}))`);
+ assert.ok(await evaluate(`!document.getElementById('section-menu').open`));
+
  assert.ok(await evaluate(`generateMml(s.project,0).channels.length>10`));
+
+ win.setSize(900,700);await evaluate(`new Promise(r=>setTimeout(r,150))`);
+ assert.ok(await evaluate(`(()=>{const m=document.getElementById('section-menu').getBoundingClientRect(),t=document.querySelector('.transport').getBoundingClientRect(),e=document.getElementById('export-open').getBoundingClientRect();return m.left>=t.right&&e.right<=innerWidth})()`),'Header controls do not overlap with Section visible at 900px');
+ await evaluate(`document.querySelector('#section-menu summary').click();document.querySelector('#theme-menu [data-theme=night]').click();document.getElementById('section-menu').open=true;new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`);
+ fs.writeFileSync('.validation/electron-section-menu-900.png',(await win.webContents.capturePage()).toPNG());
+ await evaluate(`document.querySelector('#theme-menu [data-theme=sky]').click()`);
+ win.setSize(1320,850);await evaluate(`new Promise(r=>setTimeout(r,150))`);
  await evaluate(`document.getElementById('open-song').click()`);
  assert.ok(await evaluate(`document.getElementById('return-project').hidden&&!document.getElementById('return-song-project').hidden`));
  assert.equal(await evaluate(`s.segment.projection.range.end`),256);assert.equal(await evaluate(`document.getElementById('section-control').hidden`),false);
  await evaluate(`transport.seekToTick(120);document.getElementById('open-segment').click()`);
  assert.deepEqual(await evaluate(`s.project.notes.filter(n=>n.instrument===0).map(n=>[n.start,n.length])`),[[0,64],[14,12]]);
  assert.equal(await evaluate(`document.getElementById('segment-view-label').textContent`),'Segment: Solo');assert.equal(await evaluate(`document.getElementById('project-name').value`),'Album');
- const checkReturn=async()=>{const boxes=await evaluate(`(()=>{const b=document.getElementById('return-project'),r=b.getBoundingClientRect(),v=document.getElementById('view').getBoundingClientRect(),m=document.getElementById('current-signature').getBoundingClientRect(),t=document.querySelector('.transport').getBoundingClientRect(),label=document.getElementById('segment-view-label').getBoundingClientRect();return {shown:!b.hidden,top:r.top-v.top,right:r.right,meterRight:m.right,inside:r.left>=v.left&&r.right<=v.right,hit:document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===b,headerClear:label.width>10&&label.right<=t.left};})()`);assert.ok(boxes.shown&&boxes.inside&&boxes.hit&&boxes.headerClear,JSON.stringify(boxes));assert.equal(boxes.top,36);assert.ok(Math.abs(boxes.right-boxes.meterRight)<2,JSON.stringify(boxes));checks.push(boxes);};
+ const checkReturn=async()=>{const boxes=await evaluate(`(()=>{const b=document.getElementById('return-project'),r=b.getBoundingClientRect(),v=document.getElementById('view').getBoundingClientRect(),m=document.getElementById('current-signature').getBoundingClientRect(),t=document.querySelector('.transport').getBoundingClientRect(),label=document.getElementById('segment-view-label').getBoundingClientRect();return {shown:!b.hidden,top:r.top-v.top,right:r.right,meterRight:m.right,inside:r.left>=v.left&&r.right<=v.right,hit:document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===b,headerClear:label.width>10&&label.right<=t.left};})()`);assert.ok(boxes.shown&&boxes.inside&&boxes.hit&&boxes.headerClear,JSON.stringify(boxes));assert.equal(boxes.top,30);assert.ok(Math.abs(boxes.right-boxes.meterRight)<2,JSON.stringify(boxes));checks.push(boxes);};
  await checkReturn();
  assert.equal(await evaluate(`document.getElementById('section-control').hidden`),true);assert.equal(await evaluate(`generateMml(s.project,0).channels.length`),2);
  const channels=await evaluate(`generateMml(s.project,0).channels`),bytes=channels.join('').length;

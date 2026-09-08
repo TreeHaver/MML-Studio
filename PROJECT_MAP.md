@@ -31,6 +31,7 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Piano keys and labels | `src/rendering/keyboard.ts` |
 | Uneven pitch-row heights, positions and inverse hit mapping | `src/music/pitch-layout.ts`, `src/geometry.ts`, `src/viewport.ts` |
 | Painting order and clipping | `src/painting.ts` |
+| Vertical zoom, scaled pitch geometry and Ctrl+wheel / reset controls | `src/pitch-viewport.ts`, `src/toolbar.ts`, `src/state.ts`; native pointer coverage: `tests/electron-pitch-layout.cjs` |
 | Canvas sizing, scrolling extent, pixel scaling | `src/viewport.ts` |
 | Instruments UI, rename, color, add | `src/instruments.ts` |
 | Delete/merge instrument UI, confirmation and session cleanup | `src/instrument-actions.ts` |
@@ -41,6 +42,7 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Shared edit commit and UI refresh | `src/commands.ts` |
 | Save/open/new and unsaved changes prompts | `src/files.ts`; native close handshake: `main.cjs`, `preload.cjs`; native tests: `tests/electron-close.cjs` |
 | MS2MML export and overlap warnings | `src/export.ts`, `src/music/mml.ts`, `src/import/midi.ts` |
+| Audio export: offline mix, save formats and cancellation | `src/audio/render.ts`, `src/audio/worker.ts`, `audio-export.cjs`, `src/export.ts`; see `AUDIO_EXPORT.md` |
 | Automatic MML L/V compaction, shared by views, counts and exports | `src/music/mml-optimizer.ts`, `src/music/mml.ts` |
 | MIDI binary reader and pure project conversion | `src/import/smf.ts`, `src/import/midi.ts` |
 | MIDI import workflow, limitations and MS2 duration rule | `MIDI_IMPORT.md` |
@@ -48,6 +50,7 @@ Read this file first when continuing development. This is the Electron/TypeScrip
 | Keyboard/header/row dimensions, drag threshold | `src/constants.ts` |
 | Startup wiring only | `src/renderer.ts` |
 | Windows runtime-only staging and portable releases | `build.bat`, `package-release.ps1`, `build-icon.cs`; checks: `tests/release.test.cjs`, `tests/electron-release.cjs` |
+| Optional FFmpeg source-checkout dependency warning at npm start | `check-ffmpeg.cjs`, `package.json`; setup: `AUDIO_EXPORT.md` |
 | Native Electron window and file-dialog IPC | `main.cjs`, `preload.cjs` |
 | Segment-only floating Return to Project and Song File-menu return | `src/segment-view.ts`, `index.html`, `studio.css`; `tests/electron-segment-view.cjs` |
 | Main editor structure and styles | `index.html`, `studio.css` |

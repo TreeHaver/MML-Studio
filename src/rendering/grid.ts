@@ -3,7 +3,7 @@ import {palette} from '../appearance.ts';
 import {ctx,view} from '../dom.ts';
 import {state} from '../state.ts';
 import {KEY,HEAD} from '../constants.ts';
-import {pitchTop,pitchAtY,pitchHeight} from '../music/pitch-layout.ts';
+import {pitchTop,pitchAtY,pitchHeight} from '../pitch-viewport.ts';
 import {sharp} from '../music/pitch.ts';
 
 export function drawGrid(){
