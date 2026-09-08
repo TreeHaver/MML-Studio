@@ -160,11 +160,15 @@ function positionLabel() {
     const bpm = tempoAt(project.notes, tick), effective = bpm * playbackSettings.speed;
     $('playback-bpm').textContent = `${bpm} BPM`;
     $('playback-time').textContent = position === null ? '' : `${secondsAtTick(phase === 'idle' ? tempoMap(state.project.notes) : plan?.map ?? tempoMap(state.project.notes), tick).toFixed(1)} s · `;
-    const label = $('effective-bpm');
-    label.hidden = playbackSettings.speed === 1;
+    const label = $('effective-bpm'), outOfBounds = effective < 32 || effective > 255;
+    // The effective figure only matters when the speed slider has moved, but a tempo the game
+    // cannot play matters at any speed: at 1x the warning is shown on its own, beside the BPM.
+    label.hidden = playbackSettings.speed === 1 && !outOfBounds;
     // Reads as part of the line, not a footnote: whole numbers, same size, same baseline.
-    label.textContent = ` · ${Math.round(effective)} effective${effective < 32 || effective > 255 ? ' (out of bounds!)' : ''}`;
-    label.classList.toggle('out-of-bounds', effective < 32 || effective > 255);
+    label.textContent = playbackSettings.speed === 1
+        ? ' (out of bounds!)'
+        : ` · ${Math.round(effective)} effective${outOfBounds ? ' (out of bounds!)' : ''}`;
+    label.classList.toggle('out-of-bounds', outOfBounds);
 }
 export function syncPlaybackControls() { buttons(); positionLabel(); }
 function setPosition(seconds) { if (!engine || !plan)

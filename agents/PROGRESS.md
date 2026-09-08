@@ -4,6 +4,29 @@ Keep new entries at the top: behavior/outcome, changed files, actual validation,
 
 The [original 2026-09-06–08 log](history/PROGRESS-2026-09-06-08.md) preserves prior entries and validation byte-for-byte, including working changes present at the start of this documentation task. Its ordering and old failures are historical. The recent checkpoints below are condensed references, not new test claims.
 
+## Volume for the whole piece, in one move
+
+**2026-09-08.** The per-instrument row answered how to balance parts; it did not answer how to raise a finished piece without going instrument by instrument. Tools now carries a Volume item that moves every instrument by the same amount, which keeps both the differences between notes inside a part and the distances between the parts, since the arrangement is exactly those distances.
+
+The room available belongs to the loudest instrument, because it reaches V15 first, and the reading names it: "V3 to V9 of 15, 6 left before Melody reaches the cap". Max asks for exactly that room, so it is never reported as a trimmed request; a typed amount that would reach past either end is trimmed and the status says which instrument stopped it. The silent Instructions lane is left out of both the reading and the move, so its V0 markers neither drag the reading down nor block a lowering.
+
+Owners changed: src/model/instrument-operations.ts (projectVolumes, shiftProjectVolumes), src/tools.ts, index.html, studio.css and dist outputs.
+
+Actual validation: node tests/run.cjs 143 passing, including a project whose parts sit nine apart, checked to be still nine apart after the move and back again, and a case proving the Instructions lane is excluded; a probe drove the tool through the interface and recorded the reading, +4 taking the piece from V3-V9 to V7-V13 with every gap intact, Max moving it by the two that were left rather than the fifteen requested, and two undos putting it back exactly.
+
+## Instrument volume moved as a whole, and the out-of-bounds tempo warning shown again
+
+**2026-09-08.** Asked for after a session where raising a part meant selecting all of its notes and editing them together, instrument by instrument, because instruments sit at different volumes and treating them as one would have left the chords far louder than the melody.
+
+Instrument actions now carry a volume row: it reads the quietest and loudest the instrument actually sounds, inheritance included, an amount to move by which accepts negative numbers, and Max, which works the room out for itself. Every note moves by the same amount, so the differences between them survive; only explicitly set volumes are rewritten, since an inheriting note follows the one it inherits from, and an instrument that never had a volume set gets one written once on its first note. A step that would reach past V15 or below V0 is trimmed to what fits and the status line says so, because past the cap the difference is not raised, it is lost.
+
+Separately, a report that the out-of-bounds warning for tempos outside 32 to 255 BPM had disappeared. It had: the effective-BPM label it lives in is hidden whenever the speed slider sits at 1x, so a song written at 300 BPM said nothing at normal speed. The line responsible came from 5ddf134, not from this work, and the label is now shown at 1x as well when the tempo is out of range, carrying the warning alone since the BPM figure is already beside it.
+
+Owners changed: src/model/instrument-operations.ts (instrumentVolumes, shiftInstrumentVolumes), src/instrument-actions.ts, src/playback/transport.ts, studio.css and dist outputs.
+
+Actual validation: node tests/run.cjs 141 passing, with new unit tests for the shift in both directions, for the instrument that had no volume of its own, for the clamp at both ends, and for the warning appearing at 1x and going away again; electron-instrument-actions drives the row in the interface and records notes at V4 and V9 moving to V8 and V13, a step of nine trimmed to five with the difference kept, a negative amount lowering them, Max reaching the cap, and one undo putting it all back; electron-behavior passing.
+
+
 ## Overlap navigation and persistent active-instrument markers
 
 **2026-09-08.** The instrument warning triangle now selects and scrolls to its first overlapping notes. Red vertical lines continuously mark all overlap onsets for the active instrument, including during scrolling/scrubbing and with automatic MML generation paused; clicking is not required to reveal markers. Other instruments do not contribute lines. The existing identical-onset/pitch warning definition, scoped clipping and loop-restart warnings are preserved. Expanded positions map back to editable source notes. Navigation does not edit project data or history/dirty state; stale/non-overlap warnings check current notes and report when there is no destination.

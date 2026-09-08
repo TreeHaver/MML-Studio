@@ -217,7 +217,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  (await load('src/commands.ts')).namespace.refresh();
  const actionBody=index=>rows()[index].children.find(el=>el.className==='instrument-actions').children[1];
  assert.equal(actionBody(1).children.some(el=>el.textContent==='Split Drumkit'),false);
- const body=actionBody(0),label=body.children.find(el=>el.className==='instrument-split-label');label.children[0].value='B1';body.children[1].value='1';
+ const body=actionBody(0),label=body.children.find(el=>el.className==='instrument-split-label');label.children[0].value='B1';body.children.find(el=>el.getAttribute?.('aria-label')==='Split destination instrument').value='1';
  const splitBefore=run('JSON.stringify(project)');body.children.find(el=>el.textContent==='Split').onclick();assert.equal(run('project.notes[0].instrument'),1);
  (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project)'),splitBefore);
  actionBody(0).children.find(el=>el.textContent==='Split Drumkit').onclick();assert.equal(run('project.instruments.length'),4);assert.equal(run('project.notes.filter(n=>n.instrument===0).length'),0);
@@ -339,7 +339,13 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  // Playback multipliers and master volume leave all project data untouched.
  const speed=doc.getElementById('playback-speed'),masterVolume=doc.getElementById('playback-volume'),effective=doc.getElementById('effective-bpm');
  const projectBeforeSettings=run('JSON.stringify(project)');
- assert.equal(speed.value,'100');assert.equal(masterVolume.value,'100');assert.equal(effective.hidden,true);
+ assert.equal(speed.value,'100');assert.equal(masterVolume.value,'100');assert.equal(effective.hidden,true,'at 1x with a playable tempo there is nothing to add');
+ // A tempo the game cannot play is worth saying at any speed, the slider untouched included.
+ run('project.notes[0].tempo=300');(await load('src/painting.ts')).namespace.draw();
+ assert.equal(effective.hidden,false,'300 BPM is past the 255 the game accepts');
+ assert.equal(effective.textContent,' (out of bounds!)');
+ run('delete project.notes[0].tempo');(await load('src/painting.ts')).namespace.draw();
+ assert.equal(effective.hidden,true);
  speed.onpointerdown();speed.value='198';speed.oninput();assert.equal(speed.value,'200');assert.equal(seq.playbackRate,2);assert.equal(effective.textContent,' · 240 effective');
  speed.value='52';speed.oninput();assert.equal(speed.value,'50');speed.onpointerup();
  speed.onkeydown();speed.value='51';speed.oninput();assert.equal(speed.value,'51'); // keyboard can leave snap positions

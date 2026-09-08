@@ -38,6 +38,26 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  await evaluate(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
  assert.equal(await evaluate(`document.querySelector('aside').scrollWidth<=document.querySelector('aside').clientWidth`),true);
  fs.mkdirSync('.validation',{recursive:true});fs.writeFileSync('.validation/electron-instrument-actions.png',(await win.webContents.capturePage()).toPNG());
+ // Volume: the row reads both ends, and moving them keeps the difference between notes.
+ await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/commands.js')]).then(([{state},{refresh}])=>{state.project.instruments=[{name:'Piano',color:'#77baff',midiProgram:0}];state.project.notes=[{id:1,instrument:0,start:0,length:8,pitch:60,volume:4},{id:2,instrument:0,start:8,length:8,pitch:62,volume:null},{id:3,instrument:0,start:16,length:8,pitch:64,volume:9}];state.active=0;state.selection.clear();refresh();})`);
+ assert.equal(await evaluate(`document.querySelector('.instrument-volume-reading').textContent`),'V4 to V9 of 15');
+ await evaluate(`(()=>{const row=document.querySelector('.instrument-volume');row.querySelector('input').value='4';[...row.querySelectorAll('button')].find(b=>b.textContent==='Apply').click();})()`);
+ assert.deepEqual(await evaluate(`s.project.notes.map(n=>n.volume)`),[8,null,13],'every note moved by the same four');
+ assert.equal(await evaluate(`document.querySelector('.instrument-volume-reading').textContent`),'V8 to V13 of 15');
+
+ // A step that would push past the cap is trimmed to what fits, so no difference is lost.
+ await evaluate(`(()=>{const row=document.querySelector('.instrument-volume');row.querySelector('input').value='9';[...row.querySelectorAll('button')].find(b=>b.textContent==='Apply').click();})()`);
+ assert.deepEqual(await evaluate(`s.project.notes.map(n=>n.volume)`),[10,null,15]);
+ assert.match(await evaluate(`document.getElementById('status').textContent`),/flattened the difference/);
+
+ // Negative amounts lower it, and Max is the same operation with the room worked out for you.
+ await evaluate(`(()=>{const row=document.querySelector('.instrument-volume');row.querySelector('input').value='-6';[...row.querySelectorAll('button')].find(b=>b.textContent==='Apply').click();})()`);
+ assert.deepEqual(await evaluate(`s.project.notes.map(n=>n.volume)`),[4,null,9]);
+ await evaluate(`[...document.querySelectorAll('.instrument-volume button')].find(b=>b.textContent==='Max').click()`);
+ assert.deepEqual(await evaluate(`s.project.notes.map(n=>n.volume)`),[10,null,15],'Max raises until the loudest note reaches the cap');
+ await evaluate(`document.getElementById('undo').click()`);
+ assert.deepEqual(await evaluate(`s.project.notes.map(n=>n.volume)`),[4,null,9],'and it is one undo away');
+
  finish();
  }catch(error){finish(error);}});});require('../main.cjs');
 

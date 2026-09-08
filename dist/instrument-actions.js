@@ -3,7 +3,7 @@ import { checkpoint } from './history.js';
 import { refresh } from './commands.js';
 import { status } from './dom.js';
 import { stopPlayback } from './playback/transport.js';
-import { deleteInstrument, mergeInstruments, splitNotes, splitDrumkit, parseSplitPitch } from './model/instrument-operations.js';
+import { deleteInstrument, mergeInstruments, splitNotes, splitDrumkit, parseSplitPitch, instrumentVolumes, shiftInstrumentVolumes, MAX_VOLUME } from './model/instrument-operations.js';
 import { removeSegmentInstrument } from './segment-session.js';
 function apply(project, source, active) {
     stopPlayback(false);
@@ -83,6 +83,38 @@ export function mergeInstrument(source, target) {
         status(String(error));
     }
 }
+/**
+ * Raising a part by hand meant selecting its notes and editing them together, which is why
+ * it was being done instrument by instrument. This moves them all by the same amount, so the
+ * loud notes stay louder than the quiet ones, and it refuses a step that would push the
+ * loudest note past V15: past the cap the difference is not raised, it is lost.
+ */
+export function shiftVolume(index, delta) {
+    const range = instrumentVolumes(state.project, index);
+    if (!range) {
+        status('This instrument has no notes to change.');
+        return;
+    }
+    if (delta > 0 && range.headroom <= 0) {
+        status(`The loudest note is already V${MAX_VOLUME}. Raising it further would flatten the difference between the notes.`);
+        return;
+    }
+    if (delta < 0 && range.min <= 0) {
+        status('The quietest note is already V0. Lowering it further would flatten the difference between the notes.');
+        return;
+    }
+    if (!delta) {
+        status('Type how much to move the volume by. Negative numbers lower it.');
+        return;
+    }
+    const step = delta > 0 ? Math.min(delta, range.headroom) : Math.max(delta, -range.min);
+    const trimmed = step !== delta;
+    checkpoint();
+    state.project = { ...state.project, notes: shiftInstrumentVolumes(state.project, index, step) };
+    refresh();
+    const after = instrumentVolumes(state.project, index);
+    status(`${state.project.instruments[index].name}: volumes moved by ${step > 0 ? '+' : ''}${step}${trimmed ? ` instead of ${delta > 0 ? '+' : ''}${delta}, which would have pushed past the ends and flattened the difference` : ''}. Now V${after.min} to V${after.max}.`);
+}
 export function instrumentActions(row, index) {
     const box = document.createElement('details');
     box.className = 'instrument-actions';
@@ -115,6 +147,38 @@ export function instrumentActions(row, index) {
     destination.value = '';
     destination.disabled = !others.length;
     destination.title = destination.disabled ? 'Add another instrument of the same kind to merge.' : 'Destination keeps its sound and settings.';
+    // Both ends are reported: the loudest says how much room is left under the cap, and the
+    // quietest says how much room is left above silence, which is the same question downwards.
+    const range = instrumentVolumes(state.project, index);
+    const volumeRow = document.createElement('div');
+    volumeRow.className = 'instrument-volume';
+    const reading = document.createElement('span');
+    reading.className = 'instrument-volume-reading';
+    reading.textContent = range ? `V${range.min} to V${range.max} of ${MAX_VOLUME}` : 'No notes yet';
+    reading.title = range ? `Quietest note V${range.min}, loudest V${range.max}. Room for ${range.headroom} more before the loudest reaches the cap, and ${range.min} before the quietest reaches silence.` : 'Draw a note to set a volume.';
+    const amount = document.createElement('input');
+    amount.type = 'number';
+    amount.className = 'instrument-volume-amount';
+    amount.min = String(-MAX_VOLUME);
+    amount.max = String(MAX_VOLUME);
+    amount.step = '1';
+    amount.value = '1';
+    amount.setAttribute('aria-label', 'Volume change for ' + state.project.instruments[index].name);
+    amount.title = 'How much to move every note by. Negative lowers.';
+    const apply = document.createElement('button');
+    apply.type = 'button';
+    apply.textContent = 'Apply';
+    apply.title = 'Move every note of this instrument by this much, keeping the differences between them';
+    apply.onclick = () => shiftVolume(index, Math.round(Number(amount.value) || 0));
+    const toCap = document.createElement('button');
+    toCap.type = 'button';
+    toCap.textContent = 'Max';
+    toCap.title = 'Raise every note until the loudest reaches V' + MAX_VOLUME;
+    toCap.disabled = !range || range.headroom <= 0;
+    toCap.onclick = () => { const room = instrumentVolumes(state.project, index); if (room)
+        shiftVolume(index, room.headroom); };
+    volumeRow.append(reading, amount, apply, toCap);
+    body.append(volumeRow);
     const merge = document.createElement('button');
     merge.textContent = 'Merge';
     merge.disabled = true;

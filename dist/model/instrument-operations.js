@@ -1,7 +1,7 @@
 import { MS2_DRUMS, drumCategory } from '../playback/drums.js';
 import { colors } from './project.js';
 import { fresh } from './project.js';
-import { resolveVolumes } from '../music/volume.js';
+import { resolveVolumes, volumeAt } from '../music/volume.js';
 function check(project, index) {
     if (!Number.isInteger(index) || !project.instruments[index])
         throw Error('Choose an existing instrument.');
@@ -78,4 +78,59 @@ export function splitDrumkit(project, source) {
     const notes = resolvedNotes(project, new Set([source])).map(n => { const key = n.instrument === source ? drumCategory(n.pitch) : undefined; if (!key)
         return n; count++; return { ...n, instrument: destinations.get(key) }; });
     return { project: { ...project, instruments, notes }, count };
+}
+/** MapleStory 2 volumes run V0 to V15. Nothing may leave that range. */
+export const MAX_VOLUME = 15;
+const clampVolume = (value) => Math.max(0, Math.min(MAX_VOLUME, Math.round(value)));
+/**
+ * The quietest and loudest an instrument actually sounds, inheritance included, so the
+ * interface can say how much room is left before the loudest note reaches the cap.
+ */
+export function instrumentVolumes(project, index) {
+    const notes = project.notes.filter(n => n.instrument === index);
+    if (!notes.length)
+        return null;
+    const values = notes.map(n => volumeAt(project, n));
+    const max = Math.max(...values), min = Math.min(...values);
+    return { min, max, headroom: MAX_VOLUME - max, floor: min };
+}
+/**
+ * Moves every note of one instrument by the same amount, which is the whole point: the
+ * loud parts stay louder than the quiet ones. Only explicitly set volumes are rewritten,
+ * since a note that inherits follows the note it inherits from. An instrument that has
+ * never had a volume set sounds at the default, so the value is written once on its first
+ * note and inheritance carries it from there.
+ */
+export function shiftInstrumentVolumes(project, index, delta) {
+    const mine = project.notes.filter(n => n.instrument === index);
+    if (!mine.length || !delta)
+        return project.notes;
+    if (!mine.some(n => n.volume !== null)) {
+        const first = mine.reduce((a, b) => a.start < b.start || (a.start === b.start && a.id < b.id) ? a : b);
+        return project.notes.map(n => n.id === first.id ? { ...n, volume: clampVolume(volumeAt(project, n) + delta) } : n);
+    }
+    return project.notes.map(n => n.instrument === index && n.volume !== null ? { ...n, volume: clampVolume(n.volume + delta) } : n);
+}
+/** The musical instruments, which is everything except the silent Instructions lane. */
+const musicalIndexes = (project) => project.instruments.map((instrument, index) => ({ instrument, index })).filter(entry => !entry.instrument.isInstructions && project.notes.some(n => n.instrument === entry.index)).map(entry => entry.index);
+/**
+ * The quietest and loudest the whole piece sounds, and which instrument is nearest each end.
+ * A shift that moves everything by one amount is limited by those two instruments, and that
+ * is the point: the distance between the parts is what makes the arrangement.
+ */
+export function projectVolumes(project) {
+    const parts = musicalIndexes(project).map(index => ({ index, range: instrumentVolumes(project, index) }));
+    if (!parts.length)
+        return null;
+    const loudest = parts.reduce((a, b) => b.range.max > a.range.max ? b : a);
+    const quietest = parts.reduce((a, b) => b.range.min < a.range.min ? b : a);
+    return { min: quietest.range.min, max: loudest.range.max, headroom: MAX_VOLUME - loudest.range.max,
+        loudestInstrument: loudest.index, quietestInstrument: quietest.index };
+}
+/** Every instrument moved by the same amount, so the balance between them is untouched. */
+export function shiftProjectVolumes(project, delta) {
+    let notes = project.notes;
+    for (const index of musicalIndexes(project))
+        notes = shiftInstrumentVolumes({ ...project, notes }, index, delta);
+    return notes;
 }

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {deleteInstrument,mergeInstruments} from '../dist/model/instrument-operations.js';
+import {deleteInstrument,mergeInstruments,instrumentVolumes,shiftInstrumentVolumes,projectVolumes,shiftProjectVolumes} from '../dist/model/instrument-operations.js';
 import {parse} from '../dist/model/serialization.js';
 import {tempoMap} from '../dist/music/tempo.js';
 import {volumeAt} from '../dist/music/volume.js';
@@ -86,4 +86,78 @@ test('Split Drumkit categorizes kicks, snares and all cymbals; retains other per
  assert.deepEqual(parse(JSON.stringify(r.project)),r.project);
  p.notes=p.notes.filter(n=>n.pitch===36);const one=splitDrumkit(p,0);assert.equal(one.project.instruments.length,4);assert.equal(one.project.instruments[3].ms2Drum,'bass');
  assert.equal(splitDrumkit(one.project,0).count,0);
+});
+
+test('shifting an instrument moves every note by the same amount, keeping the differences',()=>{
+  const project=parse(JSON.stringify({...fixture(),notes:[
+    {id:1,instrument:0,start:0,length:8,pitch:60,volume:4},
+    {id:2,instrument:0,start:8,length:8,pitch:62,volume:null},
+    {id:3,instrument:0,start:16,length:8,pitch:64,volume:9},
+    {id:4,instrument:1,start:0,length:8,pitch:48,volume:2}]}));
+  assert.deepEqual(instrumentVolumes(project,0),{min:4,max:9,headroom:6,floor:4});
+
+  // Up by four: the six between the two notes survives, and the inheriting note follows.
+  const raised={...project,notes:shiftInstrumentVolumes(project,0,4)};
+  assert.deepEqual(raised.notes.map(n=>volumeAt(raised,n)),[8,8,13,2]);
+  assert.equal(raised.notes[3].volume,2,'other instruments are left alone');
+
+  // Down again, and negative amounts are the same operation in the other direction.
+  const lowered={...raised,notes:shiftInstrumentVolumes(raised,0,-4)};
+  assert.deepEqual(lowered.notes.map(n=>volumeAt(lowered,n)),[4,4,9,2]);
+});
+
+test('an instrument that never had a volume set gets one written once, and inheritance spreads it',()=>{
+  const project=parse(JSON.stringify({...fixture(),notes:[
+    {id:1,instrument:0,start:0,length:8,pitch:60,volume:null},
+    {id:2,instrument:0,start:8,length:8,pitch:62,volume:null}]}));
+  assert.deepEqual(instrumentVolumes(project,0),{min:8,max:8,headroom:7,floor:8});
+  const raised={...project,notes:shiftInstrumentVolumes(project,0,3)};
+  assert.equal(raised.notes[0].volume,11,'written on the first note');
+  assert.equal(raised.notes[1].volume,null,'the second still inherits');
+  assert.deepEqual(raised.notes.map(n=>volumeAt(raised,n)),[11,11]);
+});
+
+test('nothing leaves the V0 to V15 range, however far it is pushed',()=>{
+  const project=parse(JSON.stringify({...fixture(),notes:[
+    {id:1,instrument:0,start:0,length:8,pitch:60,volume:2},
+    {id:2,instrument:0,start:8,length:8,pitch:62,volume:14}]}));
+  const up={...project,notes:shiftInstrumentVolumes(project,0,99)};
+  assert.deepEqual(up.notes.map(n=>n.volume),[15,15],'clamped, and the difference is lost - which is why the interface refuses this step');
+  const down={...project,notes:shiftInstrumentVolumes(project,0,-99)};
+  assert.deepEqual(down.notes.map(n=>n.volume),[0,0]);
+  assert.equal(shiftInstrumentVolumes(project,0,0),project.notes,'no amount, no work');
+});
+
+test('the whole piece moves as one, keeping the distance between the parts',()=>{
+  const project=parse(JSON.stringify({...fixture(),notes:[
+    {id:1,instrument:0,start:0,length:8,pitch:60,volume:5},
+    {id:2,instrument:0,start:8,length:8,pitch:62,volume:9},
+    {id:3,instrument:1,start:0,length:8,pitch:48,volume:3},
+    {id:4,instrument:2,start:0,length:8,pitch:72,volume:12}]}));
+  const before=projectVolumes(project);
+  assert.equal(before.min,3);
+  assert.equal(before.max,12);
+  assert.equal(before.headroom,3,'the loudest instrument decides how much room is left');
+  assert.equal(before.loudestInstrument,2);
+  assert.equal(before.quietestInstrument,1);
+
+  const raised={...project,notes:shiftProjectVolumes(project,3)};
+  assert.deepEqual(raised.notes.map(n=>n.volume),[8,12,6,15]);
+  // Every gap survives: four inside the first instrument, and nine between the quietest
+  // part and the loudest, which is the balance of the arrangement.
+  assert.equal(raised.notes[1].volume-raised.notes[0].volume,4);
+  assert.equal(raised.notes[3].volume-raised.notes[2].volume,9);
+
+  const lowered={...raised,notes:shiftProjectVolumes(raised,-3)};
+  assert.deepEqual(lowered.notes.map(n=>n.volume),[5,9,3,12],'and back again');
+});
+
+test('the silent Instructions lane is left out of the reading and the move',()=>{
+  const project=parse(JSON.stringify({format:'mml-studio',version:2,grid:4,
+    instruments:[{name:'Piano',color:'#77baff',midiProgram:0},{name:'Instructions',color:'#f4d35e',isInstructions:true}],
+    notes:[{id:1,instrument:0,start:0,length:8,pitch:60,volume:6},
+      {id:2,instrument:1,start:0,length:1,pitch:60,volume:0,tempo:120}]}));
+  assert.equal(projectVolumes(project).min,6,'the V0 marker is not the quietest note, it is an instruction');
+  const raised={...project,notes:shiftProjectVolumes(project,2)};
+  assert.deepEqual(raised.notes.map(n=>n.volume),[8,0],'the instruction keeps its V0');
 });
