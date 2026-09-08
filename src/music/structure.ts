@@ -1,4 +1,5 @@
 import type {Project,Note} from '../model/types.ts';
+import {seedSpeedContext} from './speed.ts';
 import {tempoAt} from './tempo.ts';
 import {resolveVolumes} from './volume.ts';
 
@@ -61,7 +62,8 @@ export function sliceProject(project:Project,start:number,end:number):Project{
  }
  const instruments=project.instruments.map(i=>({...i}));let index=instruments.findIndex(i=>i.isInstructions);
  if(index<0){index=instruments.length;instruments.push({name:'Instructions',color:'#f4d35e',isInstructions:true});}
- notes.push({id:project.notes.reduce((id,n)=>Math.max(id,n.id),0)+1,instrument:index,start:0,length:1,pitch:60,volume:0,tempo:tempoAt(project.notes,start)});
+ notes.push({id:project.notes.reduce((id,n)=>Math.max(id,n.id),0)+1,instrument:index,start:0,length:1,pitch:60,volume:0,tempo:tempoAt(project.notes,start,false)});
+ seedSpeedContext(project,notes,start,index);
  return {...project,instruments,notes};
 }
 export function exportSegments(project:Project,separate:boolean){

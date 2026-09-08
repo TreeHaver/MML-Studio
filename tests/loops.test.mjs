@@ -9,10 +9,46 @@ import {tempoMap} from '../dist/music/tempo.js';
 import {parse} from '../dist/model/serialization.js';
 import {readSMF} from '../dist/import/smf.js';
 import {projectSegment,mergeSegment} from '../dist/model/segment-view.js';
+import {sliceProject} from '../dist/music/structure.js';
+import {speedMap} from '../dist/music/speed.js';
 const note=(id,start,length,pitch=60,extra={})=>({id,start,length,pitch,instrument:0,volume:null,...extra});
 const marker=(id,start,extra)=>note(id,start,1,60,{instrument:1,volume:0,...extra});
 const project=notes=>({format:'mml-studio',version:2,grid:4,instruments:[{name:'Piano',color:'#4488aa'},{name:'Instructions',color:'#f4d35e',isInstructions:true}],notes});
 const music=p=>p.notes.filter(n=>!p.instruments[n.instrument].isInstructions).sort((a,b)=>a.start-b.start||a.id-b.id).map(n=>[n.start,n.length,n.pitch]);
+test('multiplier clock nests, exits, repeats and restores source tempo',()=>{
+ const p=project([note(1,0,128),marker(2,16,{speedEntry:true,speedMultiplier:2}),marker(3,32,{speedEntry:true,speedMultiplier:1.5}),marker(4,64,{speedExit:true,tempo:100}),marker(5,96,{speedExit:true}),marker(6,32,{loopEntry:true,loopCount:2}),marker(7,96,{loopExit:true,loopTie:true})]);
+ assert.deepEqual(tempoMap(p.notes).map(t=>[t.tick,t.bpm]),[[0,120],[16,240],[32,360],[64,200],[96,100]]);
+ const before=JSON.stringify(p),expanded=expandLoops(p),plan=compilePlayback(p);
+ assert.deepEqual(tempoMap(expanded.project.notes).map(t=>[t.tick,t.bpm]),[[0,120],[16,240],[32,360],[64,200],[96,360],[128,200],[160,100]]);
+ assert.deepEqual(plan.map,tempoMap(expanded.project.notes));
+ assert.equal(plan.sourceTick(100),36);assert.equal(plan.end,192);
+ const mml=generateMml(p,0);assert.doesNotMatch(mml.channels[0],/t(?:240|360|200)/);
+ assert.equal(JSON.stringify(p),before);assert.deepEqual(parse(before),p);
+});
+test('multiplier projection and export cuts inherit nested zones without parent edits',()=>{
+ const p=project([note(1,0,160),marker(2,0,{speedEntry:true,speedMultiplier:2}),marker(3,32,{speedEntry:true,speedMultiplier:3}),marker(4,64,{speedExit:true}),marker(5,128,{speedExit:true})]);
+ for(const start of [0,32,48,64,96,128]){
+  const view=projectSegment(p,{kind:'segment',name:'Part',start,end:160});
+  const expected=tempoMap(p.notes).filter(t=>t.tick>start).map(t=>({tick:t.tick-start,bpm:t.bpm}));
+  expected.unshift({tick:0,bpm:tempoMap(p.notes).findLast(t=>t.tick<=start).bpm});
+  assert.deepEqual(tempoMap(view.project.notes),expected);
+  assert.deepEqual(tempoMap(sliceProject(p,start,160).notes),expected);
+  assert.equal(JSON.stringify(mergeSegment(p,view,view.project,[0,1])),JSON.stringify(p));
+ }
+ const view=projectSegment(p,{kind:'segment',name:'Part',start:48,end:160});
+ view.project.notes.find(n=>n.id===4).speedEntry=true;view.project.notes.find(n=>n.id===4).speedMultiplier=0.5;
+ const merged=mergeSegment(p,view,view.project,[0,1]);assert.equal(merged.notes.find(n=>n.id===4).speedMultiplier,0.5);assert.equal(merged.notes.length,p.notes.length);
+});
+test('multiplier sheets rebase speed independently of tempo, and malformed metadata fails',()=>{
+ const p=project([note(1,0,128),marker(2,32,{speedEntry:true,speedMultiplier:2}),marker(3,96,{speedExit:true})]);
+ const planner=createSheetPlanner(p,0,1000);
+ const result=importMml(planner.render(48,112).channels[0]);
+ assert.equal(music(result.project)[0][1],40);
+ assert.match(generateMml(project([note(1,0,32),marker(2,0,{speedExit:true})]),0).warnings.join(' '),/no Entry/);
+ for(const value of [0,-1,'2',null])assert.throws(()=>parse(JSON.stringify(project([marker(1,0,{speedMultiplier:value})]))));
+ for(const key of ['speedEntry','speedExit'])assert.throws(()=>parse(JSON.stringify(project([marker(1,0,{[key]:1})]))));
+ assert.deepEqual(speedMap(project([marker(1,0,{speedEntry:true})]).notes),[{tick:0,multiplier:2}]);
+});
 test('nested loops multiply only their region; following notes shift and source remains intact',()=>{
  const p=project([note(1,0,4),note(2,8,4,62),note(3,16,4,64),note(4,24,4,65),note(5,32,4,67),marker(6,0,{loopEntry:true,loopCount:2}),marker(7,8,{loopEntry:true,loopCount:3}),marker(8,16,{loopExit:true}),marker(9,32,{loopExit:true})]);
  const before=JSON.stringify(p),e=expandLoops(p);

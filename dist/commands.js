@@ -6,9 +6,11 @@ import { input, status } from './dom.js';
 import { state } from './state.js';
 import { valid } from './model/validation.js';
 import { syncSegment, fitsCurrentView } from './segment-session.js';
+import { replaceInheritedTempo } from './model/segment-view.js';
 export function refreshTitle() { document.title = `MML Music Studio - ${state.project.name || 'Untitled'}`; }
 export function refresh() { syncSegment(); refreshTitle(); input('project-name').value = state.project.name || 'Untitled'; input('grid').value = String(state.project.grid); instruments(); info(); layout(); }
-export function commitNotes(notes) { if (!fitsCurrentView({ ...state.project, notes })) {
+export function commitNotes(notes) { if (state.segment)
+    notes = replaceInheritedTempo(state.segment.root, state.segment.projection, notes); if (!fitsCurrentView({ ...state.project, notes })) {
     status('This edit extends beyond the current view. Return to Project to edit across its boundary.');
     info();
     return;

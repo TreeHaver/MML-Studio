@@ -1,3 +1,4 @@
+import {speedRegions,validMultiplier} from './music/speed.ts';
 import {loopRegions} from './music/loops.ts';
 import {refreshStructure} from './toolbar.ts';
 import {typedSignature} from './music/structure.ts';
@@ -10,6 +11,10 @@ import {$,input} from './dom.ts';
 import {state} from './state.ts';
 import {name} from './music/pitch.ts';
 import {volumeAt} from './music/volume.ts';
+import type {Note} from './model/types.ts';
+
+// A zone whose Entry is outside this view is automatic context, not a new Entry.
+const inheritedSpeed=(n:Note|undefined)=>!!n&&!!state.segment&&state.segment.projection.baseline.notes.some(b=>b.id===n.id&&b.speedEntry)&&!state.segment.root.notes.some(o=>o.id===n.id);
 
 export function info(){
  updateMml();refreshStructure();
@@ -22,6 +27,10 @@ export function info(){
  for(const [id,key] of [['loop-entry','loopEntry'],['loop-exit','loopExit'],['loop-tie','loopTie']] as const){input(id).checked=!!n?.[key];input(id).disabled=!instructions;}
  input('loop-count').value=String(n?.loopCount??1);input('loop-count').disabled=!instructions||!n?.loopEntry;
  $('loop-count-field').hidden=!instructions||!n?.loopEntry;$('loop-tie-field').hidden=!instructions||!n?.loopExit;
+ for(const [id,key] of [['speed-entry','speedEntry'],['speed-exit','speedExit']] as const){input(id).checked=!!n?.[key];input(id).disabled=!instructions||inheritedSpeed(n);}
+ input('speed-multiplier').value=String(n?.speedMultiplier??2);input('speed-multiplier').disabled=!instructions||!n?.speedEntry||inheritedSpeed(n);
+ $('speed-multiplier-field').hidden=!instructions||!n?.speedEntry;
+ $('speed-warning').textContent=inheritedSpeed(n)?'Inherited multiplier. Return to Project to edit its Entry.':speedRegions(state.project.notes).warnings.join(' ');
  $('loop-warning').textContent=loopRegions(state.project).warnings.join(' ');
  for(const key of ['time-signature','section-name'])input(key).disabled=!instructions;
  input('time-signature').value=n?.timeSignature??'';input('section-name').value=n?.section??'';
@@ -30,6 +39,13 @@ export function info(){
 }
 
 export function installInspector(){
+for(const [id,key] of [['speed-entry','speedEntry'],['speed-exit','speedExit'],['speed-multiplier','speedMultiplier']] as const)$(id).onchange=()=>{
+ const n=anchor();if(!n||inheritedSpeed(n)||!state.project.instruments[n.instrument].isInstructions||key==='speedMultiplier'&&!n.speedEntry)return;
+ const value=key==='speedMultiplier'?Number(input(id).value):input(id).checked;
+ if(key==='speedMultiplier'&&!validMultiplier(value)){status('Speed multiplier must be a positive finite number.');info();return;}
+ commitNotes(state.project.notes.map(o=>state.selection.has(o.id)&&!inheritedSpeed(o)&&state.project.instruments[o.instrument].isInstructions&&(key!=='speedMultiplier'||o.speedEntry)?{...o,[key]:value}:o));
+}
+
 for(const [id,key] of [['loop-entry','loopEntry'],['loop-exit','loopExit'],['loop-tie','loopTie'],['loop-count','loopCount']] as const)$(id).onchange=()=>{
  const n=anchor();if(!n||!state.project.instruments[n.instrument].isInstructions)return;
  if(key==='loopCount'&&!n.loopEntry||key==='loopTie'&&!n.loopExit)return;

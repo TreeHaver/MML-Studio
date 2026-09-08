@@ -1,4 +1,5 @@
 import { ensureInstructions } from './instructions.js';
+import { seedSpeedContext } from '../music/speed.js';
 import { tempoAt } from '../music/tempo.js';
 import { signatureAt } from '../music/structure.js';
 import { valid } from './validation.js';
@@ -73,16 +74,29 @@ export function projectSegment(root, range) {
         project.notes.push(context);
     }
     if (!project.notes.some(n => n.start === 0 && n.tempo != null))
-        context.tempo = tempoAt(root.notes, start);
+        context.tempo = tempoAt(root.notes, start, false);
     if (!project.notes.some(n => n.start === 0 && project.instruments[n.instrument].isInstructions && n.timeSignature))
         context.timeSignature = signatureAt(root, start);
+    seedSpeedContext(root, project.notes, start, context.instrument);
     return { project, baseline: structuredClone(project), range: { ...range } };
 }
 export function fitsSegment(project, range) {
     const duration = range.end - range.start;
     return project.notes.every(n => n.start >= 0 && n.start < duration && (project.instruments[n.instrument].isInstructions || n.start + n.length <= duration));
 }
-const keys = ['start', 'length', 'pitch', 'volume', 'tempo', 'timeSignature', 'section', 'resetMeasures', 'loopEntry', 'loopExit', 'loopTie', 'loopCount'];
+/** A newly explicit boundary tempo supersedes view-only inherited context. */
+export function replaceInheritedTempo(root, projection, notes) {
+    const baseline = new Map(projection.baseline.notes.map(n => [n.id, n]));
+    if (!notes.some(n => n.start === 0 && n.tempo != null && (baseline.get(n.id)?.tempo !== n.tempo || baseline.get(n.id)?.start !== 0)))
+        return notes;
+    const originals = new Map(root.notes.map(n => [n.id, n]));
+    return notes.map(n => {
+        const base = baseline.get(n.id), original = originals.get(n.id);
+        const automatic = base?.start === 0 && base.tempo != null && !(original?.start === projection.range.start && original.tempo != null);
+        return automatic && n.start === 0 && n.tempo === base.tempo ? { ...n, tempo: null } : n;
+    });
+}
+const keys = ['start', 'length', 'pitch', 'volume', 'tempo', 'timeSignature', 'section', 'resetMeasures', 'loopEntry', 'loopExit', 'loopTie', 'loopCount', 'speedEntry', 'speedExit', 'speedMultiplier'];
 /** Apply explicit view changes to the parent, preserving untouched source notes verbatim. */
 export function mergeSegment(root, projection, edited, sourceIndices, ids = new Map()) {
     if (!fitsSegment(edited, projection.range))
@@ -100,7 +114,8 @@ export function mergeSegment(root, projection, edited, sourceIndices, ids = new 
     });
     let id = Math.max(root.notes.reduce((max, n) => Math.max(max, n.id), 0), edited.notes.reduce((max, n) => Math.max(max, n.id), 0));
     const notes = [];
-    const changed = (base, n) => keys.some(key => base[key] !== n[key]) || routing[n.instrument] !== base.instrument;
+    const clearedContext = (base, n) => base.start === 0 && base.tempo != null && n.tempo == null && !(originals.get(base.id)?.start === start && originals.get(base.id)?.tempo != null);
+    const changed = (base, n) => keys.some(key => base[key] !== n[key] && !(key === 'tempo' && clearedContext(base, n))) || routing[n.instrument] !== base.instrument;
     for (const original of root.notes) {
         const base = baseline.get(original.id);
         if (!base) {
@@ -120,7 +135,7 @@ export function mergeSegment(root, projection, edited, sourceIndices, ids = new 
         if (n) {
             const updated = { ...original };
             for (const key of keys)
-                if (base[key] !== n[key]) {
+                if (base[key] !== n[key] && !(key === 'tempo' && clearedContext(base, n))) {
                     if (n[key] === undefined)
                         delete updated[key];
                     else
@@ -147,7 +162,7 @@ export function mergeSegment(root, projection, edited, sourceIndices, ids = new 
                 continue; // automatic inherited context is view-only
             const added = { ...n, id: ++id, start: n.start + start, instrument: routing[n.instrument] };
             if (base) {
-                for (const key of ['tempo', 'timeSignature', 'section', 'resetMeasures', 'loopEntry', 'loopExit', 'loopTie', 'loopCount'])
+                for (const key of ['tempo', 'timeSignature', 'section', 'resetMeasures', 'loopEntry', 'loopExit', 'loopTie', 'loopCount', 'speedEntry', 'speedExit', 'speedMultiplier'])
                     if (base[key] === n[key])
                         delete added[key];
             }

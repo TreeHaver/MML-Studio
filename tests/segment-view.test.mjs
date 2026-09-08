@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fresh} from '../dist/model/project.js';
-import {rangeAt,projectSegment,mergeSegment,projectEnd} from '../dist/model/segment-view.js';
+import {rangeAt,projectSegment,mergeSegment,projectEnd,replaceInheritedTempo} from '../dist/model/segment-view.js';
 import {generateMml} from '../dist/music/mml.js';
 import {createSheetPlanner} from '../dist/music/sheets.js';
 import {tempoAt} from '../dist/music/tempo.js';
@@ -112,4 +112,24 @@ test('scoped lane removal preserves its outside notes, and voice edits are share
  v.notes=v.notes.filter(n=>n.instrument!==0).map(n=>({...n,instrument:0}));v.instruments.splice(0,1);
  const merged=mergeSegment(p,projection,v,[1]);assert.ok(merged.notes.some(n=>n.start===230));assert.ok(!merged.notes.some(n=>n.instrument===0&&n.start>=96&&n.start<160));
  assert.equal(merged.notes.find(n=>n.id===6).instrument,1);assert.doesNotThrow(()=>parse(JSON.stringify(merged)));
+});
+
+
+test('explicit tempo on a tick-zero multiplier supersedes only automatic view tempo',()=>{
+ for(const start of [0,96])for(const contextMarker of [false,true]){
+  const root={...album(),notes:[note(1,0,512),...(contextMarker?[marker(2,start,'Song',true)]:[])]};
+  const view=projectSegment(root,{kind:'song',name:'Song',start,end:start+128});
+  const speed={...marker(100,0,''),speedEntry:true,speedMultiplier:2,tempo:90};
+  const notes=replaceInheritedTempo(root,view,[...view.project.notes,speed]);
+  const edited={...view.project,notes},merged=mergeSegment(root,view,edited,indexes(root));
+  assert.equal(tempoAt(edited.notes,0),180);
+  assert.equal(compilePlayback(edited).map[0].bpm,180);assert.match(generateMml(edited,0).channels[0],/^t90/);
+  assert.deepEqual(merged.notes.filter(n=>n.id!==merged.notes.at(-1).id),root.notes);
+  assert.equal(merged.notes.length,root.notes.length+1);assert.equal(merged.notes.at(-1).tempo,90);
+  assert.equal(tempoAt(projectSegment(merged,view.range).project.notes,0),180);
+ }
+ const root={...album(),notes:[note(1,0,128),marker(2,0,'Song',true,{tempo:120}),marker(3,0,'',{speedEntry:true,speedMultiplier:2})]};
+ const view=projectSegment(root,{kind:'song',name:'Song',start:0,end:128});
+ const notes=replaceInheritedTempo(root,view,view.project.notes.map(n=>n.id===3?{...n,tempo:90}:n));
+ assert.throws(()=>tempoAt(notes,0),/Conflicting T/,'genuinely explicit tempos still conflict');
 });

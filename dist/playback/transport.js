@@ -12,6 +12,7 @@ export const playback = { get tick() { return position === null ? null : phase =
 export const playbackSettings = { speed: 1, volume: 1 };
 let phase = 'idle', engine = null, plan = null;
 let snapshot = null, frame = 0, generation = 0, voiceRevision = 0, loadedVoiceRevision = 0;
+let observedNotes = state.project.notes, observedCount = observedNotes.length;
 /**
  * The loop cannot ride on the animation frame. Chromium stops painting a window that is
  * behind another application, so the frame callback stops with it while the audio thread
@@ -53,13 +54,16 @@ function loopGuard() {
     if (heard >= loopRegion.end || engine.seq.isFinished)
         void rewindLoop();
 }
-// Recompile only the playback snapshot's voices. Other song edits keep their
-// existing Stop/Play semantics. Re-trigger held notes with their remaining time.
+// Serialize live edits through the existing engine load. Restore held voices
+// from the latest notes, including edits received while a load is in flight.
 async function loadSnapshot(token) {
     engine = await getEngine();
     while (token === generation) {
         const revision = voiceRevision, from = position ?? 0;
-        snapshot.instruments = structuredClone(state.project.instruments);
+        const source = plan?.sourceTick(from) ?? from, notes = state.project.notes, count = notes.length;
+        observedNotes = notes;
+        observedCount = count;
+        snapshot = structuredClone(state.project);
         const range = state.segment?.projection.range;
         // A loop drawn past the end of the music still has to be played to its end, so the
         // performance is compiled at least that long; without it the song simply stops early.
@@ -67,10 +71,11 @@ async function loadSnapshot(token) {
         await engine.load(next.binary);
         if (token !== generation)
             return false;
-        if (revision !== voiceRevision || from !== (position ?? 0))
+        if (revision !== voiceRevision || from !== (position ?? 0) || notes !== state.project.notes || count !== state.project.notes.length)
             continue;
-        if (!plan)
-            position = next.performanceTick(position ?? 0);
+        // Retain the current repeat when its source mapping survives an edit. If
+        // loop structure changed, seek the same source position in the new plan.
+        position = Math.min(next.end, plan && next.sourceTick(from) === source ? from : next.performanceTick(source));
         plan = next;
         engine.seq.playbackRate = playbackSettings.speed;
         engine.seq.currentTime = Math.min(plan.duration, secondsAtTick(plan.map, position ?? 0));
@@ -128,7 +133,7 @@ export async function updatePlaybackVoices() {
         phase = 'idle';
         position = null;
         engine?.stop();
-        status('Voice update failed: ' + error);
+        status('Playback update failed: ' + error);
     }
     finally {
         if (token !== generation || phase === 'loading')
@@ -170,7 +175,18 @@ function positionLabel() {
         : ` · ${Math.round(effective)} effective${outOfBounds ? ' (out of bounds!)' : ''}`;
     label.classList.toggle('out-of-bounds', outOfBounds);
 }
-export function syncPlaybackControls() { buttons(); positionLabel(); }
+export function syncPlaybackControls() {
+    // Pointer drawing can append in place; move/resize, commands and history
+    // replace the array. Avoid scanning the song on every animation frame.
+    if (observedNotes !== state.project.notes || observedCount !== state.project.notes.length) {
+        observedNotes = state.project.notes;
+        observedCount = observedNotes.length;
+        if (phase !== 'idle')
+            void updatePlaybackVoices();
+    }
+    buttons();
+    positionLabel();
+}
 function setPosition(seconds) { if (!engine || !plan)
     return; const time = Math.max(0, Math.min(plan.duration, seconds)); engine.seq.currentTime = time; position = tickAtSeconds(plan.map, time); if (phase === 'playing')
     restoreHeld(); followPlayback(playback.tick); draw(); }

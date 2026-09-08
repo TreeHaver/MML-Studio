@@ -1,5 +1,5 @@
 import { resolveVolumes } from './volume.js';
-const instructed = (n) => n.tempo != null || n.timeSignature !== undefined || n.section !== undefined || n.resetMeasures || n.loopEntry || n.loopExit || n.loopTie || n.loopCount !== undefined;
+const instructed = (n) => n.tempo != null || n.timeSignature !== undefined || n.section !== undefined || n.resetMeasures || n.loopEntry || n.loopExit || n.loopTie || n.loopCount !== undefined || n.speedEntry || n.speedExit || n.speedMultiplier !== undefined;
 const overlaps = (a, b) => a.start < b.start + b.length && b.start < a.start + a.length;
 function lowerBound(notes, tick, edge) {
     let low = 0, high = notes.length;

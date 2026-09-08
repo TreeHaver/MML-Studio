@@ -1,8 +1,9 @@
+import { validSpeed } from '../music/speed.js';
 import { validStructure } from '../music/structure.js';
 import { validLoops } from '../music/loops.js';
 import { tempoMap } from '../music/tempo.js';
 export function valid(notes) {
-    if (!validStructure(notes) || !validLoops(notes))
+    if (!validStructure(notes) || !validLoops(notes) || !validSpeed(notes))
         return false;
     try {
         tempoMap(notes);

@@ -4,6 +4,23 @@ import {generateMml} from '../dist/music/mml.js';
 import {optimizeInstructions} from '../dist/music/mml-optimizer.js';
 const note=(id,start,length,pitch=60,volume=null,instrument=0,tempo=null)=>({id,start,length,pitch,volume,instrument,tempo});
 const project=notes=>({format:'mml-studio',version:2,grid:4,instruments:[{name:'Piano',color:'#fff'},{name:'Instructions',color:'#fff',isInstructions:true}],notes});
+test('speed zones shorten rests and held notes without multiplying MML tempo',()=>{
+ const p=project([note(1,0,128),note(2,64,64,64),{...note(3,32,1,60,0,1),speedEntry:true,speedMultiplier:2},{...note(4,96,1,60,0,1),speedExit:true},note(5,64,1,60,0,1,150)]);
+ const before=JSON.stringify(p),result=generateMml(p,0),decoded=result.channels.map(read);
+ assert.deepEqual(decoded.flatMap(c=>c.notes),[{start:0,length:96,pitch:60,volume:8},{start:48,length:48,pitch:64,volume:8}]);
+ for(const c of decoded)assert.deepEqual(c.tempos,[[0,120],[48,150]]);
+ assert.equal(JSON.stringify(p),before);
+});
+test('decimal multipliers and sub-tick lengths are exact, with fine-resolution warnings',()=>{
+ for(const multiplier of [0.5,1.5,2,3,4])for(const length of [1,7,32,129]){
+  const p=project([note(1,7,length),{...note(2,0,1,60,0,1),speedEntry:true,speedMultiplier:multiplier}]);
+  const r=generateMml(p,0),decoded=read(r.channels[0]);
+  assert.ok(Math.abs(decoded.notes[0].start-7/multiplier)<1e-10);
+  assert.ok(Math.abs(decoded.notes[0].length-length/multiplier)<1e-10);
+  assert.deepEqual(decoded.tempos,[[0,120]]);
+ }
+ assert.match(generateMml(project([note(1,0,1),{...note(2,0,1,60,0,1),speedEntry:true}]),0).warnings.join(' '),/finer than 1\/128/);
+});
 // Independent reader checks actual emitted timing, pitch, ties and controller state.
 function read(text){
  let tick=0,octave=4,volume=8,tempo=120,defaultLength=32,tie=false;const notes=[],tempos=[];

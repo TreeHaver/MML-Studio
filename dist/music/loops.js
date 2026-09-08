@@ -1,3 +1,4 @@
+import { speedMap, speedAt, speedRegions } from './speed.js';
 import { tempoMap } from './tempo.js';
 import { resolveVolumes } from './volume.js';
 import { ensureInstructions } from '../model/instructions.js';
@@ -33,6 +34,7 @@ export function loopRegions(source) {
 }
 export function expandLoops(source, minimumEnd = 0) {
     const { roots, warnings } = loopRegions(source);
+    warnings.push(...speedRegions(source.notes).warnings);
     const end = source.notes.reduce((end, n) => Math.max(end, n.start + (source.instruments[n.instrument]?.isInstructions ? 0 : n.length)), minimumEnd);
     // Check arithmetic before allocating repeated spans (no export-size caps).
     const duration = (start, end, loops) => { let total = end - start; for (const loop of loops) {
@@ -64,7 +66,7 @@ export function expandLoops(source, minimumEnd = 0) {
         return { project: source, end: Math.max(end, minimumEnd), warnings, spans, sourceTick, performanceTick };
     const project = { ...source, instruments: source.instruments.map(i => ({ ...i })), notes: [] }, instruction = ensureInstructions(project);
     const sorted = [...source.notes].sort((a, b) => a.start - b.start || a.id - b.id), effective = resolveVolumes(sorted);
-    const clock = tempoMap(source.notes);
+    const clock = tempoMap(source.notes, false), speeds = speedMap(source.notes);
     let id = 0;
     let previous = [];
     for (const span of spans) {
@@ -73,7 +75,7 @@ export function expandLoops(source, minimumEnd = 0) {
             const silent = source.instruments[n.instrument]?.isInstructions;
             if (silent) {
                 if (n.start >= span.start && n.start < span.end)
-                    project.notes.push({ ...n, id: ++id, start: span.tick + n.start - span.start, tempo: null, loopEntry: undefined, loopExit: undefined, loopTie: undefined, loopCount: undefined });
+                    project.notes.push({ ...n, id: ++id, start: span.tick + n.start - span.start, tempo: null, loopEntry: undefined, loopExit: undefined, loopTie: undefined, loopCount: undefined, speedEntry: undefined, speedExit: undefined, speedMultiplier: undefined });
                 continue;
             }
             if (n.start >= span.end || n.start + n.length <= span.start)
@@ -101,6 +103,14 @@ export function expandLoops(source, minimumEnd = 0) {
         const events = [{ tick: span.start, bpm }, ...clock.filter(t => t.tick > span.start && t.tick < span.end)];
         for (const t of events)
             project.notes.push({ id: ++id, instrument: instruction, start: span.tick + t.tick - span.start, length: 1, pitch: 60, volume: 0, tempo: t.bpm });
+        const changes = [{ tick: span.start, multiplier: speedAt(speeds, span.start) }, ...speeds.filter(s => s.tick > span.start && s.tick < span.end)];
+        for (let i = 0; i < changes.length; i++) {
+            const s = changes[i];
+            if (s.multiplier === 1)
+                continue;
+            project.notes.push({ id: ++id, instrument: instruction, start: span.tick + s.tick - span.start, length: 1, pitch: 60, volume: 0, speedEntry: true, speedMultiplier: s.multiplier });
+            project.notes.push({ id: ++id, instrument: instruction, start: span.tick + (changes[i + 1]?.tick ?? span.end) - span.start, length: 1, pitch: 60, volume: 0, speedExit: true });
+        }
         previous = current;
     }
     return { project, end: tick, warnings, spans, sourceTick, performanceTick };

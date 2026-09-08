@@ -28,6 +28,26 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  await evaluate(`document.getElementById('play').click()`);const paused=await evaluate(`transport.playback.tick`);
  await change('73');await wait(100);assert.equal(await evaluate(`document.getElementById('play').title`),'Resume');assert.equal(await evaluate(`transport.playback.tick`),paused);
  await evaluate(`transport.play()`);await wait(150);assert.ok(await peak()>0.00001,'Paused flute update resumes held note');checks.push('Paused voice update/resume produces PCM');
+ // Real AudioWorklet output must follow note edits without Stop/Play.
+ const liveReload=async code=>{
+  await evaluate(code);
+  for(let i=0;i<100;i++){await wait(20);if(!await evaluate("document.getElementById('play').disabled"))return;}
+  throw Error('Live note reload did not finish');
+ };
+ await liveReload(`window.originalLiveNotes=structuredClone(s.project.notes);s.project.notes=s.project.notes.map(n=>({...n,volume:0}));s.project.notes.push({id:899,instrument:0,start:1800,length:32,pitch:60,volume:1});refresh();`);await wait(150);
+ await wait(2000);const silentLive=await peak();assert.ok(silentLive<0.00001,`Live volume edit silences existing notes: ${silentLive}`);
+ const editTick=await evaluate('transport.playback.tick');
+ await liveReload(`s.project.notes.push({id:900,instrument:0,start:0,length:2048,pitch:69,volume:12});refresh();`);await wait(150);
+ assert.ok(await peak()>0.00001,'Added held note produces live PCM');
+ assert.ok(await evaluate('transport.playback.tick')>=editTick,'Live edit retains playhead');
+ await liveReload(`s.project.notes=s.project.notes.map(n=>n.id===900?{...n,start:1900}:n);refresh();`);await wait(150);
+ await wait(2000);const movedLive=await peak();assert.ok(movedLive<0.00001,`Moving sounding note into future stops its live PCM: ${movedLive}`);
+ await evaluate("document.getElementById('play').click()");const notePausedTick=await evaluate('transport.playback.tick');
+ await liveReload(`s.project.notes=s.project.notes.map(n=>n.id===900?{...n,start:0,pitch:72}:n);refresh();`);
+ assert.equal(await evaluate("document.getElementById('play').title"),'Resume');assert.equal(await evaluate('transport.playback.tick'),notePausedTick);
+ await evaluate('transport.play()');await wait(150);assert.ok(await peak()>0.00001,'Paused moved note sounds on resume');
+ await liveReload(`s.project.notes=originalLiveNotes;refresh();`);
+ checks.push('Live note add/move/volume and paused move/resume verified with AudioWorklet PCM');
  await change('snare');assert.equal(await evaluate(`s.project.instruments[0].ms2Drum`),'snare');assert.equal(await evaluate(`document.getElementById('play').title`),'Pause');
  await change('40');await evaluate(`transport.seekToTick(32)`);await wait(100);assert.ok(await peak()>0.00001,'Rewind retains earlier held music');
  assert.equal(await evaluate(`s.project.instruments[0].midiProgram`),40);assert.equal(await evaluate(`s.project.instruments[1].isInstructions`),true);

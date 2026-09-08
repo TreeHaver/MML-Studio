@@ -1,10 +1,11 @@
+import {speedMap,speedAt} from './speed.ts';
 import type {Note} from '../model/types.ts';
 export const DEFAULT_TEMPO=120;
 export type TempoEvent={tick:number,bpm:number};
 export function validTempo(value:unknown):boolean {
  return value==null||(typeof value==='number'&&Number.isInteger(value)&&value>0);
 }
-export function tempoMap(notes:Note[]):TempoEvent[]{
+export function tempoMap(notes:Note[],simulate=true):TempoEvent[]{
  const map=new Map<number,number>();
  for(const n of notes){
   if(!validTempo(n.tempo))throw Error('Tempo must be a positive whole number of BPM.');
@@ -13,10 +14,13 @@ export function tempoMap(notes:Note[]):TempoEvent[]{
   map.set(n.start,n.tempo);
  }
  if(!map.has(0))map.set(0,DEFAULT_TEMPO);
- return [...map].sort((a,b)=>a[0]-b[0]).map(([tick,bpm])=>({tick,bpm}));
+ const base=[...map].sort((a,b)=>a[0]-b[0]).map(([tick,bpm])=>({tick,bpm}));
+ if(!simulate)return base;
+ const speeds=speedMap(notes);
+ return [...new Set([...map.keys(),...speeds.map(s=>s.tick)])].sort((a,b)=>a-b).map(tick=>({tick,bpm:base.findLast(t=>t.tick<=tick)!.bpm*speedAt(speeds,tick)}));
 }
-export function tempoAt(notes:Note[],tick:number):number{
- let bpm=DEFAULT_TEMPO;for(const t of tempoMap(notes)){if(t.tick>tick)break;bpm=t.bpm;}return bpm;
+export function tempoAt(notes:Note[],tick:number,simulate=true):number{
+ let bpm=DEFAULT_TEMPO;for(const t of tempoMap(notes,simulate)){if(t.tick>tick)break;bpm=t.bpm;}return bpm;
 }
 export function tempoChanges(notes:Note[]):TempoEvent[]{
  let previous=DEFAULT_TEMPO;

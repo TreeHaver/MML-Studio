@@ -1,8 +1,9 @@
+import { speedMap, speedAt } from './speed.js';
 export const DEFAULT_TEMPO = 120;
 export function validTempo(value) {
     return value == null || (typeof value === 'number' && Number.isInteger(value) && value > 0);
 }
-export function tempoMap(notes) {
+export function tempoMap(notes, simulate = true) {
     const map = new Map();
     for (const n of notes) {
         if (!validTempo(n.tempo))
@@ -15,11 +16,15 @@ export function tempoMap(notes) {
     }
     if (!map.has(0))
         map.set(0, DEFAULT_TEMPO);
-    return [...map].sort((a, b) => a[0] - b[0]).map(([tick, bpm]) => ({ tick, bpm }));
+    const base = [...map].sort((a, b) => a[0] - b[0]).map(([tick, bpm]) => ({ tick, bpm }));
+    if (!simulate)
+        return base;
+    const speeds = speedMap(notes);
+    return [...new Set([...map.keys(), ...speeds.map(s => s.tick)])].sort((a, b) => a - b).map(tick => ({ tick, bpm: base.findLast(t => t.tick <= tick).bpm * speedAt(speeds, tick) }));
 }
-export function tempoAt(notes, tick) {
+export function tempoAt(notes, tick, simulate = true) {
     let bpm = DEFAULT_TEMPO;
-    for (const t of tempoMap(notes)) {
+    for (const t of tempoMap(notes, simulate)) {
         if (t.tick > tick)
             break;
         bpm = t.bpm;

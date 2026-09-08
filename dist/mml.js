@@ -53,7 +53,7 @@ export function updateMml(force = false) {
     // With every lane paused, editing does no sorting or string generation.
     const needed = state.project.instruments.some((i, index) => entry(index).live && entry(index).revision !== revision);
     if (needed && tempos.length === 0) {
-        tempos = tempoMap(state.project.notes);
+        tempos = tempoMap(state.project.notes, false);
         state.project.notes.forEach(n => { if (!buckets.has(n.instrument))
             buckets.set(n.instrument, []); buckets.get(n.instrument).push(n); });
     }

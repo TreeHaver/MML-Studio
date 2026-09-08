@@ -36,7 +36,7 @@ export function heldPlaybackNotes(project:Project,channels:PlaybackChannel[],tic
 export function compilePlayback(project:Project,minimumEnd=0){
  const expanded=expandLoops(project,minimumEnd);project=expanded.project;minimumEnd=expanded.end;
  if(!valid(project.notes))throw Error('Invalid notes or conflicting tempo instructions.');
- const map=tempoMap(project.notes),end=project.notes.reduce((end,n)=>Math.max(end,n.start+n.length),minimumEnd);
+ const map=tempoMap(project.notes),end=project.notes.reduce((end,n)=>Math.max(end,n.start+(project.instruments[n.instrument]?.isInstructions?0:n.length)),minimumEnd);
  const conductor:Event[]=map.map(({tick,bpm})=>{const micros=Math.round(60000000/bpm);if(micros<1||micros>0xffffff)throw Error('This tempo cannot be represented by the MIDI preview engine. The project is unchanged.');return {tick,order:0,data:[255,81,3,(micros>>>16)&255,(micros>>>8)&255,micros&255]};});
  const tracks=[track(conductor,end)];let skipped=0;
  const byInstrument=new Map<number,Project['notes']>();

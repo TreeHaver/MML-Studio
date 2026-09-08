@@ -50,6 +50,7 @@ Opening a view alone must not shorten/split source notes or write automatic cont
 
 - Notes crossing either boundary are clipped locally. Editing/deleting one changes only its portion inside the view; untouched outside portions keep original timing, pitch and onset V. A parent split is created only when an actual edit needs it.
 - New/moved notes use local coordinates and translate back on reconciliation. Edits extending past the fixed view bounds are rejected; return to the project for those edits.
+- An explicit Tempo entered on another tick-zero marker supersedes the automatically inherited boundary tempo. The automatic context is removed only from the view, not serialized as a parent edit; genuinely explicit conflicting T instructions remain invalid.
 - Effective global tempo/signature and the last explicit pre-boundary V per instrument carry into the view. Ended V carriers still count; V0 survives. Explicit crossing-note overrides remain explicit. Clearing V restores inheritance. See [velocity rules](MUSIC_MODEL.md#velocity-and-inheritance).
 - Overlap warnings use the clipped local starts, even when formerly distinct same-pitch onsets become simultaneous. Warnings never repair music.
 - Boundaries stay fixed while the view is open even if their marker changes/deletes. Reopen from the project to derive new bounds.
@@ -76,6 +77,18 @@ At ordinary forward boundaries, fragments of the same note remain continuous. At
 - Exact Entry-start / Exit-end pairs retrigger; nested loops use their own Exit's Tie setting.
 
 MML generation, counts, sheet planning and preview share loop expansion. Section-separated export expands before slicing; a scoped view expands only local partners and warns for missing partners outside the view. Playback seconds refer to performance time; the playhead maps back to source ticks during repeats. Ruler seeking chooses the first performance occurrence of that source position.
+
+## Simulated speed multiplier zones
+
+Enable Advanced Instructions, draw/select an instruction, enable **Multiplier Entry**, and set **Speed multiplier** (default 2). Enable **Multiplier Exit** on a later instruction to end the zone. A 2× zone plays T120 as 240 BPM while MML retains T120 and halves note/rest durations. The editor keeps the original note positions and lengths.
+
+Positive decimal values are accepted, including 0.5×. Nested zones multiply together; each Exit closes the innermost Entry, with Exits processed before Entries at a shared tick. One event may close a zone and open the next. An Entry without an Exit continues to the end; an unmatched Exit warns and is ignored. Captions and shaded regions identify zones.
+
+Tempo changes inside a zone retain their base BPM in MML and use multiplied BPM in playback. Held notes remain tied across speed/tempo boundaries. Loops restore the source multiplier on every pass. Sheet and section cuts carry/rebase speed separately from tempo. Playback/audio/MIDI use the effective clock, independently of the session playback-speed slider.
+
+Song/Segment projections inherit all active zones without saving automatic context into the parent. An inherited Entry is read-only in the speed inspector: return to Project to edit its source Entry. Actual markers inside the view remain editable and undoable. An Exit at the exact view start is consumed as boundary context rather than closing an unrelated inherited zone.
+
+Stored projects remain version 2 with optional speed fields; older projects without them retain their behavior. Exported MML has ordinary notes, rests, ties and base T commands, not custom multiplier commands. Fine derived durations are retained exactly with a warning when explicit denominators exceed 128; target-player support has not been verified in game.
 
 ## Maintenance boundaries
 

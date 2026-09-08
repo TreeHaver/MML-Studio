@@ -1,3 +1,4 @@
+import { seedSpeedContext } from './speed.js';
 import { tempoAt } from './tempo.js';
 import { resolveVolumes } from './volume.js';
 export function validSignature(value) { return /^[1-9]\d*\/(1|2|4|8|16|32|64|128)$/.test(value) && Number.isSafeInteger(Number(value.split('/')[0]) * 128); }
@@ -103,7 +104,8 @@ export function sliceProject(project, start, end) {
         index = instruments.length;
         instruments.push({ name: 'Instructions', color: '#f4d35e', isInstructions: true });
     }
-    notes.push({ id: project.notes.reduce((id, n) => Math.max(id, n.id), 0) + 1, instrument: index, start: 0, length: 1, pitch: 60, volume: 0, tempo: tempoAt(project.notes, start) });
+    notes.push({ id: project.notes.reduce((id, n) => Math.max(id, n.id), 0) + 1, instrument: index, start: 0, length: 1, pitch: 60, volume: 0, tempo: tempoAt(project.notes, start, false) });
+    seedSpeedContext(project, notes, start, index);
     return { ...project, instruments, notes };
 }
 export function exportSegments(project, separate) {

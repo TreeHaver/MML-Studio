@@ -1,7 +1,7 @@
 import type {Note,Project} from '../model/types.ts';
 import {resolveVolumes} from './volume.ts';
 
-const instructed=(n:Note)=>n.tempo!=null||n.timeSignature!==undefined||n.section!==undefined||n.resetMeasures||n.loopEntry||n.loopExit||n.loopTie||n.loopCount!==undefined;
+const instructed=(n:Note)=>n.tempo!=null||n.timeSignature!==undefined||n.section!==undefined||n.resetMeasures||n.loopEntry||n.loopExit||n.loopTie||n.loopCount!==undefined||n.speedEntry||n.speedExit||n.speedMultiplier!==undefined;
 const overlaps=(a:Note,b:Note)=>a.start<b.start+b.length&&b.start<a.start+a.length;
 function lowerBound(notes:Note[],tick:number,edge:(n:Note)=>number){
  let low=0,high=notes.length;

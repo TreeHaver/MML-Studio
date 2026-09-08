@@ -15,7 +15,7 @@ export function drawSheetLimit() {
         previousNotes = state.project.notes;
         count = previousNotes.length;
         settings = nextSettings;
-        signature = JSON.stringify([settings, previousNotes.filter(n => n.instrument === state.active || n.tempo != null || n.loopEntry || n.loopExit)]);
+        signature = JSON.stringify([settings, previousNotes.filter(n => n.instrument === state.active || n.tempo != null || n.loopEntry || n.loopExit || n.speedEntry || n.speedExit)]);
     }
     if (signature !== previous) {
         previous = signature;

@@ -29,7 +29,7 @@ export function updateMml(force=false){
  if(changed){previous=state.project.notes;count=previous.length;revision++;buckets=new Map();tempos=[];}
  // With every lane paused, editing does no sorting or string generation.
  const needed=state.project.instruments.some((i,index)=>entry(index).live&&entry(index).revision!==revision);
- if(needed&&tempos.length===0){tempos=tempoMap(state.project.notes);state.project.notes.forEach(n=>{if(!buckets.has(n.instrument))buckets.set(n.instrument,[]);buckets.get(n.instrument)!.push(n);});}
+ if(needed&&tempos.length===0){tempos=tempoMap(state.project.notes,false);state.project.notes.forEach(n=>{if(!buckets.has(n.instrument))buckets.set(n.instrument,[]);buckets.get(n.instrument)!.push(n);});}
  state.project.instruments.forEach((i,index)=>{const e=entry(index);if(e.live&&e.revision!==revision)generate(index,e);publish(i,e,index);});
  if(opened!==undefined&&!state.project.instruments[opened]){opened=undefined;void (window as any).mml?.update({name:'Project changed — reopen MML',channels:[],bytes:0,warnings:[],stale:true});}
 }

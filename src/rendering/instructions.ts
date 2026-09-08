@@ -2,6 +2,7 @@ import {ctx,view} from '../dom.ts';
 import {state,isMuted} from '../state.ts';
 import {KEY,HEAD} from '../constants.ts';
 import {tempoChanges} from '../music/tempo.ts';
+import {speedRegions} from '../music/speed.ts';
 import {loopRegions} from '../music/loops.ts';
 import {INSTRUCTIONS_COLOR} from '../model/instructions.ts';
 import {palette} from '../appearance.ts';
@@ -12,7 +13,10 @@ export function drawLoopRegions(){
   if(!isMuted(loop.instrument)){ctx.globalAlpha=.1;ctx.fillStyle=state.project.instruments[loop.instrument].color;ctx.fillRect(KEY+loop.start*state.zoom-view.scrollLeft,HEAD,(loop.end-loop.start)*state.zoom,state.height-HEAD);}
   paint(loop.children);
  }};
- paint(loopRegions(state.project).roots);ctx.globalAlpha=1;
+ paint(loopRegions(state.project).roots);
+ for(const r of speedRegions(state.project.notes).regions){const end=Number.isFinite(r.end)?r.end:(view.scrollLeft+state.width)/state.zoom;
+  ctx.globalAlpha=.08;ctx.fillStyle=state.project.instruments[r.instrument].color;ctx.fillRect(KEY+r.start*state.zoom-view.scrollLeft,HEAD,(end-r.start)*state.zoom,state.height-HEAD);
+ }ctx.globalAlpha=1;
 }
 export function drawInstructionLines(){
  for(const n of state.project.notes)if(state.project.instruments[n.instrument]?.isInstructions&&!isMuted(n.instrument)){
@@ -27,7 +31,7 @@ export function drawInstructionLines(){
 function captions(){
  const entries:{note:Note,text:string,color:string}[]=[];
  for(const n of state.project.notes){if(isMuted(n.instrument))continue;const instrument=state.project.instruments[n.instrument];
-  if(instrument.isInstructions)entries.push({note:n,color:instrument.color,text:[n.section?.trim(),n.timeSignature,n.resetMeasures&&n.section?.trim()?'Measure 1':'',n.tempo==null?'':`T${n.tempo}`,n.loopEntry?`Loop Entry ×${n.loopCount??1}`:'',n.loopExit?`Loop Exit${n.loopTie?' · Tie':''}`:''].filter(Boolean).join(' · ')||'Event'});
+  if(instrument.isInstructions)entries.push({note:n,color:instrument.color,text:[n.section?.trim(),n.timeSignature,n.resetMeasures&&n.section?.trim()?'Measure 1':'',n.tempo==null?'':`T${n.tempo}`,n.speedEntry?`Multiplier ×${n.speedMultiplier??2}`:'',n.speedExit?'Multiplier Exit':'',n.loopEntry?`Loop Entry ×${n.loopCount??1}`:'',n.loopExit?`Loop Exit${n.loopTie?' · Tie':''}`:''].filter(Boolean).join(' · ')||'Event'});
   else if(n.tempo!=null)entries.push({note:n,color:INSTRUCTIONS_COLOR,text:`T${n.tempo}`});
  }
  const rowEnds:number[]=[],result:{note:Note,text:string,color:string,x:number,y:number,w:number,h:number}[]=[];

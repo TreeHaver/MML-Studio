@@ -1,4 +1,5 @@
 import { generateMml } from './mml.js';
+import { speedMap, speedAt } from './speed.js';
 import { tempoMap } from './tempo.js';
 import { expandLoops } from './loops.js';
 import { resolveVolumes } from './volume.js';
@@ -9,7 +10,7 @@ export function createSheetPlanner(project, index, limit) {
     if (!Number.isSafeInteger(limit) || limit < 1)
         throw Error('Character limit must be a positive whole number.');
     const source = project.notes.filter(n => n.instrument === index).sort((a, b) => a.start - b.start || a.id - b.id);
-    const end = source.reduce((end, n) => Math.max(end, n.start + n.length), looped ? expanded.end : 0), tempos = tempoMap(project.notes);
+    const end = source.reduce((end, n) => Math.max(end, n.start + n.length), looped ? expanded.end : 0), tempos = tempoMap(project.notes, false), speeds = speedMap(project.notes);
     const volumes = resolveVolumes(source);
     const whole = generateMml(project, index, source, tempos, looped ? { endTick: end } : {});
     whole.warnings.push(...expanded.warnings);
@@ -22,7 +23,7 @@ export function createSheetPlanner(project, index, limit) {
             bpm = t.bpm;
         }
         const clock = [{ tick: 0, bpm }, ...tempos.filter(t => t.tick > start && t.tick < stop).map(t => ({ ...t, tick: t.tick - start }))];
-        return { ...generateMml(project, index, notes, clock, { endTick: stop - start, volumes, skipWarnings: true }), start, end: stop };
+        return { ...generateMml(project, index, notes, clock, { endTick: stop - start, volumes, skipWarnings: true, speeds: [{ tick: 0, multiplier: speedAt(speeds, start) }, ...speeds.filter(s => s.tick > start && s.tick < stop).map(s => ({ ...s, tick: s.tick - start }))] }), start, end: stop };
     };
     const next = (start) => {
         if (start < 0 || start >= end || !Number.isSafeInteger(start))

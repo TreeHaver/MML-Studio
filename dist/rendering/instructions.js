@@ -2,6 +2,7 @@ import { ctx, view } from '../dom.js';
 import { state, isMuted } from '../state.js';
 import { KEY, HEAD } from '../constants.js';
 import { tempoChanges } from '../music/tempo.js';
+import { speedRegions } from '../music/speed.js';
 import { loopRegions } from '../music/loops.js';
 import { INSTRUCTIONS_COLOR } from '../model/instructions.js';
 import { palette } from '../appearance.js';
@@ -17,6 +18,12 @@ export function drawLoopRegions() {
         }
     };
     paint(loopRegions(state.project).roots);
+    for (const r of speedRegions(state.project.notes).regions) {
+        const end = Number.isFinite(r.end) ? r.end : (view.scrollLeft + state.width) / state.zoom;
+        ctx.globalAlpha = .08;
+        ctx.fillStyle = state.project.instruments[r.instrument].color;
+        ctx.fillRect(KEY + r.start * state.zoom - view.scrollLeft, HEAD, (end - r.start) * state.zoom, state.height - HEAD);
+    }
     ctx.globalAlpha = 1;
 }
 export function drawInstructionLines() {
@@ -48,7 +55,7 @@ function captions() {
             continue;
         const instrument = state.project.instruments[n.instrument];
         if (instrument.isInstructions)
-            entries.push({ note: n, color: instrument.color, text: [n.section?.trim(), n.timeSignature, n.resetMeasures && n.section?.trim() ? 'Measure 1' : '', n.tempo == null ? '' : `T${n.tempo}`, n.loopEntry ? `Loop Entry ×${n.loopCount ?? 1}` : '', n.loopExit ? `Loop Exit${n.loopTie ? ' · Tie' : ''}` : ''].filter(Boolean).join(' · ') || 'Event' });
+            entries.push({ note: n, color: instrument.color, text: [n.section?.trim(), n.timeSignature, n.resetMeasures && n.section?.trim() ? 'Measure 1' : '', n.tempo == null ? '' : `T${n.tempo}`, n.speedEntry ? `Multiplier ×${n.speedMultiplier ?? 2}` : '', n.speedExit ? 'Multiplier Exit' : '', n.loopEntry ? `Loop Entry ×${n.loopCount ?? 1}` : '', n.loopExit ? `Loop Exit${n.loopTie ? ' · Tie' : ''}` : ''].filter(Boolean).join(' · ') || 'Event' });
         else if (n.tempo != null)
             entries.push({ note: n, color: INSTRUCTIONS_COLOR, text: `T${n.tempo}` });
     }

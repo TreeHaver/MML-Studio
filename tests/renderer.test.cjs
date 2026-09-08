@@ -326,6 +326,27 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  (await load('src/history.ts')).namespace.undo();await settle();assert.ok(latestEvents().some(e=>e.status===192&&e.data[0]===73));
  const beforeInvalidPreset=run('JSON.stringify(project)');changeVoice('instructions');await settle();assert.equal(run('JSON.stringify(project)'),beforeInvalidPreset,'Instructions cannot replace a musical preset');
  changeVoice('0');await settle();assert.equal(restoredNotes.at(-1)[0].pitch,60);
+ // Notes update during playback, including append-in-place drawing and paused edits.
+ const liveCommands=(await load('src/commands.ts')).namespace;
+ const liveOriginal=run('JSON.stringify(project.notes)');
+ run('project.notes.push({id:90,instrument:0,start:16,length:64,pitch:67,volume:11})');paint.draw();await settle();
+ assert.equal(transport.playback.tick,32);assert.equal(doc.getElementById('play').title,'Pause');
+ assert.ok(restoredNotes.at(-1).some(n=>n.pitch===67));assert.ok(latestEvents().some(e=>(e.status&240)===144&&e.data[0]===67));
+ liveCommands.commitNotes(run('project.notes.map(n=>n.id===90?{...n,start:96,pitch:69}:n)'));await settle();
+ assert.ok(!restoredNotes.at(-1).some(n=>n.pitch===67||n.pitch===69));assert.ok(latestEvents().some(e=>e.tick===96&&e.data[0]===69&&(e.status&240)===144));
+ doc.getElementById('play').onclick();const pausedEditTick=transport.playback.tick;
+ liveCommands.commitNotes(run('project.notes.map(n=>n.id===90?{...n,start:0,length:128}:n)'));await settle();
+ assert.equal(doc.getElementById('play').title,'Resume');assert.equal(frame,null);assert.equal(transport.playback.tick,pausedEditTick);
+ await transport.play();assert.ok(restoredNotes.at(-1).some(n=>n.pitch===69));
+ liveCommands.commitNotes(run('project.notes.filter(n=>n.id!==90)'));await settle();assert.ok(!latestEvents().some(e=>(e.status&240)===144&&e.data[0]===69));
+ (await load('src/history.ts')).namespace.undo();await settle();assert.ok(latestEvents().some(e=>(e.status&240)===144&&e.data[0]===69));
+ loadGate=new Promise(resolve=>{release=resolve});liveCommands.commitNotes(run('project.notes.map(n=>n.id===90?{...n,pitch:70}:n)'));await settle();
+ liveCommands.commitNotes(run('project.notes.map(n=>n.id===90?{...n,pitch:71}:n)'));release();loadGate=null;await settle();
+ assert.ok(restoredNotes.at(-1).some(n=>n.pitch===71));assert.ok(!latestEvents().some(e=>(e.status&240)===144&&e.data[0]===70));
+ liveCommands.commitNotes(run('project.notes.concat({id:91,instrument:1,start:0,length:1,pitch:60,volume:0,speedEntry:true,speedMultiplier:2})'));await settle();
+ assert.equal(transport.playback.tick,32);assert.equal(seq.currentTime,.25);assert.equal(doc.getElementById('playback-bpm').textContent,'240 BPM');
+ const noEditLoads=songLoads.length;paint.draw();paint.draw();await settle();assert.equal(songLoads.length,noEditLoads);
+ liveCommands.commitNotes(run('project.notes='+liveOriginal));await settle();
  loadGate=new Promise(resolve=>{release=resolve});changeVoice('40');await settle();transport.stopPlayback(false);release();loadGate=null;await settle();
  assert.equal(frame,null);assert.equal(transport.playback.tick,null);assert.equal(doc.getElementById('play').title,'Play');
  // Instruction captions float below the measure bar and stack at close onsets.
@@ -504,6 +525,23 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.equal(doc.getElementById('loop-count-field').hidden,true);assert.equal(doc.getElementById('loop-tie-field').hidden,false);
  doc.getElementById('loop-tie').checked=true;doc.getElementById('loop-tie').onchange();assert.equal(run('project.notes.find(n=>n.id===5).loopTie'),true);
  run('state.active=0;selection=new Set([1])');commands.refresh();assert.equal(doc.getElementById('pitch-field').hidden,false);
+ // Speed controls are undoable and live MML uses base T even without loops.
+ const speedFixture=run('JSON.stringify(project)');
+ run('project.notes=project.notes.map(n=>({...n,loopEntry:undefined,loopExit:undefined}));selection=new Set([2]);state.active=1');commands.refresh();
+ doc.getElementById('speed-entry').checked=true;doc.getElementById('speed-entry').onchange();
+ assert.equal(doc.getElementById('speed-multiplier-field').hidden,false);
+ const speedInput=doc.getElementById('speed-multiplier');speedInput.value='3';speedInput.onchange();
+ assert.equal(run('project.notes.find(n=>n.id===2).speedMultiplier'),3);
+ assert.equal(doc.getElementById('playback-bpm').textContent,'360 BPM');
+ assert.ok(mmlBox().children[0].textContent.includes('Instrument character count'));
+ let speedPayload;const previousMmlBridge=sandbox.window.mml;sandbox.window.mml={open:async payload=>{speedPayload=payload},update:async()=>{}};
+ await mmlBox().children[3].onclick();assert.match(speedPayload.channels[0],/t120/);assert.doesNotMatch(speedPayload.channels[0],/t360/);sandbox.window.mml=previousMmlBridge;
+ speedInput.value='0';speedInput.onchange();assert.equal(run('project.notes.find(n=>n.id===2).speedMultiplier'),3);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('project.notes.find(n=>n.id===2).speedMultiplier'),undefined);
+ run('selection=new Set([5])');commands.refresh();doc.getElementById('speed-exit').checked=true;doc.getElementById('speed-exit').onchange();
+ assert.equal(run('project.notes.find(n=>n.id===5).speedExit'),true);
+ assert.equal(doc.getElementById('speed-multiplier-field').hidden,true);
+ run('project='+speedFixture+';state.active=0;selection=new Set([1])');commands.refresh();
  // A paused live MML result stays frozen when a loop count changes.
  const loopMml=mmlBox();loopMml.children[1].children[0].checked=false;loopMml.children[1].children[0].onchange();const loopFrozen=loopMml.children[0].textContent;
  commands.commitNotes(run('project.notes.map(n=>n.id===2?{...n,loopCount:3}:n)'));assert.equal(mmlBox().children[0].textContent.replace(' · Out of date',''),loopFrozen);

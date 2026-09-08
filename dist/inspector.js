@@ -1,3 +1,4 @@
+import { speedRegions, validMultiplier } from './music/speed.js';
 import { loopRegions } from './music/loops.js';
 import { refreshStructure } from './toolbar.js';
 import { typedSignature } from './music/structure.js';
@@ -10,6 +11,8 @@ import { $, input } from './dom.js';
 import { state } from './state.js';
 import { name } from './music/pitch.js';
 import { volumeAt } from './music/volume.js';
+// A zone whose Entry is outside this view is automatic context, not a new Entry.
+const inheritedSpeed = (n) => !!n && !!state.segment && state.segment.projection.baseline.notes.some(b => b.id === n.id && b.speedEntry) && !state.segment.root.notes.some(o => o.id === n.id);
 export function info() {
     updateMml();
     refreshStructure();
@@ -29,6 +32,14 @@ export function info() {
     input('loop-count').disabled = !instructions || !n?.loopEntry;
     $('loop-count-field').hidden = !instructions || !n?.loopEntry;
     $('loop-tie-field').hidden = !instructions || !n?.loopExit;
+    for (const [id, key] of [['speed-entry', 'speedEntry'], ['speed-exit', 'speedExit']]) {
+        input(id).checked = !!n?.[key];
+        input(id).disabled = !instructions || inheritedSpeed(n);
+    }
+    input('speed-multiplier').value = String(n?.speedMultiplier ?? 2);
+    input('speed-multiplier').disabled = !instructions || !n?.speedEntry || inheritedSpeed(n);
+    $('speed-multiplier-field').hidden = !instructions || !n?.speedEntry;
+    $('speed-warning').textContent = inheritedSpeed(n) ? 'Inherited multiplier. Return to Project to edit its Entry.' : speedRegions(state.project.notes).warnings.join(' ');
     $('loop-warning').textContent = loopRegions(state.project).warnings.join(' ');
     for (const key of ['time-signature', 'section-name'])
         input(key).disabled = !instructions;
@@ -44,6 +55,19 @@ export function info() {
     }
 }
 export function installInspector() {
+    for (const [id, key] of [['speed-entry', 'speedEntry'], ['speed-exit', 'speedExit'], ['speed-multiplier', 'speedMultiplier']])
+        $(id).onchange = () => {
+            const n = anchor();
+            if (!n || inheritedSpeed(n) || !state.project.instruments[n.instrument].isInstructions || key === 'speedMultiplier' && !n.speedEntry)
+                return;
+            const value = key === 'speedMultiplier' ? Number(input(id).value) : input(id).checked;
+            if (key === 'speedMultiplier' && !validMultiplier(value)) {
+                status('Speed multiplier must be a positive finite number.');
+                info();
+                return;
+            }
+            commitNotes(state.project.notes.map(o => state.selection.has(o.id) && !inheritedSpeed(o) && state.project.instruments[o.instrument].isInstructions && (key !== 'speedMultiplier' || o.speedEntry) ? { ...o, [key]: value } : o));
+        };
     for (const [id, key] of [['loop-entry', 'loopEntry'], ['loop-exit', 'loopExit'], ['loop-tie', 'loopTie'], ['loop-count', 'loopCount']])
         $(id).onchange = () => {
             const n = anchor();

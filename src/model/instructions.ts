@@ -2,7 +2,7 @@ import type {Project} from './types.ts';
 export const INSTRUCTIONS_NAME='Instructions',INSTRUCTIONS_COLOR='#f4d35e';
 
 export function hasInstructions(project:Project){
- return project.notes.some(n=>project.instruments[n.instrument]?.isInstructions||n.tempo!=null||n.timeSignature||n.section||n.resetMeasures||n.loopEntry||n.loopExit||n.loopTie||n.loopCount!=null);
+ return project.notes.some(n=>project.instruments[n.instrument]?.isInstructions||n.tempo!=null||n.timeSignature||n.section||n.resetMeasures||n.loopEntry||n.loopExit||n.loopTie||n.loopCount!=null||n.speedEntry||n.speedExit||n.speedMultiplier!=null);
 }
 
 // Older version-2 files may contain several Instructions lanes. Preserve every

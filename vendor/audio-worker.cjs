@@ -16735,12 +16735,51 @@ function partitionChannels(source) {
 var MS2_DRUMS = { snare: { name: "Snare Drum", pitch: 38 }, bass: { name: "Bass Drum", pitch: 35 }, cymbals: { name: "Cymbals", pitch: 49 } };
 var playbackPitch = (instrument, pitch) => instrument.ms2Drum ? MS2_DRUMS[instrument.ms2Drum].pitch : pitch;
 
+// src/music/speed.ts
+var validMultiplier = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+function validSpeed(notes) {
+  return notes.every((n) => ["speedEntry", "speedExit"].every((k) => n[k] === void 0 || typeof n[k] === "boolean") && (n.speedMultiplier === void 0 || validMultiplier(n.speedMultiplier)));
+}
+function speedRegions(notes) {
+  const regions = [], stack = [], warnings = [];
+  for (const n of [...notes].filter((n2) => n2.speedEntry || n2.speedExit).sort((a, b) => a.start - b.start || Number(!!b.speedExit) - Number(!!a.speedExit) || a.id - b.id)) {
+    if (n.speedExit) {
+      const region = stack.pop();
+      if (region) {
+        region.end = n.start;
+        region.exit = n.id;
+      } else warnings.push(`Multiplier Exit at ${n.start} has no Entry; ignored.`);
+    }
+    if (n.speedEntry) {
+      const region = { start: n.start, end: Infinity, multiplier: n.speedMultiplier ?? 2, instrument: n.instrument, entry: n.id };
+      regions.push(region);
+      stack.push(region);
+    }
+  }
+  return { regions, warnings };
+}
+function speedMap(notes) {
+  if (!validSpeed(notes)) throw Error("Speed multiplier must be a positive finite number.");
+  const { regions } = speedRegions(notes), ticks = [.../* @__PURE__ */ new Set([0, ...regions.flatMap((r) => Number.isFinite(r.end) ? [r.start, r.end] : [r.start])])].sort((a, b) => a - b);
+  let previous = NaN;
+  return ticks.flatMap((tick) => {
+    const multiplier = regions.reduce((v, r) => r.start <= tick && tick < r.end ? v * r.multiplier : v, 1);
+    if (!validMultiplier(multiplier)) throw Error("Combined speed multiplier exceeds the numeric range.");
+    if (multiplier === previous) return [];
+    previous = multiplier;
+    return [{ tick, multiplier }];
+  });
+}
+function speedAt(map, tick) {
+  return map.findLast((t) => t.tick <= tick)?.multiplier ?? 1;
+}
+
 // src/music/tempo.ts
 var DEFAULT_TEMPO = 120;
 function validTempo(value) {
   return value == null || typeof value === "number" && Number.isInteger(value) && value > 0;
 }
-function tempoMap(notes) {
+function tempoMap(notes, simulate = true) {
   const map = /* @__PURE__ */ new Map();
   for (const n of notes) {
     if (!validTempo(n.tempo)) throw Error("Tempo must be a positive whole number of BPM.");
@@ -16749,7 +16788,10 @@ function tempoMap(notes) {
     map.set(n.start, n.tempo);
   }
   if (!map.has(0)) map.set(0, DEFAULT_TEMPO);
-  return [...map].sort((a, b) => a[0] - b[0]).map(([tick, bpm]) => ({ tick, bpm }));
+  const base = [...map].sort((a, b) => a[0] - b[0]).map(([tick, bpm]) => ({ tick, bpm }));
+  if (!simulate) return base;
+  const speeds = speedMap(notes);
+  return [.../* @__PURE__ */ new Set([...map.keys(), ...speeds.map((s) => s.tick)])].sort((a, b) => a - b).map((tick) => ({ tick, bpm: base.findLast((t) => t.tick <= tick).bpm * speedAt(speeds, tick) }));
 }
 var secondsPerTick = (bpm) => Math.round(6e7 / bpm) / 1e6 / 32;
 function secondsAtTick(map, tick) {
@@ -16843,6 +16885,7 @@ function loopRegions(source) {
 }
 function expandLoops(source, minimumEnd = 0) {
   const { roots, warnings } = loopRegions(source);
+  warnings.push(...speedRegions(source.notes).warnings);
   const end = source.notes.reduce((end2, n) => Math.max(end2, n.start + (source.instruments[n.instrument]?.isInstructions ? 0 : n.length)), minimumEnd);
   const duration = (start, end2, loops) => {
     let total = end2 - start;
@@ -16887,7 +16930,7 @@ function expandLoops(source, minimumEnd = 0) {
   if (!roots.length) return { project: source, end: Math.max(end, minimumEnd), warnings, spans, sourceTick, performanceTick };
   const project = { ...source, instruments: source.instruments.map((i) => ({ ...i })), notes: [] }, instruction = ensureInstructions(project);
   const sorted = [...source.notes].sort((a, b) => a.start - b.start || a.id - b.id), effective = resolveVolumes(sorted);
-  const clock = tempoMap(source.notes);
+  const clock = tempoMap(source.notes, false), speeds = speedMap(source.notes);
   let id = 0;
   let previous = [];
   for (const span of spans) {
@@ -16895,7 +16938,7 @@ function expandLoops(source, minimumEnd = 0) {
     for (const n of sorted) {
       const silent = source.instruments[n.instrument]?.isInstructions;
       if (silent) {
-        if (n.start >= span.start && n.start < span.end) project.notes.push({ ...n, id: ++id, start: span.tick + n.start - span.start, tempo: null, loopEntry: void 0, loopExit: void 0, loopTie: void 0, loopCount: void 0 });
+        if (n.start >= span.start && n.start < span.end) project.notes.push({ ...n, id: ++id, start: span.tick + n.start - span.start, tempo: null, loopEntry: void 0, loopExit: void 0, loopTie: void 0, loopCount: void 0, speedEntry: void 0, speedExit: void 0, speedMultiplier: void 0 });
         continue;
       }
       if (n.start >= span.end || n.start + n.length <= span.start) continue;
@@ -16918,6 +16961,13 @@ function expandLoops(source, minimumEnd = 0) {
     }
     const events = [{ tick: span.start, bpm }, ...clock.filter((t) => t.tick > span.start && t.tick < span.end)];
     for (const t of events) project.notes.push({ id: ++id, instrument: instruction, start: span.tick + t.tick - span.start, length: 1, pitch: 60, volume: 0, tempo: t.bpm });
+    const changes = [{ tick: span.start, multiplier: speedAt(speeds, span.start) }, ...speeds.filter((s) => s.tick > span.start && s.tick < span.end)];
+    for (let i = 0; i < changes.length; i++) {
+      const s = changes[i];
+      if (s.multiplier === 1) continue;
+      project.notes.push({ id: ++id, instrument: instruction, start: span.tick + s.tick - span.start, length: 1, pitch: 60, volume: 0, speedEntry: true, speedMultiplier: s.multiplier });
+      project.notes.push({ id: ++id, instrument: instruction, start: span.tick + (changes[i + 1]?.tick ?? span.end) - span.start, length: 1, pitch: 60, volume: 0, speedExit: true });
+    }
     previous = current;
   }
   return { project, end: tick, warnings, spans, sourceTick, performanceTick };
@@ -16945,7 +16995,7 @@ function validStructure(notes) {
 
 // src/model/validation.ts
 function valid(notes) {
-  if (!validStructure(notes) || !validLoops(notes)) return false;
+  if (!validStructure(notes) || !validLoops(notes) || !validSpeed(notes)) return false;
   try {
     tempoMap(notes);
   } catch {
@@ -16994,7 +17044,7 @@ function compilePlayback(project, minimumEnd = 0) {
   project = expanded.project;
   minimumEnd = expanded.end;
   if (!valid(project.notes)) throw Error("Invalid notes or conflicting tempo instructions.");
-  const map = tempoMap(project.notes), end = project.notes.reduce((end2, n) => Math.max(end2, n.start + n.length), minimumEnd);
+  const map = tempoMap(project.notes), end = project.notes.reduce((end2, n) => Math.max(end2, n.start + (project.instruments[n.instrument]?.isInstructions ? 0 : n.length)), minimumEnd);
   const conductor = map.map(({ tick, bpm }) => {
     const micros = Math.round(6e7 / bpm);
     if (micros < 1 || micros > 16777215) throw Error("This tempo cannot be represented by the MIDI preview engine. The project is unchanged.");

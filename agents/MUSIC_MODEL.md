@@ -11,7 +11,7 @@ The persisted format is `mml-studio`, version `2`. Sources: [types](../src/model
 | Project | Required `format`, `version`, `grid`, `instruments`, `notes`; optional string `name`. Grid is one of 4/8/16/32/64/128. At least one instrument is required. |
 | Instrument | Required `name` and six-digit hex `color`; optional `midiProgram` (zero-based 0–127), `isDrum`, `isInstructions`, `ms2Drum` (`snare`, `bass`, `cymbals`). Special roles are mutually exclusive. Missing flags mean melodic; missing program uses GM Piano. |
 | Note/event | Required unique integer `id`, owning instrument index, integer `start >= 0`, integer `length > 0`, integer numeric `pitch`, and `volume` (`null` or integer 0–15). |
-| Optional instructions | `tempo` (absent/null to inherit, otherwise positive integer BPM), `timeSignature`, `section`, `resetMeasures`, `loopEntry`, `loopExit`, `loopTie`, `loopCount`. See STRUCTURE_VIEWS for validation and activation. |
+| Optional instructions | `tempo` (absent/null to inherit, otherwise positive integer BPM), `timeSignature`, `section`, `resetMeasures`, `loopEntry`, `loopExit`, `loopTie`, `loopCount`, `speedEntry`, `speedExit`, `speedMultiplier`. See STRUCTURE_VIEWS for validation and activation. |
 
 Notes belong to instrument instances, not presets or editable channels. Two instruments using the same sound remain independent. Channels for MML/MIDI are temporary derived data. Pitch integers are not restricted to the MIDI or MS2 target ranges during editing/storage.
 
@@ -57,6 +57,12 @@ Default tempo is **120 BPM**. Stored T instructions are positive integers; no ed
 Note-bound and unbound tempos share one global clock. Unbound supported tempos belong to Instructions, including changes in rests or inside held notes. Muting an instrument must not remove its tempo from live playback, audio rendering or musical MML channels. Yellow timeline indicators use the same clock and omit redundant changes/implicit default 120.
 
 Generated musical channels must carry global tempo changes through their last note. Split rests and held notes at tempo boundaries; tie held continuations. MS2 ties prefix the continued note: emit `c4t150&c4`, never `c4&t150c4`. The selected-instrument MIDI file exporter currently has a separate [tempo-filtering limitation](IMPORT_EXPORT.md#known-export-limitations); it is not an exception to intended global-tempo semantics.
+
+## Simulated speed zones
+
+Advanced Instructions offers Multiplier Entry (default 2×) and Multiplier Exit. Optional version-2 fields are booleans `speedEntry` / `speedExit` and a positive finite numeric `speedMultiplier`; absent fields preserve existing behavior. See [zone and view rules](STRUCTURE_VIEWS.md#simulated-speed-multiplier-zones).
+
+Editable note positions, lengths, grid and stored integer BPM stay unchanged. The shared playback clock multiplies BPM in the zone. MML uses the base BPM and divides every note/rest span by the active multiplier, tying held continuations at boundaries. Decimal multipliers and fractional derived durations use exact rational notation; they are not rounded back into version-2 note timing. Explicit denominators beyond 128 receive a target-support warning. MML import still has the existing integer-model-resolution conversion rules.
 
 ## Overlap warnings, density and note lifetimes
 
