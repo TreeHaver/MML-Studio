@@ -955,3 +955,21 @@ Packaging now includes every file in the source Example Project folder, preservi
 Changed: package-release.ps1, tests/release.test.cjs, PROGRESS.md. Actual validation: incremental build and full package-release.ps1 passed; both existing release tests passed, with added source-to-stage byte comparison for example files. Confirmed Song of Storms.json is present in the completed release ZIP. No native UI testing claimed. git diff --check passed.
 
 Delivery: updated releases/MML Music Studio-win32-x64.zip and focused example-project-staging-patch.zip. No outstanding task-specific work.
+
+## Example Project beside the executable — 2026-09-08
+
+Moved the release's Example Project folder out of resources/app and into the extracted application folder, beside MML Music Studio.exe. The script copies source examples directly into the release root before compression; staging/app now contains only runtime files. This replaces the earlier internal staging location.
+
+Changed: package-release.ps1, tests/release.test.cjs, PROGRESS.md. Actual validation: incremental build and full packaging passed; both release tests passed, checking examples match the source bytes beside the EXE and are absent from resources/app. Inspected completed ZIP entries: the only example is MML Music Studio-win32-x64/Example Project/Song of Storms.json. git diff --check passed. No native UI testing claimed.
+
+Delivery: rebuilt releases/MML Music Studio-win32-x64.zip and example-project-visible-patch.zip. No outstanding task-specific work.
+
+## Repair startup after HTML and renderer became mismatched — 2026-09-08
+
+Reproduced the empty/nonfunctional editor in native Electron. The current index.html lacked vertical-zoom, reset-zoom, section-menu and the audio-export controls while the corresponding TypeScript/modules were present. The first visible exception was toolbar.js assigning oninput to null for vertical-zoom, aborting startup before instruments, importing and painting initialized. The FFmpeg prestart check was not involved. Compared the HTML against the earlier verified Section-menu patch; restored only the matching index.html, preserving current scripts/styles and the visible Example Project release layout. No conclusion about how the older HTML entered the checkout.
+
+The renderer stub previously fabricated every requested element even if absent from the real HTML. It now checks requested IDs against index.html. The enhanced regression failed on the broken HTML (missing section-menu) and passes with the repaired HTML.
+
+Changed: index.html, tests/renderer.test.cjs, PROGRESS.md; regenerated staging and release ZIP. Actual validation: incremental build, renderer integration, npm prestart via installed npm-cli.js, native electron-ui (19 checks), electron-midi-import, electron-audio-export (all six formats and cancellation), and electron-release (startup, title update, sound bank and synth initialization) passed. Both release content/icon tests passed. The native packaged-startup test reproduced the failure before the fix and passed after rebuilding. git diff --check passed. No manual UI testing or physical listening claimed.
+
+Delivery: repaired releases/MML Music Studio-win32-x64.zip and startup-html-fix-patch.zip. No outstanding task-specific work.

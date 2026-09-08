@@ -7,8 +7,8 @@ test('release app exactly matches clean staging and includes runtime code/assets
  assert.deepEqual(files(app).sort(),staged);
  for(const file of files(path.join(root,'Example Project'))){
   const relative='Example Project/'+file;
-  assert.ok(staged.includes(relative),relative);
-  assert.ok(fs.readFileSync(path.join(root,relative)).equals(fs.readFileSync(path.join(stage,relative))),relative);
+  assert.ok(!staged.includes(relative),'Examples stay outside resources/app: '+relative);
+  assert.ok(fs.readFileSync(path.join(root,relative)).equals(fs.readFileSync(path.join(release,relative))),relative);
  }
  for(const file of staged){
   assert.doesNotMatch(file,/\.md$|\.zip$|\.map$|^\.|node_modules|^src\/|^tests\/|\.bat$|\.ps1$/);

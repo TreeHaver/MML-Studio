@@ -44,7 +44,7 @@ try {
     $exampleFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'Example Project') -Recurse -File | ForEach-Object {
         $_.FullName.Substring($projectRoot.Length + 1)
     })
-    $files = @($runtimeFiles) + @($assetFiles | ForEach-Object { 'assets\' + $_ }) + @($vendorFiles | ForEach-Object { 'vendor\' + $_ }) + $compiledFiles + $exampleFiles
+    $files = @($runtimeFiles) + @($assetFiles | ForEach-Object { 'assets\' + $_ }) + @($vendorFiles | ForEach-Object { 'vendor\' + $_ }) + $compiledFiles
     foreach ($file in $files) {
         if (-not (Test-Path -LiteralPath (Join-Path $projectRoot $file) -PathType Leaf)) { throw "Missing runtime file: $file. Run build.bat after npm ci." }
     }
@@ -82,6 +82,12 @@ try {
     $defaultApp = Join-Path $releasePath 'resources\default_app.asar'
     if (Test-Path -LiteralPath $defaultApp) { Remove-Item -LiteralPath $defaultApp }
     Copy-Item -LiteralPath $stagePath -Destination (Join-Path $releasePath 'resources\app') -Recurse
+    # User-openable examples belong beside the EXE, outside the application internals.
+    foreach ($file in $exampleFiles) {
+        $target = Join-Path $releasePath $file
+        New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+        Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $target
+    }
     Write-Host "Packaged Electron $electronVersion at $releasePath"
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zipPath = $releasePath + '.zip'
