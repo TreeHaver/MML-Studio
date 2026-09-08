@@ -1,8 +1,9 @@
 import { $ } from './dom.js';
 import { draw } from './painting.js';
-export const palette = { gridA: '#e5f1fa', gridB: '#deedf8', row: '#275d8010', octave: '#387ba447', cRow: '#398bce16', bar: '#3e789760', beat: '#3c73951c', ruler: '#c8dfef', text: '#284d68', keyDark: '#3f4144', keyLight: '#ffffff', keyLine: '#c9ced2', corner: '#b7d3e7', background: '#deedf8', playhead: '#1689dc' };
+export const palette = { gridA: '#e5f1fa', gridB: '#deedf8', row: '#275d8010', octave: '#387ba447', cRow: '#398bce16', bar: '#3e789760', beat: '#3c73951c', ruler: '#c8dfef', text: '#284d68', keyDark: '#3f4144', keyLight: '#ffffff', keyLine: '#c9ced2', corner: '#b7d3e7', background: '#deedf8', playhead: '#1689dc', pianoWhite: '#ffffff', pianoBlack: '#2b3238', pianoLine: '#b7c4cd', pianoLabel: '#5d7382' };
+export const keyboardView = { piano: false };
 const sky = { ...palette };
-const night = { gridA: '#171717', gridB: '#1b1b1b', row: '#ffffff08', octave: '#ffffff25', cRow: '#5b9cda18', bar: '#ffffff38', beat: '#ffffff12', ruler: '#252525', text: '#dddddd', keyDark: '#111111', keyLight: '#bfbfbf', keyLine: '#2a2a2a', corner: '#202020', background: '#171717', playhead: '#eeeeee' };
+const night = { gridA: '#171717', gridB: '#1b1b1b', row: '#ffffff08', octave: '#ffffff25', cRow: '#5b9cda18', bar: '#ffffff38', beat: '#ffffff12', ruler: '#252525', text: '#dddddd', keyDark: '#111111', keyLight: '#bfbfbf', keyLine: '#2a2a2a', corner: '#202020', background: '#171717', playhead: '#eeeeee', pianoWhite: '#bfbfbf', pianoBlack: '#101010', pianoLine: '#8f8f8f', pianoLabel: '#3d3d3d' };
 const key = 'mml-studio-workspace-v1';
 export function installAppearance() {
     if (!document.documentElement)
@@ -80,7 +81,7 @@ export function installAppearance() {
             panel.style.minWidth = box.width + 'px';
             panel.style.maxWidth = Math.round(innerWidth - 16) + 'px';
             const below = innerHeight - box.bottom - 14, above = box.top - 14, full = panel.offsetHeight;
-            const height = Math.min(full, Math.max(below, above), 300);
+            const height = Math.min(full, Math.max(below, above));
             panel.style.maxHeight = height + 'px';
             panel.style.left = Math.round(Math.max(8, Math.min(box.left, innerWidth - panel.offsetWidth - 8))) + 'px';
             panel.style.top = Math.round(below >= height ? box.bottom + 4 : box.top - height - 4) + 'px';
@@ -138,7 +139,7 @@ export function installAppearance() {
     new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => { if (!(node instanceof Element))
         return; if (node.matches('select'))
         decorateSelect(node); node.querySelectorAll('select').forEach(select => decorateSelect(select)); }))).observe(document.body, { childList: true, subtree: true });
-    let settings = { theme: 'sky', left: 264, right: 234, leftHidden: false, rightHidden: false };
+    let settings = { theme: 'sky', left: 264, right: 234, leftHidden: false, rightHidden: false, piano: false };
     try {
         const saved = JSON.parse(localStorage.getItem(key) ?? 'null');
         if (saved) {
@@ -150,6 +151,7 @@ export function installAppearance() {
             }
             settings.leftHidden = saved.leftHidden === true;
             settings.rightHidden = saved.rightHidden === true;
+            settings.piano = saved.piano === true;
         }
     }
     catch { }
@@ -165,10 +167,11 @@ export function installAppearance() {
             l = baseL + Math.floor((l - baseL) * extra / wanted);
             r = baseR + Math.floor((r - baseR) * extra / wanted);
         }
-        main.style.gridTemplateColumns = `${l}px 6px minmax(0,1fr) 6px ${r}px`;
+        main.style.gridTemplateColumns = `${l}px ${l ? 6 : 0}px minmax(0,1fr) ${r ? 6 : 0}px ${r}px`;
         $('track-panel').hidden = settings.leftHidden;
         $('note-properties').hidden = settings.rightHidden;
         for (const [side, handle, width] of [['left', left, l], ['right', right, r]]) {
+            handle.dataset.collapsed = String(!width);
             handle.setAttribute('aria-valuenow', String(width));
             handle.setAttribute('aria-valuemax', String(Math.max(180, main.clientWidth - 340 - 12 - (side === 'left' ? r : l))));
             $('toggle-' + side).setAttribute('aria-pressed', String(!settings[side + 'Hidden']));
@@ -213,7 +216,31 @@ export function installAppearance() {
             finish(true); };
         $('toggle-' + side).onclick = () => { settings[hidden] = !settings[hidden]; fit(); save(); };
     }
+    // Only the painting changes: pitch rows, hit testing and previews are the same either way.
+    const keys = () => {
+        keyboardView.piano = settings.piano;
+        const button = $('key-style');
+        button.setAttribute('aria-pressed', String(settings.piano));
+        button.title = settings.piano ? 'Show the keys as note names' : 'Show the keys as a piano';
+        draw();
+    };
+    $('key-style').onclick = () => { settings.piano = !settings.piano; keys(); save(); };
+    // The playback button moved to the left of the toolbar, so its panel opens rightwards.
+    // In a narrow editor that would reach over the inspector, so it is pulled back to fit.
+    const playback = $('playback-menu');
+    const playbackPanel = playback.querySelector('.playback-panel');
+    const placePlayback = () => {
+        playbackPanel.style.left = '';
+        const editor = $('view').parentElement.parentElement.getBoundingClientRect(), box = playbackPanel.getBoundingClientRect();
+        const over = box.right - (editor.right - 8), room = box.left - editor.left - 8;
+        if (over > 0 && room > 0)
+            playbackPanel.style.left = `${-Math.min(over, room)}px`;
+    };
+    // An open panel has to be placed again when the window changes, not only when it opens.
+    playback.addEventListener('toggle', placePlayback);
+    const layout = () => { fit(); placePlayback(); };
     theme();
-    fit();
-    new ResizeObserver(fit).observe(main);
+    keys();
+    layout();
+    new ResizeObserver(layout).observe(main);
 }

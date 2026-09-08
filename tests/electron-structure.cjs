@@ -14,12 +14,12 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  assert.equal(await evaluate(`document.getElementById('view').scrollLeft`),384);
  await evaluate(`document.getElementById('save').onclick()`);assert.equal(path.basename(written[0]),'Three-quarter suite.json');
  assert.equal(JSON.parse(fs.readFileSync(written[0],'utf8')).notes[2].resetMeasures,true);
- await evaluate(`document.getElementById('export-sections').checked=true;document.getElementById('export-project').onclick()`);
+ await evaluate(`document.getElementById('export-sections').checked=true;document.getElementById('scope-all').checked=true;document.getElementById('scope-selected').checked=false;document.getElementById('export-run').onclick()`);
  assert.deepEqual(written.slice(1).map(f=>path.basename(f)),['01-Opening-Piano.ms2mml','02-Second song-Flute.ms2mml']);
  await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`);
- assert.equal(await evaluate(`document.getElementById('export-menu').getBoundingClientRect().right<=innerWidth`),true);
+ assert.equal(await evaluate(`document.getElementById('export-open').getBoundingClientRect().right<=innerWidth`),true);
  fs.writeFileSync('.validation/electron-structure.png',(await win.webContents.capturePage()).toPNG());
  win.setSize(900,700);await evaluate(`new Promise(r=>setTimeout(r,150))`);
- assert.equal(await evaluate(`document.getElementById('export-menu').getBoundingClientRect().right<=innerWidth`),true);
+ assert.equal(await evaluate(`document.getElementById('export-open').getBoundingClientRect().right<=innerWidth`),true);
  stage='completed native editing, section navigation, reset alignment, responsive header and IPC saves/exports; OS picker stubbed';finish();
  }catch(error){finish(error);}});});require('../main.cjs');

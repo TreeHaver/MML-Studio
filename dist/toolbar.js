@@ -1,4 +1,4 @@
-import { sections, signatureAt, signatureChangeTick, validSignature } from './music/structure.js';
+import { sections, signatureAt, signatureChangeTick, typedSignature } from './music/structure.js';
 import { ensureInstructions } from './model/instructions.js';
 import { layout } from './viewport.js';
 import { draw } from './painting.js';
@@ -39,7 +39,7 @@ export function installToolbar() {
     $('section-nav').onchange = () => { const value = input('section-nav').value; if (value === '')
         return; seekToTick(Number(value)); view.scrollLeft = Number(value) * state.zoom; draw(); };
     let editTick = 0;
-    $('current-signature').onfocus = () => { editTick = signatureTick(); };
+    $('current-signature').onfocus = () => { editTick = signatureTick(); $('current-signature').classList.remove('invalid'); };
     $('current-signature').onchange = () => {
         const field = input('current-signature'), value = field.value.trim();
         if (state.segment && editTick >= state.segment.projection.range.end - state.segment.projection.range.start) {
@@ -47,11 +47,12 @@ export function installToolbar() {
             field.value = signatureAt(state.project, 0);
             return;
         }
-        if (!validSignature(value)) {
-            status('Use a time signature such as 3/4 or 6/8 (denominator 1–128, powers of two).');
-            field.value = signatureAt(state.project, editTick);
+        if (!typedSignature(value)) {
+            field.classList.add('invalid');
+            status('Use a time signature such as 3/4 or 6/8: 1–32 beats over 1, 2, 4, 8, 16, 32, 64 or 128.');
             return;
         }
+        field.classList.remove('invalid');
         if (value === signatureAt(state.project, editTick)) {
             field.value = value;
             return;
@@ -68,7 +69,7 @@ export function installToolbar() {
         refresh();
         status(`Time signature ${value} at measure start ${target}.`);
     };
-    $('current-signature').onblur = () => refreshSignature();
+    $('current-signature').onblur = () => { $('current-signature').classList.remove('invalid'); refreshSignature(); };
     $('draw').onclick = () => setTool('draw');
     $('select').onclick = () => setTool('select');
     $('spray').onclick = () => setTool('spray');

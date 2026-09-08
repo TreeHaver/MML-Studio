@@ -25,8 +25,8 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  await run(`document.getElementById('import-midi').onclick()`);await type('project-name','Declined import');assert.equal(await run('s.project.notes.length'),0);checks.push('Declined native confirmation preserves project and typing');
  answer=0;await run(`document.getElementById('import-midi').onclick()`);assert.equal(await run(`document.getElementById('midi-report').open`),true,await run(`document.getElementById('status').textContent`));
  await run(`document.getElementById('midi-report-close').click()`);await type('project-name','Imported song');assert.equal(await run('s.project.notes.length'),2);
- await run(`document.getElementById('export-menu').open=true`);await type('character-limit','12000');checks.push('Accepted import/report close restores Project and Character limit typing');
- await run(`document.getElementById('export-menu').open=false;document.getElementById('save').onclick()`);await type('project-name','After save');checks.push('Canceled save restores typing');
+ await type('character-limit','12000');checks.push('Accepted import/report close restores Project and Character limit typing');
+ await run(`document.getElementById('save').onclick()`);await type('project-name','After save');checks.push('Canceled save restores typing');
  await run(`import('./dist/commands.js').then(({refresh})=>{s.project.instruments.push({name:'Instructions',color:'#f4d35e',isInstructions:true});s.project.notes.push({id:100,instrument:1,start:128,length:1,pitch:60,volume:0});s.active=1;s.selection=new Set([100]);refresh()})`);
  await type('time-signature','3/4');await type('section-name','New song');await run(`document.getElementById('tempo').focus()`);
  assert.equal(await run('s.project.notes.at(-1).timeSignature'),'3/4');assert.equal(await run('s.project.notes.at(-1).section'),'New song');checks.push('Instructions fields accept native mouse clicks and keyboard text after import');

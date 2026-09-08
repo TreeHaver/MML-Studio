@@ -1,6 +1,6 @@
 import {loopRegions} from './music/loops.ts';
 import {refreshStructure} from './toolbar.ts';
-import {validSignature} from './music/structure.ts';
+import {typedSignature} from './music/structure.ts';
 import {updateMml} from './mml.ts';
 import {tempoAt,validTempo} from './music/tempo.ts';
 import {status} from './dom.ts';
@@ -40,7 +40,8 @@ for(const [id,key] of [['loop-entry','loopEntry'],['loop-exit','loopExit'],['loo
 $('section-reset').onchange=()=>{const n=anchor();if(!n||!state.project.instruments[n.instrument].isInstructions)return;const resetMeasures=input('section-reset').checked;commitNotes(state.project.notes.map(o=>state.selection.has(o.id)&&state.project.instruments[o.instrument].isInstructions?{...o,resetMeasures}:o));};
 for(const [id,key] of [['time-signature','timeSignature'],['section-name','section']] as const)$(id).onchange=()=>{
  const n=anchor();if(!n||!state.project.instruments[n.instrument].isInstructions)return;const value=input(id).value.trim();
- if(key==='timeSignature'&&value&&!validSignature(value)){status('Use a time signature such as 3/4 or 6/8 (denominator 1–128, powers of two).');info();return;}
+ if(key==='timeSignature'&&value&&!typedSignature(value)){input(id).classList.add('invalid');status('Use a time signature such as 3/4 or 6/8: 1–32 beats over 1, 2, 4, 8, 16, 32, 64 or 128.');return;}
+ if(key==='timeSignature')input(id).classList.remove('invalid');
  commitNotes(state.project.notes.map(o=>state.selection.has(o.id)&&state.project.instruments[o.instrument].isInstructions?{...o,[key]:value}:o));
 };
 for(let v=0;v<=15;v++){const option=document.createElement('option');option.value=String(v);option.textContent='V'+v;$('volume').append(option);}

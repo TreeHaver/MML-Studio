@@ -1,6 +1,6 @@
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('nativeDialogs',{confirm:message=>ipcRenderer.sendSync('confirm-action',message),closeChoice:()=>ipcRenderer.invoke('close-choice')});
-contextBridge.exposeInMainWorld('files',{soundBank:()=>ipcRenderer.invoke('sound-bank'),save:text=>ipcRenderer.invoke('save',text),open:()=>ipcRenderer.invoke('open'),importMidi:()=>ipcRenderer.invoke('import-midi'),exportMml:(name,text)=>ipcRenderer.invoke('export-mml',name,text)});
+contextBridge.exposeInMainWorld('files',{soundBank:()=>ipcRenderer.invoke('sound-bank'),save:text=>ipcRenderer.invoke('save',text),open:()=>ipcRenderer.invoke('open'),importMidi:()=>ipcRenderer.invoke('import-midi'),exportMml:(name,text)=>ipcRenderer.invoke('export-mml',name,text),exportText:(name,text)=>ipcRenderer.invoke('export-text',name,text),exportMidi:(name,bytes)=>ipcRenderer.invoke('export-midi',name,bytes)});
 
 contextBridge.exposeInMainWorld('mml',{open:data=>ipcRenderer.invoke('mml-open',data),update:data=>ipcRenderer.invoke('mml-update',data),onData:callback=>ipcRenderer.on('mml-data',(_,data)=>callback(data)),ready:()=>ipcRenderer.send('mml-ready'),copy:text=>ipcRenderer.invoke('mml-copy',text)});
 

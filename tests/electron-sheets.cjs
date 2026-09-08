@@ -10,13 +10,13 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  const marker=await evaluate(`(()=>{const cut=planner(s.project,0,60).next(0).end;const c=document.getElementById('canvas');const pixel=Array.from(c.getContext('2d').getImageData(Math.round((62+cut)*devicePixelRatio),Math.round(50*devicePixelRatio),1,1).data);return {cut,pixel};})()`);assert.deepEqual(marker.pixel,[229,57,53,255]);
  await evaluate(`s.project.notes=s.project.notes.map(n=>({...n,start:n.start*2,length:n.length*2}));refresh();`);
  assert.notEqual(await evaluate(`planner(s.project,0,60).next(0).end`),marker.cut);
- await evaluate(`document.getElementById('export-selected').click()`);assert.equal(await evaluate(`document.getElementById('export-limit-dialog').open`),true);
+ await evaluate(`document.getElementById('scope-selected').checked=true;document.getElementById('scope-all').checked=false;document.getElementById('export-run').click()`);assert.equal(await evaluate(`document.getElementById('export-limit-dialog').open`),true);
  assert.equal(await evaluate(`document.getElementById('export-limit-single').textContent`),'Yes, and in a single file');
  await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
  fs.writeFileSync('.validation/electron-sheets.png',(await win.webContents.capturePage()).toPNG());
  await evaluate(`document.getElementById('export-limit-no').click();new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`);assert.equal(written.length,0);
- await evaluate(`document.getElementById('export-selected').click();document.getElementById('export-limit-single').click();new Promise(r=>setTimeout(r,100))`);assert.equal(written.length,1);
- await evaluate(`document.getElementById('export-selected').click();document.getElementById('export-limit-parts').click();new Promise(r=>setTimeout(r,200))`);assert.ok(written.length>2);
+ await evaluate(`document.getElementById('export-run').click();document.getElementById('export-limit-single').click();new Promise(r=>setTimeout(r,100))`);assert.equal(written.length,1);
+ await evaluate(`document.getElementById('export-run').click();document.getElementById('export-limit-parts').click();new Promise(r=>setTimeout(r,200))`);assert.ok(written.length>2);
  for(const file of written.slice(1)){const xml=fs.readFileSync(file,'utf8'),text=[...xml.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>/g)].map(m=>m[1]).join('');assert.ok(text.length<=60);}
  assert.match(await evaluate(`document.getElementById('status').textContent`),/^Exported/);
  stage='completed native canvas, setting persistence, dialog choices and IPC file writes (save picker stubbed)';finish();

@@ -754,3 +754,125 @@ Actual validation: node tests/run.cjs passed incremental build and all 112 tests
 Evidence: .validation/close-layout-tests.log; .validation/electron-close-{save,clean,discard,quit,import}.json; .validation/electron-segment-view.json; .validation/electron-segment-view.png, .validation/electron-segment-return-900.png and .validation/electron-segment-return-night.png.
 
 build.bat passed incremental compilation, guarded staging of 87 runtime files, executable branding and full ZIP creation. Both release content/icon tests pass, and tests/electron-release.cjs passes packaged renderer/audio startup under an isolated profile. Build log: .validation/audit-release-build.log; packaged result: .validation/electron-release.json. Refreshed releases/MML Music Studio-win32-x64.zip includes all A1–A7 fixes, so earlier patch ZIPs are not required when installing this release. Focused source/runtime patch: mml-studio-close-layout-patch.zip. All seven audit findings are reviewed: A2 is documented intended behavior, the other six are fixed. No unanswered findings remain from this audit.
+
+## The section-export checkbox explains itself — 2026-09-08
+
+In the Export panel's Options section, Character limit carried a hint and "Export sections as separate song sheets" carried none, so the only option with a consequence worth knowing was the silent one. It now has the same kind of line beneath it: the export is cut at every section name in Instructions, one numbered file per section, and nothing changes when no section names exist. That last clause matters because the checkbox stays checkable in a project with no markers, where `exportSegments` falls back to a single unnamed segment.
+
+The hint fades with the checkbox when a Segment disables it, which the existing `.export-check:has(input:disabled)` rule did not reach.
+
+Changed: index.html, studio.css. Actual validation: incremental build, node tests/run.cjs 112 passing, and an Electron probe of the rendered hint: 7px below the checkbox, left edge equal to the first hint's, 11px clear of both panel edges, 47px over three lines at 10px in the secondary colour.
+
+## The sheet limit moves beside the roll, and Export becomes a dialog — 2026-09-08
+
+Character limit sat in the Export dropdown, but it is not an export decision: it draws the red cut line on the roll and you watch it while writing. It now occupies the caption strip, in place of the decorative "PIANO ROLL" title, which named the area and did nothing else. The field is styled like the time-signature field beside it and keeps the old explanation as its tooltip. Below 1000px the word is dropped and the number box remains, the way the project name already behaves.
+
+Measured before and after at four widths: identical single-row caption at 1400, 1100 and 1000px. At 900px the strip already wrapped before this change (56px tall), and now wraps 10px lower because a 24px field is taller than a text label; the toolbar already overflows at that width.
+
+Export is no longer a dropdown. It is a button opening a modal dialog that asks how to export: a Format list, the section option with its explanation, then Cancel / Selected instrument / All instruments. One format exists today, MS2MML, and the list is a row per format so adding one adds a row. Measured at 560x410 inside the viewport with its backdrop, Cancel closing it, and the character-limit dialog still opening on top when a sheet runs long.
+
+The divider-drag check in tests/electron-ui.cjs failed about one run in four: a single synthetic mouseMove is sometimes swallowed between the pointer capture and the first handler run, and resending the same coordinate is coalesced away rather than dispatched. Each retry now nudges one pixel, so it is a real move. Six consecutive runs clean.
+
+Two Electron files fail for reasons that predate this work, both verified on a clean tree at b8d7c93: electron-behavior-audit needs fixture JSON under .validation/behavior-audit that the repository does not carry, and electron-timeline reads a canvas pixel expecting the unbound-tempo yellow 244,211,94 and finds 207,203,148.
+
+Changed: index.html, studio.css, themes.css, src/export.ts, src/chrome.ts and their dist outputs. Tests: electron-ui, electron-dialog-focus, electron-segment-view, electron-structure follow the dialog instead of the dropdown; renderer.test.cjs stubs it. Actual validation: incremental build, node tests/run.cjs 112 passing, Electron probes of the caption at four widths and of the dialog geometry, and every Electron file except the two named above.
+
+## Three more export formats, a themed colour picker, and a caption that stops repeating itself — 2026-09-08
+
+The Export dialog now offers four formats, each a row that says what it writes: the MS2MML sheet as before, plain MML text as a .txt, a copy straight to the clipboard, and a MIDI file. The two buttons keep their old job of choosing how much to write. MIDI carries the whole performance including tempo changes, so the character limit does not apply to it; the sheet formats share the planner, the limit and its parts prompt. Text and clipboard separate channels with a blank line, because a channel is what you paste in game, one at a time.
+
+Three IPC handlers were added for this: export-text, export-midi and copy-text. copy-text only answers the editor window, as mml-copy only answers the MML window.
+
+The caption strip no longer names the selected instrument. The instruments panel already shows it, selected, coloured and named, so the label repeated what was two centimetres away.
+
+The colour control was an input[type=color], which opens Chromium's colour dialog: an operating-system window that page CSS cannot reach, so it always looked like it belonged to another program. It is now a rounded swatch opening an in-app panel of twelve colours, the six the project already assigns to new instruments plus six in the same family. A colour arriving from an imported project is kept and shown alongside them, so opening the panel can never lose it. The panel closes on a pick, on Escape, on a click outside, and whenever the instruments list rebuilds under it.
+
+An earlier attempt to verify this failed silently and is worth recording: the probe replaced window.files.exportMml with a stub, but contextBridge objects are frozen, so the assignment did nothing, the real save dialog opened, and every export hung on a native window that was never answered. Stubbing dialog.showSaveDialog in the main process instead exercises the actual IPC path, which is what tests/electron-sheets.cjs already does.
+
+New: tests/electron-export-formats.cjs, covering all four formats through the real handlers, the file that each writes, the clipboard matching the text file, the MThd header on the MIDI, and the colour panel's palette, marking, rounding and three ways of closing. Three consecutive runs clean.
+
+Changed: index.html, studio.css, themes.css, main.cjs, preload.cjs, src/export.ts, src/instruments.ts, new src/color-picker.ts, and their dist outputs. Tests: electron-ui follows the selection through the instrument cards now that the caption label is gone. Actual validation: incremental build, node tests/run.cjs 112 passing, the new native test, and the whole Electron sweep. Failing for reasons that predate this work: electron-timeline (a canvas pixel, verified identical on a clean tree at b8d7c93), electron-behavior-audit (fixture JSON the repository does not carry) and electron-release (needs a packaged build). electron-behavior is timing-flaky on a 100ms playback tick and passed three reruns.
+
+## The key column can look like a piano — 2026-09-08
+
+A toggle in the editor toolbar switches the key column between note names and a piano. The pitch rows were already keyboard-shaped, naturals 20px and sharps 15px from src/music/pitch-layout.ts, so the piano needed different paint rather than a different layout: one white surface, black keys covering the back 38 of the 62px column, the boundary between two white keys drawn through the middle of the black key that separates them, and E|F and B|C meeting at the row edge as they do on an instrument. Only the Cs are labelled; naming every key turns the keyboard back into the list it replaced.
+
+Nothing but drawKeyboard changed. Pitch rows, hit testing, previews and note geometry are shared by both views, verified natively: the same click still previews the same pitch with the piano showing. The choice is stored with the workspace next to the theme and the panel widths. Both themes carry the four new palette entries.
+
+The larger half of the request, flipping the editor so the keyboard sits at the bottom and notes fall from above, was measured and declined. The mapping of x to time is written into 13 source modules and 10 test files, and it governs drawing, the ruler, the playhead, the sheet-cut line, loop regions and every pointer gesture, so a vertical mode is a second editor rather than a view. The site that inspired it is a player, not an editor. If the effect is still wanted, a playback-only falling view costs a fraction of that because it never has to accept a gesture.
+
+The button uses its own class rather than .panel-toggle, which names the pair of side-panel toggles that electron-ui counts.
+
+The divider-drag helper in tests/electron-ui.cjs was hardened again. Nudging each resend by a pixel took it from failing about one run in four to about one in ten; the residue was a press that produced no movement at all, which left nothing to poll for. It now lets go and presses again, up to three times. Eight consecutive runs clean.
+
+Changed: index.html, studio.css, src/appearance.ts, src/rendering/keyboard.ts and their dist outputs. Tests: electron-pitch-layout covers the piano view's pixels, its stored setting and the unchanged preview; electron-ui's divider helper. Actual validation: incremental build, node tests/run.cjs 112 passing, and the whole Electron sweep, everything green except electron-timeline, which fails on a canvas pixel identically on a clean tree at b8d7c93.
+
+## A real colour picker, one Export button, and lists that use the room they have — 2026-09-08
+
+The palette-only colour panel was a mistake: replacing Chromium's dialog was right, taking away every colour that is not a preset was not. The panel is now a picker in the editor's style — a shade square, a hue bar and a hex field, so any colour at all is reachable — with the project's twelve instrument colours kept underneath as one-click presets. Dragging commits on release rather than on every frame, so exploring a colour leaves one entry in the history instead of dozens.
+
+Export now asks its question once. The two buttons at the bottom read as two ways of exporting when they were two quantities, and neither looked like the action. Scope moved up into Options as a choice between all instruments and the selected one, and the bottom carries Cancel and a single Export. A line explains what was never written down: each instrument is its own sheet, because a band loads one file per player, which is the same shape the reference site publishes its parts in.
+
+The rule above those buttons had not gone away when the border-top was removed from .export-dialog-actions, because the row was a <footer> and studio.css styles the bare footer tag for the status bar — padding, 10px text and a top border included. It is a <div> now. Measured: border-top 0px, dialog 560x719 inside the window.
+
+Select lists were capped at 300px regardless of the space beside them. The cap is gone: in a default window the instrument list shows 16 presets instead of 9, and it still shrinks to fit, 305px in a 600px-tall window, always inside the viewport.
+
+The simulated DOM in tests/renderer.test.cjs gained a dataset, which the swatch uses to carry its current colour.
+
+Changed: index.html, studio.css, src/appearance.ts, src/color-picker.ts, src/export.ts and their dist outputs. Tests: electron-export-formats covers the picker's square, bar and hex field and proves a colour outside the presets is reachable both by typing and by dragging; electron-sheets, electron-segment-view, electron-structure and renderer.test.cjs drive the single button with a scope radio. Actual validation: incremental build, node tests/run.cjs 112 passing, Electron probes of the list heights and the dialog, and the full Electron sweep, green except electron-timeline, which fails identically on a clean tree at b8d7c93.
+
+Note for the picker's tests: a synthetic PointerEvent carries no real pointer id, so setPointerCapture rejects it and a dragged control never moves. The drag is driven with sendInputEvent instead.
+
+## The clipboard format leaves Export — 2026-09-08
+
+Copy MML to the clipboard was a worse copy of something the editor already had. In game a score has separate fields for the melody and each chord, so what you paste is one channel; the export joined every channel into one block, which fits no field, and with all instruments selected it joined the whole band. The MML window in Instrument actions already copies exactly one channel, chosen from a tab per channel, which is the shape the game wants. The format is gone, and with it the copy-text IPC handler and its preload binding; the MML window keeps its own mml-copy channel.
+
+Export now writes files only: MS2MML, MML text, MIDI.
+
+tests/electron-export-formats.cjs occasionally timed out on a frame wait, but only when run straight after another Electron test: an unpainted window starves requestAnimationFrame, so the promise never settled. The wait now resolves on the frame or after 150ms, whichever comes first. Three passes of electron-ui followed by this file are clean, and so is the full sweep.
+
+Changed: index.html, main.cjs, preload.cjs, src/export.ts and its dist output. Tests: electron-export-formats drops the clipboard assertions and checks the text file's contents directly. Actual validation: incremental build, node tests/run.cjs 112 passing, and every Electron file passing.
+
+## The strip beside the roll, and a theme menu that shows its choice — 2026-09-08
+
+Closing a side panel left a 6px column behind: fit() wrote the grid as `${l}px 6px minmax(0,1fr) 6px ${r}px`, so the divider kept its track even at zero panel width. The divider columns are 0 when their panel is closed. Measured with both panels shut: the canvas starts at x=0 and the editor reaches the window's full 1304px, where before the roll began at 6.
+
+A closed divider still has to be grabbable, or dragging a panel back out would be gone. It keeps an 8px hit strip over the edge of the roll through a transparent ::before, and needs z-index to get it: the canvas is painted later and was swallowing the press, which the first attempt proved by hit-testing to the canvas at x=1. Verified natively: the press at x=1 now starts a resize and the drag reopens the panel to 240px.
+
+The theme menu set aria-current on the active option and no rule ever painted it, so neither Sky nor Night looked chosen. The current option is now accent-coloured with a dot at the end of its row; measured before and after switching, the mark follows the choice.
+
+Changed: src/appearance.ts, studio.css and the dist output. Tests: electron-ui's dividerBox falls back to the hit strip's width when the divider itself has none. Actual validation: incremental build, node tests/run.cjs 112 passing, an Electron probe of the closed layout, the collapsed drag and the theme marking, and the full Electron sweep. electron-timeline still fails on its canvas pixel, 207,203,148 where it expects the unbound-tempo yellow 244,211,94; it passed once in an earlier sweep today and fails on both reruns now, so it is intermittent as well as pre-existing, and it failed identically on a clean tree at b8d7c93.
+
+## The toolbar puts the modes in the middle — 2026-09-08
+
+The editor toolbar is a three-column grid now: a left group with the panel toggle, the playback settings and Grid; Draw, Select and Spray centred; the history actions and the right panel toggle at the end. Measured at two window widths, the tool group's centre matches the toolbar's exactly, 667 and 565, with nothing overflowing.
+
+Zoom and the keyboard toggle moved down into the caption strip, which is now where the view settings live: keyboard style, character limit, zoom. Both belong beside the roll they act on rather than among the editing commands. The strip stays one row down to about 1085px of window; below 1200px the words "Character limit" and "Zoom" drop and leave their controls, and the gap between items went from 14 to 12 to buy back the two pixels that were making it wrap at 1100.
+
+Mute and Solo were sized to their text; they share the card's width at 34px tall now.
+
+Changed: index.html, studio.css. Actual validation: incremental build, node tests/run.cjs 112 passing, tests/electron-ui.cjs, and an Electron probe of the toolbar centring and the caption strip's contents at three widths. electron-ui failed its Undo-hold check on the first run and passed on the rerun; that check has a history of timing flakiness and the failure is unrelated to the layout.
+
+## A refused time signature says so where you typed it — 2026-09-08
+
+Typing a meter the editor would not take looked like the field ignoring you: the value was replaced with the stored one and the reason went to the status bar at the bottom of the window, where it is easy to miss. The typed text now stays on screen in red until the field is left or a valid value replaces it, and the stored meter is untouched meanwhile. The message names both rules instead of only the denominator: 1-32 beats over 1, 2, 4, 8, 16, 32, 64 or 128.
+
+Beats are capped at 32 on entry. There was no upper bound at all, so 21222/4 was accepted and made a measure 679104 ticks long, which takes the bar lines out of the piece entirely and pins every later meter change to tick 0. The cap is on what may be typed, not on what may be read: validSignature still accepts a wider range, so a project already saved with such a value opens instead of being rejected.
+
+Worth recording, because the field's behaviour is easy to misread: what it shows is the meter at the left edge of the visible roll, or at the playhead during playback, while an edit is written at the start of the measure containing that position. Scrolling therefore changes the reading without anything being edited. The time signature stays visual only, as its tooltip says: notes, playback and generated MML never see it.
+
+The simulated DOM had classList.toggle as an empty function and no add, remove or contains; it keeps a real set of names now.
+
+Changed: src/music/structure.ts, src/toolbar.ts, src/inspector.ts, studio.css and their dist outputs. Tests: renderer.test.cjs covers the marked refusal, the beat cap at 32 and 33, and the restore on blur. Actual validation: incremental build, node tests/run.cjs 112 passing, and electron-structure, electron-behavior and electron-segment-view, the three native files that drive signatures.
+
+## Even spacing for the toolbar icons, and a centred readout — 2026-09-08
+
+The three icon buttons had different gaps and two different sizes, which measuring explained: #toggle-left still carried the negative margins that used to pull it against the toolbar edge, and the buttons had no flex-shrink of their own, so in a grid column with min-width 0 they were being squeezed to 25px while the playback button kept 36. They are one .icon-group now, 6px apart, all three measured at 36px with no margins.
+
+The elapsed time and BPM readout sat between two margin-left:auto neighbours, so it landed near the middle by accident and moved whenever a neighbour changed width. The caption strip is a three-column grid like the header: settings on the left, the readout centred, the time signature on the right. Measured with the panels open, with the left panel closed and at 1100 and 900px, the readout's centre matches the strip's exactly every time.
+
+A grid cannot wrap, so the strip would clip instead of falling to two rows. Below 1200px all three words drop and leave their controls: Character limit, Zoom and now Time signature. Nothing overflows at 900px.
+
+Correction to what this entry first said: the strip measured 47px and I put it down to the zoom slider being taller than a text label. That was wrong. The regrouping had left the markup malformed - the right-hand group was opened inside the still-open playback-position span, so the browser recovered by dropping the left group out of the strip and pushing the time signature onto a second row. The strip was rewritten whole rather than spliced, and measures 40px again, three groups in order, the readout centred and the signature 19px from the right edge at every width tested.
+
+Changed: index.html, studio.css. Actual validation: incremental build, node tests/run.cjs 112 passing, tests/electron-ui.cjs, and Electron probes of the icon geometry and of the readout's centring at four layouts.

@@ -1,4 +1,4 @@
-import {sections,signatureAt,signatureChangeTick,validSignature} from './music/structure.ts';
+import {sections,signatureAt,signatureChangeTick,typedSignature} from './music/structure.ts';
 import {ensureInstructions} from './model/instructions.ts';
 import {layout} from './viewport.ts';
 import {draw} from './painting.ts';
@@ -27,11 +27,12 @@ export function refreshStructure(){
 export function installToolbar(){
 $('section-nav').onchange=()=>{const value=input('section-nav').value;if(value==='')return;seekToTick(Number(value));view.scrollLeft=Number(value)*state.zoom;draw();};
 let editTick=0;
-$('current-signature').onfocus=()=>{editTick=signatureTick();};
+$('current-signature').onfocus=()=>{editTick=signatureTick();$('current-signature').classList.remove('invalid');};
 $('current-signature').onchange=()=>{
  const field=input('current-signature'),value=field.value.trim();
  if(state.segment&&editTick>=state.segment.projection.range.end-state.segment.projection.range.start){status('Choose a position inside the current view.');field.value=signatureAt(state.project,0);return;}
- if(!validSignature(value)){status('Use a time signature such as 3/4 or 6/8 (denominator 1–128, powers of two).');field.value=signatureAt(state.project,editTick);return;}
+ if(!typedSignature(value)){field.classList.add('invalid');status('Use a time signature such as 3/4 or 6/8: 1–32 beats over 1, 2, 4, 8, 16, 32, 64 or 128.');return;}
+ field.classList.remove('invalid');
  if(value===signatureAt(state.project,editTick)){field.value=value;return;}
  const target=signatureChangeTick(state.project,editTick);
  checkpoint();
@@ -40,7 +41,7 @@ $('current-signature').onchange=()=>{
  else state.project.notes.push({id:state.project.notes.reduce((id,n)=>Math.max(id,n.id),0)+1,instrument:ensureInstructions(state.project),start:target,length:1,pitch:60,volume:0,timeSignature:value});
  refresh();status(`Time signature ${value} at measure start ${target}.`);
 };
-$('current-signature').onblur=()=>refreshSignature();
+$('current-signature').onblur=()=>{$('current-signature').classList.remove('invalid');refreshSignature();};
 $('draw').onclick=()=>setTool('draw');$('select').onclick=()=>setTool('select');$('spray').onclick=()=>setTool('spray');
 for(const g of [4,8,16,32,64,128]){const option=document.createElement('option');option.value=String(g);option.textContent='L'+g;$('grid').append(option);}
 $('grid').onchange=()=>{state.project.grid=Number(input('grid').value);draw();};

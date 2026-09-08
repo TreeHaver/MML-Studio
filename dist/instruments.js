@@ -1,4 +1,5 @@
 import { mmlControls, updateMml } from './mml.js';
+import { colorSwatch, closeColorPanel } from './color-picker.js';
 import { instrumentActions, removeInstrument } from './instrument-actions.js';
 import { GM_PROGRAMS } from './playback/gm-programs.js';
 import { DRUM_KIT_NAME, MS2_DRUMS } from './playback/drums.js';
@@ -15,19 +16,16 @@ import { colors } from './model/project.js';
 import { name } from './music/pitch.js';
 export function instruments() {
     // Rebuilding the list empties its scroll container, which would reset the scroll position.
+    // A colour panel anchored to a swatch that is about to be replaced would be orphaned.
+    closeColorPanel();
     const panel = $('track-panel'), scroll = panel.scrollTop;
     $('instrument-count').textContent = String(state.project.instruments.length);
-    $('editing-instrument').textContent = state.project.instruments[state.active]?.name ?? '';
     $('instruments').replaceChildren();
     state.project.instruments.forEach((i, index) => {
         const row = document.createElement('div');
         row.className = 'instrument';
         row.classList.toggle('selected', index === state.active);
-        const color = document.createElement('input');
-        color.type = 'color';
-        color.value = i.color;
-        color.setAttribute('aria-label', 'Color for ' + i.name);
-        color.onchange = () => { checkpoint(); i.color = color.value; draw(); };
+        const color = colorSwatch(i.color, 'Color for ' + i.name, value => { checkpoint(); i.color = value; draw(); });
         const collapsed = instrumentView.collapsed.has(index);
         const button = document.createElement('button');
         button.textContent = i.name + (instrumentView.muted.has(index) ? ' (muted)' : '');
@@ -42,7 +40,6 @@ export function instruments() {
             state.selection.clear();
             document.querySelectorAll('.instrument-name').forEach((el, j) => el.classList.toggle('active', j === index));
             document.querySelectorAll('.instrument').forEach((el, j) => el.classList.toggle('selected', j === index));
-            $('editing-instrument').textContent = i.name;
             info();
             draw();
         };

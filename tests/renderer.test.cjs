@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),{transpile}=require('../transpile.cjs');
 test('renderer handles click, edge resize, group box/delete, rename, grid and scroll without text nodes on notes',async()=>{
- const elements=new Map();class El{constructor(){this.value='';this.children=[];this.style={};this.clientWidth=900;this.clientHeight=600;this.scrollLeft=0;this.scrollTop=0;this.classList={toggle(){}};}append(...e){this.children.push(...e)}replaceChildren(){this.children=[]}replaceWith(e){this.replacement=e}after(e){this.replacement=e}querySelector(){return null}set innerHTML(value){this._html=value;const match=/<span>(.*?)<\/span>/.exec(value);if(match)this.textContent=match[1]}get innerHTML(){return this._html}setAttribute(name,value){(this.attributes??={})[name]=String(value)}getAttribute(name){return this.attributes?.[name]??null}focus(){}select(){}matches(){return false}getBoundingClientRect(){return {left:0,top:0}}setPointerCapture(){this.capture=true}hasPointerCapture(){return this.capture}releasePointerCapture(){this.capture=false}}
+ const elements=new Map();class El{constructor(){this.value='';this.children=[];this.style={};this.dataset={};this.clientWidth=900;this.clientHeight=600;this.scrollLeft=0;this.scrollTop=0;this.classList={names:new Set(),toggle(name,on){on?this.names.add(name):this.names.delete(name)},add(name){this.names.add(name)},remove(name){this.names.delete(name)},contains(name){return this.names.has(name)}};}append(...e){this.children.push(...e)}replaceChildren(){this.children=[]}replaceWith(e){this.replacement=e}after(e){this.replacement=e}querySelector(){return null}set innerHTML(value){this._html=value;const match=/<span>(.*?)<\/span>/.exec(value);if(match)this.textContent=match[1]}get innerHTML(){return this._html}setAttribute(name,value){(this.attributes??={})[name]=String(value)}getAttribute(name){return this.attributes?.[name]??null}focus(){}select(){}matches(){return false}getBoundingClientRect(){return {left:0,top:0}}setPointerCapture(){this.capture=true}hasPointerCapture(){return this.capture}releasePointerCapture(){this.capture=false}}
  const doc={getElementById:id=>{if(!elements.has(id))elements.set(id,new El());return elements.get(id)},createElement:()=>new El(),querySelectorAll:()=>[]};
  const fills=[],texts=[];const ctx=new Proxy({measureText(text){return {width:text.length*6}},fillText(text,x,y){texts.push({text,x,y})},fillRect(x,y,w,h){fills.push({x,y,w,h,color:this.fillStyle,alpha:this.globalAlpha});}},{get:(target,key)=>key in target?target[key]:()=>{}});doc.getElementById('canvas').getContext=()=>ctx;
  let frame;const seq={currentHighResolutionTime:0,isFinished:false,get currentTime(){return this.currentHighResolutionTime},set currentTime(value){this.currentHighResolutionTime=value}};
@@ -184,8 +184,10 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  run('state.active=1');fills.length=0;paint.draw();assert.equal(red(),undefined);run('state.active=0');
  limitInput.value='0';limitInput.onchange();assert.equal(limitInput.value,'60');
  const dialog=doc.getElementById('export-limit-dialog');dialog.showModal=()=>{dialog.open=true};dialog.close=()=>{dialog.open=false;dialog.onclose?.()};
+ const exportDialog=doc.getElementById('export-dialog');exportDialog.showModal=()=>{exportDialog.open=true};exportDialog.close=()=>{exportDialog.open=false};
  const saves=[];sandbox.window.files={exportMml:async(name,text)=>{saves.push({name,text});return true}};
- const exportButton=doc.getElementById('export-selected'),unchanged=run('JSON.stringify(project)');
+ doc.getElementById('scope-selected').checked=true;doc.getElementById('scope-all').checked=false;
+ const exportButton=doc.getElementById('export-run'),unchanged=run('JSON.stringify(project)');
  let pending=exportButton.onclick();assert.equal(dialog.open,true);assert.match(doc.getElementById('export-limit-message').textContent,/60 character limit.*Do you still wish to export/);doc.getElementById('export-limit-no').onclick();await pending;assert.equal(saves.length,0);
  pending=exportButton.onclick();doc.getElementById('export-limit-single').onclick();await pending;assert.equal(saves.length,1);assert.equal(saves[0].name,'Sheet.ms2mml');saves.length=0;
  pending=exportButton.onclick();doc.getElementById('export-limit-parts').onclick();await pending;assert.ok(saves.length>1);assert.equal(saves[0].name,'Sheet-part-01.ms2mml');
@@ -211,12 +213,17 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  (await load('src/commands.ts')).namespace.refresh();
  const signature=doc.getElementById('time-signature'),section=doc.getElementById('section-name'),reset=doc.getElementById('section-reset');
  signature.value='3/4';signature.onchange();assert.equal(run('project.notes[2].timeSignature'),'3/4');
- signature.value='0/4';signature.onchange();assert.equal(signature.value,'3/4');
+ // A refused value stays on screen and marked, so it can be corrected rather than guessed at.
+ signature.value='0/4';signature.onchange();
+ assert.equal(run('project.notes[2].timeSignature'),'3/4');assert.equal(signature.value,'0/4');assert.equal(signature.classList.contains('invalid'),true);
+ signature.value='33/4';signature.onchange();assert.equal(run('project.notes[2].timeSignature'),'3/4');
+ signature.value='32/4';signature.onchange();assert.equal(run('project.notes[2].timeSignature'),'32/4');assert.equal(signature.classList.contains('invalid'),false);
+ signature.value='3/4';signature.onchange();assert.equal(run('project.notes[2].timeSignature'),'3/4');
  section.value='Next song';section.onchange();reset.checked=true;reset.onchange();assert.equal(run('project.notes[2].resetMeasures'),true);
  assert.equal(doc.getElementById('section-control').hidden,false);const nav=doc.getElementById('section-nav');nav.value='128';nav.onchange();assert.equal(doc.getElementById('view').scrollLeft,128);
  const structure=(await load('src/music/structure.ts')).namespace;assert.equal(structure.measureLines(run('project'),128,129)[0].bar,1);
  (await load('src/history.ts')).namespace.undo();assert.equal(run('project.notes[2].resetMeasures'),undefined);assert.equal(reset.checked,false);
- doc.getElementById('export-sections').checked=true;saves.length=0;await doc.getElementById('export-project').onclick();
+ doc.getElementById('export-sections').checked=true;doc.getElementById('scope-all').checked=true;doc.getElementById('scope-selected').checked=false;saves.length=0;await doc.getElementById('export-run').onclick();
  assert.deepEqual(saves.map(s=>s.name),['01-Opening-Piano.ms2mml','02-Next song-Flute.ms2mml']);assert.equal(dialog.open,false);
  doc.getElementById('new').onclick();assert.equal(projectName.value,'Untitled');assert.equal(doc.getElementById('section-control').hidden,true);
 
@@ -224,7 +231,11 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  view.scrollLeft=0;paint.draw();const currentSignature=doc.getElementById('current-signature');
  assert.equal(currentSignature.value,'4/4');currentSignature.onfocus();currentSignature.value='6/8';currentSignature.onchange();
  assert.equal(run('project.notes[0].timeSignature'),'6/8');assert.equal(run('project.instruments[project.notes[0].instrument].isInstructions'),true);
- currentSignature.value='3/3';currentSignature.onchange();assert.equal(currentSignature.value,'6/8');
+ // The refusal is visible at the field; blurring puts the stored value back.
+ currentSignature.value='3/3';currentSignature.onchange();
+ assert.equal(run('project.notes[0].timeSignature'),'6/8');assert.equal(currentSignature.classList.contains('invalid'),true);
+ currentSignature.value='40/4';currentSignature.onchange();assert.equal(run('project.notes[0].timeSignature'),'6/8');
+ currentSignature.onblur();assert.equal(currentSignature.value,'6/8');assert.equal(currentSignature.classList.contains('invalid'),false);
  (await load('src/history.ts')).namespace.undo();assert.equal(currentSignature.value,'4/4');
 
  run('project.instruments=[{name:"Piano",color:"#abcdef"},{name:"Instructions",color:"#f4d35e",isInstructions:true}];project.notes=[{id:1,instrument:0,start:0,length:512,pitch:60,volume:8},{id:2,instrument:1,start:64,length:1,pitch:60,volume:0,tempo:60},{id:3,instrument:1,start:128,length:1,pitch:60,volume:0,timeSignature:"3/4",section:"Verse"}];state.active=0;selection.clear()');
@@ -296,7 +307,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  const generate=(await load('src/music/mml.ts')).namespace.generateMml;const viewMml=generate(run('project'),0);
  assert.match(mmlBox().children[0].textContent,new RegExp('count: '+viewMml.bytes+' bytes'));
  limitInput.value=String(viewMml.bytes);limitInput.onchange();fills.length=0;paint.draw();assert.ok(fills.some(f=>f.color==='#e53935'&&f.x===KEY+64*3));
- limitInput.value='10000';limitInput.onchange();saves.length=0;await doc.getElementById('export-project').onclick();
+ limitInput.value='10000';limitInput.onchange();saves.length=0;await doc.getElementById('export-run').onclick();
  assert.deepEqual(saves.map(s=>s.name),['Solo-Piano.ms2mml']);assert.deepEqual([...saves[0].text.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>/g)].map(m=>m[1]),[...viewMml.channels]);
  await doc.getElementById('save').onclick();assert.deepEqual(savedProject,JSON.parse(originalAlbum)); // simply viewing cannot cut the album
  await transport.play();assert.equal(seq.currentTime,0);assert.equal(readMidi(new Uint8Array(songLoads.at(-1))).end,64);transport.stopPlayback(false);

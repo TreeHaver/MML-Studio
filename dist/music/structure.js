@@ -1,6 +1,13 @@
 import { tempoAt } from './tempo.js';
 import { resolveVolumes } from './volume.js';
 export function validSignature(value) { return /^[1-9]\d*\/(1|2|4|8|16|32|64|128)$/.test(value) && Number.isSafeInteger(Number(value.split('/')[0]) * 128); }
+/**
+ * What may be typed. Beats above 32 name no meter anyone plays and make a measure so long
+ * that bar lines leave the piece entirely: 21222/4 is 679104 ticks. Files are read with the
+ * looser check above, so a project already carrying such a value still opens.
+ */
+export const SIGNATURE_BEATS = 32;
+export function typedSignature(value) { return validSignature(value) && Number(value.split('/')[0]) <= SIGNATURE_BEATS; }
 export function validStructure(notes) {
     const signatures = new Map(), sections = new Map();
     for (const n of notes) {

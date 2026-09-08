@@ -1,6 +1,6 @@
 import { loopRegions } from './music/loops.js';
 import { refreshStructure } from './toolbar.js';
-import { validSignature } from './music/structure.js';
+import { typedSignature } from './music/structure.js';
 import { updateMml } from './mml.js';
 import { tempoAt, validTempo } from './music/tempo.js';
 import { status } from './dom.js';
@@ -67,11 +67,13 @@ export function installInspector() {
             if (!n || !state.project.instruments[n.instrument].isInstructions)
                 return;
             const value = input(id).value.trim();
-            if (key === 'timeSignature' && value && !validSignature(value)) {
-                status('Use a time signature such as 3/4 or 6/8 (denominator 1–128, powers of two).');
-                info();
+            if (key === 'timeSignature' && value && !typedSignature(value)) {
+                input(id).classList.add('invalid');
+                status('Use a time signature such as 3/4 or 6/8: 1–32 beats over 1, 2, 4, 8, 16, 32, 64 or 128.');
                 return;
             }
+            if (key === 'timeSignature')
+                input(id).classList.remove('invalid');
             commitNotes(state.project.notes.map(o => state.selection.has(o.id) && state.project.instruments[o.instrument].isInstructions ? { ...o, [key]: value } : o));
         };
     for (let v = 0; v <= 15; v++) {

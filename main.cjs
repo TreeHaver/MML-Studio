@@ -49,6 +49,9 @@ ipcMain.handle('import-midi',async()=>{
  return {name:path.basename(file),bytes:new Uint8Array(bytes)};
 });
 ipcMain.handle('export-mml',async(_,name,text)=>{if(typeof name!=='string'||typeof text!=='string')throw Error('Invalid MML export');const r=await fileDialog('showSaveDialog',{defaultPath:safeFileStem(name),filters:[{name:'MapleStory 2 MML',extensions:['ms2mml']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text,'utf8');return true;});
+// Plain MML text and MIDI are the same export decision with a different file on the end.
+ipcMain.handle('export-text',async(_,name,text)=>{if(typeof name!=='string'||typeof text!=='string')throw Error('Invalid text export');const r=await fileDialog('showSaveDialog',{defaultPath:safeFileStem(name),filters:[{name:'MML text',extensions:['txt']},{name:'All files',extensions:['*']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text,'utf8');return true;});
+ipcMain.handle('export-midi',async(_,name,bytes)=>{if(typeof name!=='string'||!(bytes instanceof Uint8Array))throw Error('Invalid MIDI export');const r=await fileDialog('showSaveDialog',{defaultPath:safeFileStem(name),filters:[{name:'MIDI file',extensions:['mid']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,Buffer.from(bytes));return true;});
 app.on('window-all-closed',()=>app.quit());
 ipcMain.handle('sound-bank',async()=>new Uint8Array(await fs.readFile(path.join(__dirname,'assets','TimGM6mb.sf2'))));
 

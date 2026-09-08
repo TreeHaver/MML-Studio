@@ -29,18 +29,27 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  const press=(point,extra)=>win.webContents.sendInputEvent({type:'mouseDown',...point,button:'left',clickCount:1,...extra});
  const release=point=>win.webContents.sendInputEvent({type:'mouseUp',...point,button:'left',clickCount:1});
  const move=(point,held)=>win.webContents.sendInputEvent({type:'mouseMove',...point,...(held?{button:'left',modifiers:['leftButtonDown']}:{})});
- const dividerBox=id=>evaluate(`(()=>{const r=document.getElementById('${id}').getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+120)};})()`);
+ const dividerBox=id=>evaluate(`(()=>{const r=document.getElementById('${id}').getBoundingClientRect();return {x:Math.max(2,Math.round(r.x+(r.width||8)/2)),y:Math.round(r.y+120)};})()`);
  // A divider drag only starts once the handler has captured the pointer, so wait for its class.
+ // The move that follows is sometimes never delivered to the captured handle, which leaves
+ // nothing to poll for: each retry nudges a pixel so it counts as a move, and a press that
+ // produces nothing at all is let go and made again rather than waited out.
  const dragDivider=async(id,dx,settled)=>{
-  const from=await dividerBox(id);win.focus();win.webContents.focus();
-  move(from);press(from);
-  await until(`document.documentElement.classList.contains('resizing')`,'the divider drag to start');
-  const to={x:from.x+dx,y:from.y};
-  move(to,true);
+  const from=await dividerBox(id),to={x:from.x+dx,y:from.y};
+  const started=`document.documentElement.classList.contains('resizing')`;
+  for(let attempt=0;attempt<3;attempt++){
+   win.focus();win.webContents.focus();
+   move(from);press(from);
+   await until(started,'the divider drag to start');
+   const deadline=Date.now()+1500;let nudge=0,moved=false;
+   do{move({x:to.x+(nudge++%2),y:to.y},true);await new Promise(resolve=>setTimeout(resolve,32));moved=await evaluate(settled);}
+   while(!moved&&Date.now()<deadline);
+   if(moved){
+    release(to);await until(`!${started}`,'the divider drag to finish');await frame();return;
+   }
+   release(from);await until(`!${started}`,'the abandoned drag to finish');await frame();
+  }
   await until(settled,'the drag to take effect');
-  release(to);
-  await until(`!document.documentElement.classList.contains('resizing')`,'the divider drag to finish');
-  await frame();
  };
  const dragCanvas=async(from,to,settled)=>{
   win.focus();win.webContents.focus();
@@ -108,11 +117,11 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
   assert.deepEqual(await evaluate(`(()=>{const r=document.querySelector('#file-menu .menu-chevron').getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]})()`),before);
   await evaluate(`document.querySelector('.editor-caption').click()`);
   assert.equal(await evaluate(`document.getElementById('file-menu').open`),false);
-  await evaluate(`document.querySelector('#export-menu summary').click()`);
-  assert.equal(await evaluate(`document.getElementById('export-menu').open`),true);
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('#export-menu[open] .menu-chevron')).width`),'9px');
-  await evaluate(`document.body.dispatchEvent(new KeyboardEvent('keyup',{key:'Escape',bubbles:true}))`);
-  assert.equal(await evaluate(`document.getElementById('export-menu').open`),false);
+  await evaluate(`document.getElementById('export-open').click()`);
+  assert.equal(await evaluate(`document.getElementById('export-dialog').open`),true);
+  assert.ok(await evaluate(`document.getElementById('export-dialog').getBoundingClientRect().width>=520`),'Export dialog is a real panel, not a strip');
+  await evaluate(`document.getElementById('export-cancel').click()`);
+  assert.equal(await evaluate(`document.getElementById('export-dialog').open`),false);
  });
 
  await check('a select list can be used without closing the menu holding it',async()=>{
@@ -193,9 +202,9 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
 
  await check('clicking an instrument name selects that instrument',async()=>{
   await evaluate(`document.querySelectorAll('.instrument-name')[1].click()`);
-  await until(`document.getElementById('editing-instrument').textContent==='Warm Strings'`,'the editor caption to follow the selection');
+  await until(`document.querySelectorAll('.instrument')[1].classList.contains('selected')&&s.active===1`,'the second instrument to become active');
   await evaluate(`document.querySelectorAll('.instrument-name')[0].click();s.selection=new Set([1,2,3]);info();document.activeElement.blur()`);
-  await until(`document.getElementById('editing-instrument').textContent==='Felt Piano'`,'the caption to return');
+  await until(`document.querySelectorAll('.instrument')[0].classList.contains('selected')&&s.active===0`,'the first instrument to become active again');
  });
 
  for(const width of [900,1320]){

@@ -43,7 +43,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  await evaluate(`(()=>{const volume=document.getElementById('playback-volume');volume.value='0';volume.dispatchEvent(new Event('input'));})()`);await wait(350);assert.ok(await peak()<0.000001,'Master volume silences output');
  await evaluate(`(()=>{const volume=document.getElementById('playback-volume');volume.value='50';volume.dispatchEvent(new Event('input'));})()`);await wait(150);assert.ok(await peak()>0.00001,'Master volume restores output');checks.push({fastDelta,masterVolume:'0% silence / 50% PCM'});
  await evaluate(`transport.stopPlayback(false);document.getElementById('view').scrollLeft=0;refresh();`);
- await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`);
+ await evaluate(`new Promise(r=>{const d=()=>r(1);requestAnimationFrame(()=>requestAnimationFrame(d));setTimeout(d,150);})`);
  const boxes=await evaluate(`(()=>{const field=document.getElementById('current-signature').getBoundingClientRect(),caption=document.querySelector('.editor-caption').getBoundingClientRect();return {inside:field.right<=caption.right&&field.bottom<=caption.bottom,height:caption.height};})()`);assert.ok(boxes.inside);checks.push(boxes);
  await evaluate(`import('./dist/playback/preview.js').then(p=>p.previewNote(109,0))`);await wait(100);assert.match(await evaluate(`document.getElementById('status').textContent`),/Preview: C#8/);assert.ok(await peak()>0.00001,'High Piano keyboard preview produces PCM');checks.push('C#8 GUI label and audible keyboard preview');
  fs.writeFileSync('.validation/electron-behavior.png',(await win.webContents.capturePage()).toPNG());

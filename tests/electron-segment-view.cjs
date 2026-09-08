@@ -20,7 +20,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  await checkReturn();
  assert.equal(await evaluate(`document.getElementById('section-control').hidden`),true);assert.equal(await evaluate(`generateMml(s.project,0).channels.length`),2);
  const channels=await evaluate(`generateMml(s.project,0).channels`),bytes=channels.join('').length;
- await evaluate(`document.getElementById('export-sections').checked=true;document.getElementById('export-project').onclick()`);
+ await evaluate(`document.getElementById('export-sections').checked=true;document.getElementById('scope-all').checked=true;document.getElementById('scope-selected').checked=false;document.getElementById('export-run').onclick()`);
  assert.equal(path.basename(written[0]),'Solo-Piano.ms2mml');const xml=fs.readFileSync(written[0],'utf8');assert.deepEqual([...xml.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>/g)].map(m=>m[1]),channels);assert.ok(!xml.includes('t150'));
  await evaluate(`document.getElementById('save').onclick()`);assert.deepEqual(JSON.parse(fs.readFileSync(written[1],'utf8')),JSON.parse(await evaluate(`originalAlbum`)));
  await evaluate(`(()=>{const limit=document.getElementById('character-limit');limit.value='${bytes}';limit.dispatchEvent(new Event('change'));})()`);
@@ -33,7 +33,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  await evaluate(`document.getElementById('return-project').click();historyApi.undo()`);assert.equal(await evaluate(`JSON.stringify(s.project)===originalAlbum`),true);
  await evaluate(`transport.seekToTick(280);document.getElementById('open-song').click()`);assert.equal(await evaluate(`document.getElementById('section-control').hidden`),true);
  win.setSize(900,700);await evaluate(`new Promise(r=>setTimeout(r,150))`);
- assert.ok(await evaluate(`document.getElementById('export-menu').getBoundingClientRect().right<=innerWidth`),'Header fits 900px');
+ assert.ok(await evaluate(`document.getElementById('export-open').getBoundingClientRect().right<=innerWidth`),'Header fits 900px');
  assert.ok(await evaluate(`(()=>{const p=document.getElementById('project-name').getBoundingClientRect(),badge=document.getElementById('segment-view-label').getBoundingClientRect();return badge.top>=p.bottom&&badge.left>=p.left-60&&badge.right<=innerWidth;})()`),'View name stays with the Project input');
  await evaluate(`document.getElementById('return-song-project').click()`);assert.equal(await evaluate('s.segment'),null);await evaluate(`transport.seekToTick(120);document.getElementById('open-segment').click()`);
  await checkReturn();await evaluate(`document.getElementById('view').scrollLeft=80;document.getElementById('view').scrollTop=200`);await new Promise(r=>setTimeout(r,60));await checkReturn();fs.writeFileSync('.validation/electron-segment-return-900.png',(await win.webContents.capturePage()).toPNG());
