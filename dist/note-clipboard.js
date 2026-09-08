@@ -9,7 +9,7 @@ import { fitsCurrentView } from './segment-session.js';
 import { resolveVolumes } from './music/volume.js';
 let clipboard = null;
 let position = null;
-export function setPastePosition(tick) { position = tick; status('Paste position set. Ctrl+V pastes into the active instrument.'); }
+export function setPastePosition(tick) { position = tick; status('MML text insertion position set. Copied notes paste after the selection, or at their original position.'); }
 export function copyNotes() {
     if (state.gesture)
         return;
@@ -18,11 +18,10 @@ export function copyNotes() {
         status('Select notes to copy.');
         return;
     }
-    const start = selected.reduce((min, n) => Math.min(min, n.start), Infinity), end = selected.reduce((max, n) => Math.max(max, n.start + n.length), 0);
+    const start = selected.reduce((min, n) => Math.min(min, n.start), Infinity);
     const volumes = resolveVolumes(state.project.notes.filter(n => n.instrument === state.active));
-    clipboard = { notes: selected.map(n => ({ ...n, start: n.start - start, volume: volumes.get(n.id) })), instructions: !!state.project.instruments[state.active].isInstructions, span: end - start };
-    position = end;
-    status(`Copied ${selected.length} notes/events. Ctrl+V pastes after this group, or click empty space in Select mode to choose a position.`);
+    clipboard = { notes: selected.map(n => ({ ...n, start: n.start - start, volume: volumes.get(n.id) })), instructions: !!state.project.instruments[state.active].isInstructions, start };
+    status(`Copied ${selected.length} notes/events. Ctrl+V pastes after the current selection, or at the original copy position when nothing is selected.`);
 }
 export function pasteNotes() {
     if (state.gesture)
@@ -40,7 +39,9 @@ export function pasteNotes() {
         return;
     }
     let id = state.project.notes.reduce((max, n) => Math.max(max, n.id), 0);
-    const start = position ?? 0, added = clipboard.notes.map(n => ({ ...n, id: ++id, instrument: state.active, start: start + n.start }));
+    const selected = state.project.notes.filter(n => n.instrument === state.active && state.selection.has(n.id));
+    const start = selected.length ? selected.reduce((end, n) => Math.max(end, n.start + n.length), 0) : clipboard.start;
+    const added = clipboard.notes.map(n => ({ ...n, id: ++id, instrument: state.active, start: start + n.start }));
     const notes = [...state.project.notes, ...added];
     if (!fitsCurrentView({ ...state.project, notes })) {
         status('The pasted notes extend beyond this view. Return to Project to paste across its boundary.');
@@ -53,7 +54,6 @@ export function pasteNotes() {
     checkpoint();
     state.project.notes = notes;
     state.selection = new Set(added.map(n => n.id));
-    position = start + clipboard.span;
     refresh();
     status(`Pasted ${added.length} notes/events. Drag the selected group to move it; Undo restores the previous project.`);
 }

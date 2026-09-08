@@ -1,29 +1,6 @@
-# Working on this editor
+# Working on MML Music Studio
 
-Start with PROJECT_MAP.md and PROGRESS.md. Use the map to identify the smallest relevant set of files; do not routinely read or rewrite the entire project. Keep model/music functions free of DOM dependencies. Add UI handlers in their owner module and wire new modules in src/renderer.ts only if needed. Preserve version-2 project JSON unless a migration is explicitly part of the task.
+Project documentation lives in [agents/](agents/README.md).
 
-Edit source, run the incremental-output build, and run the relevant existing tests. Record changed files and actual validation in PROGRESS.md. Do not claim native UI testing when only simulated DOM tests ran. Prefer focused patch ZIPs for small updates and full ZIPs for structural changes. User instructions take precedence.
-
-MapleStory 2 MML supports non-power-of-two note lengths. Do not restrict imported/stored/exported durations to the grid dropdown or conventional power-of-two MML length values. Current version-2 timing stores any positive integer length in 1/128-whole-note units; finer MIDI timing requires reported rounding, not silent grid snapping. See MIDI_IMPORT.md for import behavior and the distinction between model units and MML length denominators.
-
-Import and editing must not enforce export limits. Do not cap file size, note/event/track/instrument counts or clamp imported tempo to MapleStory 2 export ranges. Tempo instructions must be positive integer BPM. Round fractional MIDI tempos to the nearest whole BPM and report that conversion; do not clamp to export ranges. Future export planning should report target-specific limits and let the user decide how to handle them; do not reject or truncate projects during import. Keep malformed-file validation and distinguish actual format/model conversion limitations from export restrictions.
-
-Standard Drum Kit is supported for General MIDI import/editing/preview. Per user request, show a non-blocking warning that it is not a valid MS2 instrument. Keep drum projects editable and saveable; future export planning must offer a way to handle them. See DRUM_KIT.md.
-
-Unbound supported tempo events belong to the silent Instructions instrument (optional isInstructions flag in version-2 JSON). Never synthesize Instructions as notes. Keep note-bound and unbound tempo changes in the same global clock and yellow timeline indicators. See TIMELINE_UPDATE.md.
-
-MS2 MML ties prefix the continued note: emit CT150&C, never C&T150C. Note-bound and unbound global tempo changes must propagate into every generated musical channel through its final note; split held notes at those boundaries and tie their continuations.
-
-Overlap warnings specifically mean identical start time, pitch and instrument; sustained notes starting at different times are not warning overlaps. More than ten simultaneous sounding notes is a separate channel-density condition, highlighted in yellow for the active musical instrument.
-
-User confirmed A2 on 2026-09-08: use the current Segment/Song projection or expanded loop onset for overlap warnings. If clipping or an untied repeat restarts held same-pitch notes in the same Instrument together, warn even though their original starts differed. This is user-controlled input, not a false positive to suppress. Keep the warning non-blocking; never automatically trim, delete, move or otherwise repair the overlapping notes. See BEHAVIOR_AUDIT.md.
-
-User confirmed A3 on 2026-09-08: copy the last explicit Velocity before entering a Song/Segment view, per Instrument, even if its carrier note has ended. Preserve explicit note overrides; inherited crossing notes take the copied boundary V. Explicit changes inside the view govern later inheritance normally. V0 must survive; with no prior setting use V8. Automatic projected V context must not be written to the parent merely by opening, saving, returning or editing an unrelated property. Clearing an explicit V inside the view restores inheritance rather than reapplying an old held-note value.
-
-User-confirmed volume rule (2026-09-07/08): every explicit note V applies to that note at its own onset. Simultaneous V13 and V5 notes in the same Instrument must each play at their explicit V; an internal ID must not override another note's explicit volume. Unset V inherits the most recent onset's explicit V; if that onset has several explicit values, the most recently created note (highest ID) supplies inheritance for unset notes at that onset and afterward. Default is V8; explicit V0 is silence. The user is responsible for controlling velocities in ambiguous chords: do not add a conflict prompt or flatten explicit values. Shared resolver: src/music/volume.ts. See BEHAVIOR_AUDIT.md for fix status.
-
-Preview must honor each original note duration, including nested same-pitch notes. Use the shared MML monophonic channel partition for playback; never exchange note lifetimes through same-channel MIDI note-off pairing. Derived channels remain temporary and all follow their owning Instrument mute/solo and preset.
-
-MS2 MML uses O0–O8 (C0–B8), with boundary pitches B-1 and C9 spelled only as o0c- and o8b+. Both + and - shift any note letter by one semitone (including E+, B+, C-, F-). Never emit # in MML; accept it as an import alias for +. GUI note labels continue using #. Melodic preview must sound throughout this range, including both accidental boundaries; shared sample fallback is in src/playback/sample-pitch.ts. Standard Drum Kit retains its percussion mapping.
-
-Native closing offers Save / Discard / Cancel for unsaved full-project changes, including edits made in a scoped view. Cancel, cancelled/failed Save, or changes made while saving keep the editor open. Use the Electron close handshake rather than cancelling beforeunload. Return to Project floats just below the measure ruler, right-aligned under Time signature, only in Segment View. Song View uses a File-menu return command; the root project shows neither.
+Before changing this repository, read [agents/DEVELOPMENT.md](agents/DEVELOPMENT.md) and its required [music/model rules](agents/MUSIC_MODEL.md). These instructions apply to the whole repository.
+Start task-specific work with [agents/PROJECT_MAP.md](agents/PROJECT_MAP.md) and the latest [agents/PROGRESS.md](agents/PROGRESS.md) entries. Follow the map to the smallest relevant source and test set.

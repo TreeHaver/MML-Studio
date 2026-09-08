@@ -66,6 +66,20 @@ app.on('browser-window-created',(_,win)=>win.webContents.once('did-finish-load',
   win.webContents.sendInputEvent({type:'mouseUp',...preview,button:'left',clickCount:1});
  }
  await evaluate(`document.getElementById('reset-zoom').click();document.getElementById('view').scrollTop=layout.pitchTop(s.topPitch,72);`);await settle();
+ // Native pointer capture keeps a moving group attached while edge scrolling runs
+ // without further mouse events. Check both directions at two horizontal scales.
+ for(const zoom of [3,6])for(const direction of [-1,1]){
+  await evaluate(`s.zoom=${zoom};s.project.grid=128;s.project.notes=[{id:1,instrument:0,start:200,length:7,pitch:70,volume:8},{id:2,instrument:0,start:209,length:5,pitch:69,volume:0}];s.selection=new Set([1,2]);s.active=0;document.getElementById('select').click();import('./dist/commands.js').then(({refresh})=>refresh());`);await settle();
+  await evaluate(`document.getElementById('view').scrollLeft=200*s.zoom-100;`);await settle();
+  const start=await evaluate(`import('./dist/geometry.js').then(({rect})=>{const n=rect(s.project.notes[0]),r=document.getElementById('canvas').getBoundingClientRect();return {x:Math.round(r.x+n.x+3),y:Math.round(r.y+n.y+5)};})`);
+  const dest={x:await evaluate(`(()=>{const r=document.getElementById('canvas').getBoundingClientRect();return Math.round(${direction}<0?r.x+63:r.right-2)})()`),y:start.y};
+  win.webContents.sendInputEvent({type:'mouseDown',...start,button:'left',clickCount:1});win.webContents.sendInputEvent({type:'mouseMove',...dest,button:'left',modifiers:['leftButtonDown']});await settle();
+  const before=await evaluate(`[document.getElementById('view').scrollLeft,s.project.notes[0].start]`);
+  await evaluate('new Promise(resolve=>{let frames=0;const next=()=>++frames===8?resolve():requestAnimationFrame(next);requestAnimationFrame(next)})');
+  const after=await evaluate(`[document.getElementById('view').scrollLeft,s.project.notes[0].start,s.project.notes[1].start-s.project.notes[0].start,s.project.notes.map(n=>[n.pitch,n.length,n.volume])]`);
+  assert.ok((after[0]-before[0])*direction>0,'Viewport scrolls in drag direction');assert.ok((after[1]-before[1])*direction>0,'Notes follow stationary edge pointer');assert.equal(after[2],9);assert.deepEqual(after[3],[[70,7,8],[69,5,0]]);
+  win.webContents.sendInputEvent({type:'mouseUp',...dest,button:'left',clickCount:1});await settle();const released=await evaluate('document.getElementById("view").scrollLeft');await settle();assert.equal(await evaluate('document.getElementById("view").scrollLeft'),released);
+ }
  fs.writeFileSync('.validation/electron-pitch-layout-piano.png',(await win.webContents.capturePage()).toPNG());
  fs.writeFileSync('.validation/electron-pitch-layout.png',(await win.webContents.capturePage()).toPNG());finish();
 }catch(error){finish(error);}}));

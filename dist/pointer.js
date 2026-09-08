@@ -16,7 +16,8 @@ import { move, resize, stretchBack } from './music/note-operations.js';
 import { previewNote } from './playback/preview.js';
 import { seekToTick } from './playback/transport.js';
 import { setPastePosition } from './note-clipboard.js';
-export function endGesture(cancel = false) { if (!state.gesture)
+let stopEdgeScroll = () => { };
+export function endGesture(cancel = false) { stopEdgeScroll(); if (!state.gesture)
     return; if (cancel && state.gesture.before)
     state.project = JSON.parse(state.gesture.before); state.gesture = null; canvas.style.cursor = 'default'; if (state.segment)
     refresh();
@@ -49,12 +50,22 @@ export function installPointer() {
             removed = true; return removed; };
     let keyGesture = null;
     let scrubbing = false;
-    // Dragging a selection box past the visible area scrolls the roll instead of stopping at it.
+    // Box selection scrolls both axes; moving notes scrolls horizontally near the roll edges.
     const EDGE = 52, EDGE_SPEED = 20;
     let edgeFrame = 0, edgePoint = null;
+    stopEdgeScroll = () => { if (edgeFrame)
+        cancelAnimationFrame(edgeFrame); edgeFrame = 0; edgePoint = null; };
+    const moveSelection = () => {
+        const g = state.gesture;
+        const dx = g.current.x - g.start.x + view.scrollLeft - g.scrollLeft;
+        const dy = g.current.y - g.start.y + view.scrollTop - g.scrollTop;
+        const note = g.base.find((n) => n.id === g.anchor);
+        const pitch = pitchAtY(state.topPitch, pitchTop(state.topPitch, note.pitch) + pitchHeight(note.pitch) / 2 + dy);
+        state.project.notes = move(g.base, state.selection, g.anchor, dx / state.zoom, state.project.instruments[state.active].isInstructions ? 0 : pitch - note.pitch, state.project.grid);
+    };
     const edgeScroll = () => {
         const gesture = state.gesture, p = edgePoint;
-        if (!gesture || gesture.kind !== 'box' || !p) {
+        if (!gesture || !['box', 'move'].includes(gesture.kind) || !p) {
             edgeFrame = 0;
             return;
         }
@@ -64,13 +75,19 @@ export function installPointer() {
             dx = -speed(p.x - KEY);
         else if (p.x > state.width - EDGE)
             dx = speed(state.width - p.x);
-        if (p.y < HEAD + EDGE)
-            dy = -speed(p.y - HEAD);
-        else if (p.y > state.height - EDGE)
-            dy = speed(state.height - p.y);
+        if (gesture.kind === 'box') {
+            if (p.y < HEAD + EDGE)
+                dy = -speed(p.y - HEAD);
+            else if (p.y > state.height - EDGE)
+                dy = speed(state.height - p.y);
+        }
         if (dx || dy) {
-            view.scrollLeft += dx;
-            view.scrollTop += dy;
+            view.scrollLeft = Math.max(0, view.scrollLeft + dx);
+            view.scrollTop = Math.max(0, view.scrollTop + dy);
+            if (gesture.kind === 'move') {
+                moveSelection();
+                layout();
+            }
             info();
             draw();
         }
@@ -191,6 +208,10 @@ export function installPointer() {
             state.gesture = { kind: instructions ? 'instruction-create' : spray ? 'paint' : 'resize', start: p, current: p, music: m, nid: newNote.id, before,
                 ...(spray ? { painted: new Set([`${start}:${m.pitch}`]) } : { base: structuredClone(state.project.notes), length: newNote.length, cell: start }) };
         }
+        if (state.gesture?.kind === 'move') {
+            state.gesture.scrollLeft = view.scrollLeft;
+            state.gesture.scrollTop = view.scrollTop;
+        }
         canvas.setPointerCapture(e.pointerId);
         info();
         draw();
@@ -235,7 +256,7 @@ export function installPointer() {
             return;
         }
         state.gesture.moved = true;
-        if (state.gesture.kind === 'box') {
+        if (state.gesture.kind === 'box' || state.gesture.kind === 'move') {
             edgePoint = p;
             if (!edgeFrame)
                 edgeFrame = requestAnimationFrame(edgeScroll);
@@ -244,11 +265,8 @@ export function installPointer() {
             paint(state.gesture.music, musical(p));
             state.gesture.music = musical(p);
         }
-        if (state.gesture.kind === 'move') {
-            const note = state.gesture.base.find(n => n.id === state.gesture.anchor);
-            const pitch = pitchAtY(state.topPitch, pitchTop(state.topPitch, note.pitch) + pitchHeight(note.pitch) / 2 + dy);
-            state.project.notes = move(state.gesture.base, state.selection, state.gesture.anchor, dx / state.zoom, state.project.instruments[state.active].isInstructions ? 0 : pitch - note.pitch, state.project.grid);
-        }
+        if (state.gesture.kind === 'move')
+            moveSelection();
         if (state.gesture.kind === 'resize') {
             const g = state.gesture, step = 128 / state.project.grid, tick = musical(p).tick;
             // Only a note being drawn carries a cell: dragging left of it grows the note backwards.

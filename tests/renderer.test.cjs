@@ -137,6 +137,27 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  rows()[1].children[1].onclick();assert.equal(run('state.active'),1);
  assert.equal(run('JSON.stringify(project)'),saved);assert.equal(run('state.history.length'),history);
  transport.stopPlayback();
+ const beforeDragFixture=run('JSON.stringify(project)'),beforeDragTool=run('state.tool'),beforeDragScroll=[view.scrollLeft,view.scrollTop];
+ // Moving a group follows scroll displacement from the initial viewport, including
+ // animation frames with no new pointer event. Release/cancel stops the scroll loop.
+ run('state.active=0;project.grid=128;state.tool="select";project.notes=[{id:1,instrument:0,start:200,length:7,pitch:60,volume:8},{id:2,instrument:0,start:209,length:5,pitch:64,volume:8}];selection=new Set([1,2])');
+ view.scrollLeft=500;(await load('src/commands.ts')).namespace.refresh();
+ const dragRect=geometry.rect(run('project.notes[0]')),dragY=dragRect.y+4,dragX=dragRect.x+3;
+ const dragOriginal=run('JSON.stringify(project)'),dragHistory=run('state.history.length');
+ c.onpointerdown(event(dragX,dragY));c.onpointermove(event(dragX+2,dragY));assert.equal(run('state.gesture.moved'),undefined);
+ c.onpointermove(event(899,dragY));const beforeEdge=run('project.notes[0].start');
+ frame();frame();frame();assert.ok(view.scrollLeft>500);assert.ok(run('project.notes[0].start')>beforeEdge);
+ assert.equal(run('project.notes[1].start-project.notes[0].start'),9);assert.equal(run('project.notes[0].pitch'),60);assert.equal(run('project.notes[1].length'),5);
+ const scrolledStart=run('project.notes[0].start');c.onpointermove(event(899,dragY));assert.equal(run('project.notes[0].start'),scrolledStart,'pointer movement must not discard scroll displacement');
+ c.onpointerup(event(899,dragY));assert.equal(frame,null);assert.equal(run('state.history.length'),dragHistory+1);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project)'),dragOriginal);
+ run('selection=new Set([1,2])');view.scrollLeft=500;
+ const leftRect=geometry.rect(run('project.notes[0]'));c.onpointerdown(event(leftRect.x+3,leftRect.y+4));c.onpointermove(event(KEY+1,leftRect.y+4));
+ const beforeLeft=view.scrollLeft;frame();frame();assert.ok(view.scrollLeft<beforeLeft);
+ c.onpointercancel();assert.equal(frame,null);assert.equal(run('JSON.stringify(project)'),dragOriginal);
+ // Box selection retains its existing scrolling behavior.
+ c.onpointerdown({...event(300,240),shiftKey:true});c.onpointermove(event(899,590));const boxLeft=view.scrollLeft;frame();assert.ok(view.scrollLeft>boxLeft);c.onpointercancel();assert.equal(frame,null);
+ sandbox.beforeDragFixture=JSON.parse(beforeDragFixture);sandbox.beforeDragTool=beforeDragTool;run('project=beforeDragFixture;state.tool=beforeDragTool');[view.scrollLeft,view.scrollTop]=beforeDragScroll;
  // Copy/paste snapshots a group, allocates fresh IDs, preserves inherited volume,
  // targets the selected lane and can be undone/redone as one edit.
  const clipboard=(await load('src/note-clipboard.ts')).namespace;
@@ -148,11 +169,18 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.deepEqual(JSON.parse(run('JSON.stringify(project.notes.slice(2).map(n=>[n.id,n.start,n.length,n.pitch,n.volume]))')),[[12,14,7,60,11],[13,23,5,64,11]]);
  (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project)'),copied);
  (await load('src/history.ts')).namespace.undo(true);assert.equal(run('project.notes.length'),4);
- run('state.active=2');clipboard.setPastePosition(64);keys('v');assert.equal(run('project.notes.at(-1).instrument'),2);assert.equal(run('project.notes.at(-1).start'),73);
+ run('selection=new Set([12,13])');keys('v');assert.deepEqual(JSON.parse(run('JSON.stringify(project.notes.slice(-2).map(n=>n.start))')),[28,37]);
+ run('state.active=2');clipboard.setPastePosition(64);keys('v');assert.equal(run('project.notes.at(-1).instrument'),2);assert.equal(run('project.notes.at(-1).start'),9);
  const pasted=run('JSON.stringify(project)');run('state.active=1');keys('v');assert.equal(run('JSON.stringify(project)'),pasted);
  run('state.active=2');prefs.instrumentView.muted.add(2);keys('v');assert.equal(run('JSON.stringify(project)'),pasted);prefs.instrumentView.muted.delete(2);
  const textField=new El();textField.matches=()=>true;doc.onkeydown({key:'v',ctrlKey:true,target:textField,preventDefault(){throw Error('Text editing must keep native paste');}});
- run('state.active=0;project.notes=[{id:1,instrument:0,start:0,length:7,pitch:60,volume:null,tempo:90},{id:2,instrument:0,start:32,length:7,pitch:62,volume:null,tempo:120}];selection=new Set([1])');keys('c');clipboard.setPastePosition(32);
+ // A long low note supplies the latest end, regardless of onset, pitch, or selection order.
+ run('state.active=0;project.notes=[{id:1,instrument:0,start:41,length:7,pitch:60,volume:0},{id:2,instrument:0,start:50,length:5,pitch:64,volume:11}];selection=new Set([1,2])');keys('c');
+ const originalCopy=run('JSON.stringify(project.notes)');doc.onkeydown({key:'Delete',target:new El(),preventDefault(){}});keys('v');assert.equal(run('JSON.stringify(project.notes)'),originalCopy);
+ run('project.notes.push({id:10,instrument:0,start:100,length:100,pitch:40,volume:8},{id:11,instrument:0,start:150,length:7,pitch:90,volume:8});selection=new Set([10,11])');keys('v');assert.deepEqual(JSON.parse(run('JSON.stringify(project.notes.slice(-2).map(n=>n.start))')),[200,209]);
+ // Selecting another instance of the same voice clears selection and keeps original timestamps.
+ (await load('src/commands.ts')).namespace.refresh();rows()[2].children[1].onclick();assert.equal(run('selection.size'),0);keys('v');assert.deepEqual(JSON.parse(run('JSON.stringify(project.notes.slice(-2).map(n=>[n.instrument,n.start]))')),[[2,41],[2,50]]);
+ run('state.active=0;project.notes=[{id:1,instrument:0,start:0,length:7,pitch:60,volume:null,tempo:90},{id:2,instrument:0,start:32,length:7,pitch:62,volume:null,tempo:120},{id:3,instrument:0,start:25,length:7,pitch:50,volume:8}];selection=new Set([1])');keys('c');run('selection=new Set([3])');
  const conflicting=run('JSON.stringify(project)'),historyBefore=run('state.history.length');keys('v');assert.equal(run('JSON.stringify(project)'),conflicting);assert.equal(run('state.history.length'),historyBefore);
  run('state.active=2');clipboard.setPastePosition(512);
  const textPaste=text=>doc.onpaste({target:new El(),preventDefault(){},clipboardData:{getData:type=>type==='text/plain'?text:''}});
@@ -450,8 +478,8 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.equal(doc.getElementById('volume').value,'13');assert.match(doc.getElementById('info').textContent,/effective V13/);
  doc.getElementById('volume').value='12';doc.getElementById('volume').onchange();assert.match(doc.getElementById('info').textContent,/effective V12/);
  (await load('src/history.ts')).namespace.undo();run('selection=new Set([1,2])');commands.refresh();
- clipboard.copyNotes();clipboard.setPastePosition(96);clipboard.pasteNotes();
- assert.deepEqual(plain('project.notes.slice(-2).map(n=>[n.start,n.pitch,n.volume])'),[[96,60,13],[96,64,5]]);
+ clipboard.copyNotes();clipboard.pasteNotes();
+ assert.deepEqual(plain('project.notes.slice(-2).map(n=>[n.start,n.pitch,n.volume])'),[[32,60,13],[32,64,5]]);
  run('selection=new Set([3])');commands.refresh();assert.match(doc.getElementById('info').textContent,/effective V5/);
  (await load('src/history.ts')).namespace.undo();assert.equal(run('project.notes.length'),3);
 
@@ -465,4 +493,3 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  prefs.instrumentView.muted.clear();prefs.instrumentView.solo=0;transport.updatePlaybackMutes();assert.deepEqual(muteCalls.slice(-3),[{channel:0,muted:false},{channel:1,muted:false},{channel:2,muted:true}]);
  transport.stopPlayback(false);prefs.resetInstrumentView();
 });
-

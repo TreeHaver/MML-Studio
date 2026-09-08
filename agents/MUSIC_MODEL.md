@@ -1,0 +1,96 @@
+# Music and project rules
+
+These rules preserve the user's confirmed musical behavior. See [PROJECT_MAP.md](PROJECT_MAP.md) for owners and tests, [STRUCTURE_VIEWS.md](STRUCTURE_VIEWS.md) for projection/loop details, and [IMPORT_EXPORT.md](IMPORT_EXPORT.md) for format conversions. Model/music functions must remain free of DOM and editor-state dependencies.
+
+## Version-2 project data
+
+The persisted format is `mml-studio`, version `2`. Sources: [types](../src/model/types.ts), [parser](../src/model/serialization.ts), [validation](../src/model/validation.ts), [defaults](../src/model/project.ts). Do not change the format without an explicitly requested migration.
+
+| Object | Fields and meaning |
+| --- | --- |
+| Project | Required `format`, `version`, `grid`, `instruments`, `notes`; optional string `name`. Grid is one of 4/8/16/32/64/128. At least one instrument is required. |
+| Instrument | Required `name` and six-digit hex `color`; optional `midiProgram` (zero-based 0–127), `isDrum`, `isInstructions`, `ms2Drum` (`snare`, `bass`, `cymbals`). Special roles are mutually exclusive. Missing flags mean melodic; missing program uses GM Piano. |
+| Note/event | Required unique integer `id`, owning instrument index, integer `start >= 0`, integer `length > 0`, integer numeric `pitch`, and `volume` (`null` or integer 0–15). |
+| Optional instructions | `tempo` (absent/null to inherit, otherwise positive integer BPM), `timeSignature`, `section`, `resetMeasures`, `loopEntry`, `loopExit`, `loopTie`, `loopCount`. See STRUCTURE_VIEWS for validation and activation. |
+
+Notes belong to instrument instances, not presets or editable channels. Two instruments using the same sound remain independent. Channels for MML/MIDI are temporary derived data. Pitch integers are not restricted to the MIDI or MS2 target ranges during editing/storage.
+
+Instructions use existing note-shaped records, marked by the owner's `isInstructions` flag. Newly drawn/imported silent carriers use length 1 and V0; do not synthesize them as musical notes. `src/model/instructions.ts` recognizes the old specifically named `Tempo markers (silent)` lane when its records are silent tempo carriers.
+
+Selection, viewport/zoom, tools, playback settings, Mute/Solo, collapse state, generated MML and Song/Segment session metadata are not project fields. Theme, panel geometry, piano-key style and character limit are local application preferences. Grid is stored in the project even though it only controls editing resolution.
+
+## Timing: model units are not MML denominators
+
+One whole note is **128 integer model units**; one quarter is 32. Any positive integer note length is legal, including 5, 7, 11 and durations longer than a whole note. `length: 7` means 7/128 of a whole note, not the MML denominator `L7`.
+
+| Expression | Model duration |
+| --- | --- |
+| `c4` | 32 units |
+| `c64` | 2 units |
+| `c64.` | 3 units |
+| `c128` | 1 unit |
+| `c128.` | 1.5 units; cannot be stored exactly in version 2 |
+
+MapleStory 2 MML supports non-power-of-two length denominators. Do not restrict imported/stored/exported durations to the grid dropdown or conventional power-of-two lengths. A denominator that implies fractional model units needs reported conversion under the current format; exact finer timing would require a separately designed model change.
+
+The editing grid defaults to L4 and offers L4–L128. Changing grid or either zoom axis must not alter existing notes. Creating a note uses the clicked cell's left boundary; deliberate movement/resizing uses snapping, with group movement anchored on the first selected note. Import performs reported model-resolution rounding, never silent grid snapping. Tools > Simplify Timing is an explicit undoable conversion, separate from import and MML string optimization.
+
+## Velocity and inheritance
+
+Use the shared [volume resolver](../src/music/volume.ts) for playback, held restoration, MML, copying, instrument operations, loops, sheet cuts and projections.
+
+1. Every explicit V controls its own note at its onset. Simultaneous C4 V13 and E4 V5 must each use their explicit value, regardless of note IDs or array order.
+2. An unset V inherits the latest onset's explicit V in the same instrument. If several explicit values share that onset, the most recently created note (highest ID) supplies inheritance for unset notes at that onset and afterward.
+3. With no preceding setting, use V8. Explicit V0 is silence and must survive every transformation.
+4. Moving/deleting a carrier moves/removes its V instruction. Later V changes do not change a held note's original onset velocity.
+
+The user is responsible for velocities in ambiguous chords. Do not add conflict prompts, flatten explicit values or let an internal ID overwrite another note's explicit V.
+
+Song/Segment views copy the last explicit V before the boundary per instrument, including a carrier that has ended. Explicit crossing notes keep their own V; inherited crossing notes use the copied boundary value. Explicit changes inside the view govern later inheritance. Automatic context must not become a parent edit merely by opening, saving, returning or editing an unrelated property; clearing an explicit V restores inheritance. The projection tracks a baseline to make this distinction.
+
+## Global tempo
+
+Default tempo is **120 BPM**. Stored T instructions are positive integers; no editing/import clamp to MS2 T32–T255 is permitted. Fractional MIDI tempos round to the nearest whole BPM with a conversion notice. Conflicting simultaneous explicit tempos are invalid; matching values are allowed.
+
+Note-bound and unbound tempos share one global clock. Unbound supported tempos belong to Instructions, including changes in rests or inside held notes. Muting an instrument must not remove its tempo from live playback, audio rendering or musical MML channels. Yellow timeline indicators use the same clock and omit redundant changes/implicit default 120.
+
+Generated musical channels must carry global tempo changes through their last note. Split rests and held notes at tempo boundaries; tie held continuations. MS2 ties prefix the continued note: emit `c4t150&c4`, never `c4&t150c4`. The selected-instrument MIDI file exporter currently has a separate [tempo-filtering limitation](IMPORT_EXPORT.md#known-export-limitations); it is not an exception to intended global-tempo semantics.
+
+## Overlap warnings, density and note lifetimes
+
+| Condition | Required behavior |
+| --- | --- |
+| Identical start, pitch and instrument instance | Non-blocking overlap warning. Keep notes editable/saveable/exportable. |
+| Sustained same-pitch notes with different starts | No identical-onset overlap warning. Their lifetimes still overlap for channel allocation. |
+| Different-pitch chord | No overlap warning solely because it is a chord. |
+| More than ten simultaneously sounding notes | Separate density condition: yellow regions/markers for the active musical instrument. Instructions do not count. |
+
+Use current Segment/Song projection or expanded loop onsets for warnings. Clipping or an untied repeat can restart two held same-pitch notes together; warn even if their original starts differed. This is user-confirmed behavior (A2), not a false positive to suppress. Never automatically trim, delete, move or otherwise repair notes in response to a warning. The explicitly invoked Remove overlap tool is a separate editing command.
+
+Preview must honor every original start, duration and resolved onset V, including a short same-pitch note nested in a long one. Use [shared monophonic channel partitioning](../src/music/channels.ts) and keep exact routes for held-note restoration. Same-channel MIDI note-off pairing must not exchange note lifetimes. All derived routes follow the owning instrument's preset and Mute/Solo settings; they never become stored lanes.
+
+## MS2 notation and compatibility
+
+- Named-note octaves are O0–O8 (C0–B8). The adjacent boundary pitches B-1 and C9 are spelled **only** `o0c-` and `o8b+`.
+- `+` and `-` shift every note letter by a semitone, including E+, B+, C- and F-. Generate `+`/`-`, never `#`; accept `#` as an import alias. GUI labels retain sharps such as C#.
+- Explicit `c128` and `r128` are valid. Default lengths stop at **L64**: never emit L128. A grid label of L128 is an editing resolution, not permission to emit that command.
+- Dotted defaults such as `l1.` are supported. An explicit length overrides the complete default: `l1.c128` is one unit.
+- Conventional dotted lengths and ties can represent every integer model duration exactly. Their use in generated strings does not imply that the dialect forbids other denominators.
+
+Melodic preview must sound from C0 through B8 and both accidental boundaries. Keyboard and song preview share the preset-specific sample fallback in `src/playback/sample-pitch.ts`. Standard Drum Kit keeps its percussion mapping; fixed MS2 drums keep their mapped sounds.
+
+## Instruments, import and preservation
+
+Standard Drum Kit is supported for General MIDI import/editing/preview. Show the user's non-blocking warning: **Not a valid MS2 instrument. Available for editing and preview.** Keep projects saveable; do not silently convert/delete drum parts. Fixed MS2 Snare Drum, Bass Drum and Cymbals are separate supported presets. Their mappings and explicit splitting tools are described in PLAYBACK_AUDIO.
+
+Import/editing must not enforce export limits: no application file-size, note/event/track/instrument-count caps, no truncation, no MS2 tempo clamping. Keep malformed-file checks and report actual decoder/model limitations. Export warnings and character-limit choices do not grant permission to change original music. Broader target-specific resolution choices remain future work.
+
+Instrument merge retains destination settings, transfers source notes/events, materializes inherited V as needed and reindexes owners. Instructions merge only with Instructions. Deleting the final full-project instrument leaves an empty Piano. Scoped operations preserve outside music and shared instruments; use the projection helpers rather than applying full-project deletion semantics blindly.
+
+## Saving and closing
+
+Save and history must use the reconciled full project, even while a Song/Segment is open. Replacement workflows reset the scoped session only on success. Automatic clipping/context is not saved as an edit.
+
+Unsaved-close behavior is an Electron main/preload/renderer handshake. Offer Save / Discard / Cancel; cancelled/failed saves, Cancel, or intervening edits keep the editor open. Save records the contents actually written. Coalesce repeated close requests and never replace this with cancelling `beforeunload`.
+
+Return to Project floats below the measure ruler, right-aligned under Time signature, **only in Segment View**. Song View uses File > Return to Project. The full project shows neither return control.

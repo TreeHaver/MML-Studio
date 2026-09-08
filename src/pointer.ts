@@ -18,7 +18,8 @@ import {previewNote} from './playback/preview.ts';
 import {seekToTick} from './playback/transport.ts';
 import {setPastePosition} from './note-clipboard.ts';
 
-export function endGesture(cancel=false){if(!state.gesture)return;if(cancel&&state.gesture.before)state.project=JSON.parse(state.gesture.before);state.gesture=null;canvas.style.cursor='default';if(state.segment)refresh();else{info();layout();}}
+let stopEdgeScroll=()=>{};
+export function endGesture(cancel=false){stopEdgeScroll();if(!state.gesture)return;if(cancel&&state.gesture.before)state.project=JSON.parse(state.gesture.before);state.gesture=null;canvas.style.cursor='default';if(state.segment)refresh();else{info();layout();}}
 
 export function installPointer(){
  const paint=(from:any,to:any)=>{const gesture=state.gesture,step=128/state.project.grid;if(!gesture||gesture.kind!=='paint')return;const a=Math.floor(Math.max(0,from.tick)/step),b=Math.floor(Math.max(0,to.tick)/step),count=Math.max(Math.abs(b-a),Math.abs(to.pitch-from.pitch));for(let i=1;i<=count;i++){const cell=Math.round(a+(b-a)*i/count),pitch=Math.round(from.pitch+(to.pitch-from.pitch)*i/count),start=cell*step,key=`${start}:${pitch}`;if(gesture.painted.has(key))continue;gesture.painted.add(key);const next:Note={id:state.project.notes.reduce((id,n)=>Math.max(id,n.id),0)+1,instrument:state.active,start,length:step,pitch,volume:null};if(valid([...state.project.notes,next])){state.project.notes.push(next);state.selection.add(next.id);}}};
@@ -28,17 +29,26 @@ export function installPointer(){
  const eraseTrail=(from:any,to:any)=>{const steps=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.y-from.y)/4));let removed=false;for(let i=1;i<=steps;i++)if(eraseAt({x:from.x+(to.x-from.x)*i/steps,y:from.y+(to.y-from.y)*i/steps}))removed=true;return removed;};
  let keyGesture:{pointerId:number,pitch:number}|null=null;
  let scrubbing=false;
- // Dragging a selection box past the visible area scrolls the roll instead of stopping at it.
+ // Box selection scrolls both axes; moving notes scrolls horizontally near the roll edges.
  const EDGE=52,EDGE_SPEED=20;
  let edgeFrame=0,edgePoint:{x:number,y:number}|null=null;
+ stopEdgeScroll=()=>{if(edgeFrame)cancelAnimationFrame(edgeFrame);edgeFrame=0;edgePoint=null;};
+ const moveSelection=()=>{
+  const g=state.gesture;
+  const dx=g.current.x-g.start.x+view.scrollLeft-g.scrollLeft;
+  const dy=g.current.y-g.start.y+view.scrollTop-g.scrollTop;
+  const note=g.base.find((n:Note)=>n.id===g.anchor)!;
+  const pitch=pitchAtY(state.topPitch,pitchTop(state.topPitch,note.pitch)+pitchHeight(note.pitch)/2+dy);
+  state.project.notes=move(g.base,state.selection,g.anchor,dx/state.zoom,state.project.instruments[state.active].isInstructions?0:pitch-note.pitch,state.project.grid);
+ };
  const edgeScroll=()=>{
   const gesture=state.gesture,p=edgePoint;
-  if(!gesture||gesture.kind!=='box'||!p){edgeFrame=0;return;}
+  if(!gesture||!['box','move'].includes(gesture.kind)||!p){edgeFrame=0;return;}
   const speed=(gap:number)=>Math.round(EDGE_SPEED*Math.min(1,Math.max(0,EDGE-gap)/EDGE));
   let dx=0,dy=0;
   if(p.x<KEY+EDGE)dx=-speed(p.x-KEY);else if(p.x>state.width-EDGE)dx=speed(state.width-p.x);
-  if(p.y<HEAD+EDGE)dy=-speed(p.y-HEAD);else if(p.y>state.height-EDGE)dy=speed(state.height-p.y);
-  if(dx||dy){view.scrollLeft+=dx;view.scrollTop+=dy;info();draw();}
+  if(gesture.kind==='box'){if(p.y<HEAD+EDGE)dy=-speed(p.y-HEAD);else if(p.y>state.height-EDGE)dy=speed(state.height-p.y);}
+  if(dx||dy){view.scrollLeft=Math.max(0,view.scrollLeft+dx);view.scrollTop=Math.max(0,view.scrollTop+dy);if(gesture.kind==='move'){moveSelection();layout();}info();draw();}
   edgeFrame=requestAnimationFrame(edgeScroll);
  };
  let keyHighlightTimer:number|undefined;
@@ -74,6 +84,7 @@ canvas.onpointerdown=e=>{
   state.gesture={kind:instructions?'instruction-create':spray?'paint':'resize',start:p,current:p,music:m,nid:newNote.id,before,
    ...(spray?{painted:new Set([`${start}:${m.pitch}`])}:{base:structuredClone(state.project.notes),length:newNote.length,cell:start})};
  }
+ if(state.gesture?.kind==='move'){state.gesture.scrollLeft=view.scrollLeft;state.gesture.scrollTop=view.scrollTop;}
  canvas.setPointerCapture(e.pointerId);info();draw();
 };
 canvas.onpointermove=e=>{
@@ -82,13 +93,9 @@ canvas.onpointermove=e=>{
  if(state.gesture.kind==='erase'){if(eraseTrail(state.gesture.last,p)){info();draw();}state.gesture.last=p;return;}
  const dx=p.x-state.gesture.start.x,dy=p.y-state.gesture.start.y;
  if(Math.hypot(dx,dy)<threshold&&!state.gesture.moved){draw();return;}state.gesture.moved=true;
- if(state.gesture.kind==='box'){edgePoint=p;if(!edgeFrame)edgeFrame=requestAnimationFrame(edgeScroll);}
+ if(state.gesture.kind==='box'||state.gesture.kind==='move'){edgePoint=p;if(!edgeFrame)edgeFrame=requestAnimationFrame(edgeScroll);}
  if(state.gesture.kind==='paint'){paint(state.gesture.music,musical(p));state.gesture.music=musical(p);}
- if(state.gesture.kind==='move'){
-  const note=state.gesture.base.find(n=>n.id===state.gesture.anchor)!;
-  const pitch=pitchAtY(state.topPitch,pitchTop(state.topPitch,note.pitch)+pitchHeight(note.pitch)/2+dy);
-  state.project.notes=move(state.gesture.base,state.selection,state.gesture.anchor,dx/state.zoom,state.project.instruments[state.active].isInstructions?0:pitch-note.pitch,state.project.grid);
- }
+ if(state.gesture.kind==='move')moveSelection();
  if(state.gesture.kind==='resize'){
   const g=state.gesture,step=128/state.project.grid,tick=musical(p).tick;
   // Only a note being drawn carries a cell: dragging left of it grows the note backwards.
