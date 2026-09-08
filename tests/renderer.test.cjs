@@ -1,11 +1,11 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),{transpile}=require('../transpile.cjs');
 test('renderer handles click, edge resize, group box/delete, rename, grid and scroll without text nodes on notes',async()=>{
- const elements=new Map();class El{constructor(){this.value='';this.children=[];this.style={};this.dataset={};this.clientWidth=900;this.clientHeight=600;this.scrollLeft=0;this.scrollTop=0;this.classList={names:new Set(),toggle(name,on){on?this.names.add(name):this.names.delete(name)},add(name){this.names.add(name)},remove(name){this.names.delete(name)},contains(name){return this.names.has(name)}};}addEventListener(type,handler){this["on"+type]=handler}append(...e){this.children.push(...e)}replaceChildren(){this.children=[]}replaceWith(e){this.replacement=e}after(e){this.replacement=e}querySelector(){return null}set innerHTML(value){this._html=value;const match=/<span>(.*?)<\/span>/.exec(value);if(match)this.textContent=match[1]}get innerHTML(){return this._html}setAttribute(name,value){(this.attributes??={})[name]=String(value)}getAttribute(name){return this.attributes?.[name]??null}focus(){}select(){}matches(){return false}getBoundingClientRect(){return {left:0,top:0}}setPointerCapture(){this.capture=true}hasPointerCapture(){return this.capture}releasePointerCapture(){this.capture=false}}
+ const elements=new Map();class El{constructor(){this.value='';this.children=[];this.style={};this.dataset={};this.clientWidth=900;this.clientHeight=600;this.scrollLeft=0;this.scrollTop=0;this.classList={names:new Set(),toggle(name,on){on?this.names.add(name):this.names.delete(name)},add(name){this.names.add(name)},remove(name){this.names.delete(name)},contains(name){return this.names.has(name)}};}addEventListener(type,handler){this["on"+type]=handler}append(...e){this.children.push(...e)}replaceChildren(...e){this.children=[...e]}replaceWith(e){this.replacement=e}after(e){this.replacement=e}querySelector(){return null}set innerHTML(value){this._html=value;const match=/<span>(.*?)<\/span>/.exec(value);if(match)this.textContent=match[1]}get innerHTML(){return this._html}setAttribute(name,value){(this.attributes??={})[name]=String(value)}getAttribute(name){return this.attributes?.[name]??null}focus(){}select(){}matches(){return false}getBoundingClientRect(){return {left:0,top:0}}setPointerCapture(){this.capture=true}hasPointerCapture(){return this.capture}releasePointerCapture(){this.capture=false}}
  const htmlIds=new Set([...fs.readFileSync(require('node:path').join(__dirname,'../index.html'),'utf8').matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
  const doc={getElementById:id=>{assert.ok(htmlIds.has(id),`Missing editor element #${id} in index.html`);if(!elements.has(id))elements.set(id,new El());return elements.get(id)},createElement:()=>new El(),querySelectorAll:()=>[]};
  const fills=[],texts=[];const ctx=new Proxy({measureText(text){return {width:text.length*6}},fillText(text,x,y){texts.push({text,x,y})},fillRect(x,y,w,h){fills.push({x,y,w,h,color:this.fillStyle,alpha:this.globalAlpha});}},{get:(target,key)=>key in target?target[key]:()=>{}});doc.getElementById('canvas').getContext=()=>ctx;
  let frame;const seq={currentHighResolutionTime:0,isFinished:false,get currentTime(){return this.currentHighResolutionTime},set currentTime(value){this.currentHighResolutionTime=value}};
- const sandbox={queueMicrotask,document:doc,window:{setTimeout,clearTimeout},devicePixelRatio:1,ResizeObserver:class{observe(){}},structuredClone,confirm:()=>true,console,requestAnimationFrame:fn=>{frame=fn;return 1;},cancelAnimationFrame:()=>{frame=null;}};vm.createContext(sandbox);
+ const sandbox={queueMicrotask,document:doc,window:{setTimeout,clearTimeout},setInterval:()=>0,clearInterval:()=>{},devicePixelRatio:1,ResizeObserver:class{observe(){}},structuredClone,confirm:()=>true,console,requestAnimationFrame:fn=>{frame=fn;return 1;},cancelAnimationFrame:()=>{frame=null;}};vm.createContext(sandbox);
  const previewCalls=[],muteCalls=[],songLoads=[],restoredNotes=[],masterVolumes=[];let loadGate=null;
  const path=require('node:path'),cache=new Map();
  async function load(file){file=path.resolve(file);if(cache.has(file))return cache.get(file);
@@ -61,6 +61,10 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  doc.getElementById('grid').value='128';doc.getElementById('grid').onchange();run("setTool('draw')");click(158,240);assert.equal(run('project.notes[0].length'),1);
  // Each instrument gets the full GM list, and a selected note can carry bounded T.
  const preset=doc.getElementById('instruments').children[0].children[2];
+ // The list is built the first time it is asked for, so a hundred instruments do not cost
+ // a hundred full lists on every rebuild. Until then the select holds its current value.
+ assert.equal(preset.children.length,1,'only the chosen preset is built up front');
+ preset.fillOptions();
  assert.equal(preset.children.length,132);preset.value='40';preset.onchange();assert.equal(run('project.instruments[0].midiProgram'),40);
  const tempo=doc.getElementById('tempo');tempo.value='32';tempo.onchange();assert.equal(run('project.notes[0].tempo'),32);
  tempo.value='300';tempo.onchange();assert.equal(run('project.notes[0].tempo'),300);
@@ -230,12 +234,25 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  limitInput.value='0';limitInput.onchange();assert.equal(limitInput.value,'60');
  const dialog=doc.getElementById('export-limit-dialog');dialog.showModal=()=>{dialog.open=true};dialog.close=()=>{dialog.open=false;dialog.onclose?.()};
  const exportDialog=doc.getElementById('export-dialog');exportDialog.showModal=()=>{exportDialog.open=true};exportDialog.close=()=>{exportDialog.open=false};
- const saves=[];sandbox.window.files={exportMml:async(name,text)=>{saves.push({name,text});return true}};
- doc.getElementById('scope-selected').checked=true;doc.getElementById('scope-all').checked=false;
+ const saves=[];let bundles=0,archives=0;
+ // One file goes through the save dialog; several are handed over as a folder, or as an
+ // archive when that box is ticked. All three routes are recorded the same way here.
+ const collect=files=>{for(const file of files)saves.push({name:file.name,text:file.text});};
+ sandbox.window.files={exportMml:async(name,text)=>{saves.push({name,text});return true},
+  exportFolder:async(name,files)=>{bundles++;collect(files);return 'C:/exports/'+name},
+  exportZip:async(name,files)=>{archives++;collect(files);return 'C:/exports/'+name+'.zip'}};
+ doc.getElementById('scope-selected').checked=true;
  const exportButton=doc.getElementById('export-run'),unchanged=run('JSON.stringify(project)');
  let pending=exportButton.onclick();assert.equal(dialog.open,true);assert.match(doc.getElementById('export-limit-message').textContent,/60 character limit.*Do you still wish to export/);doc.getElementById('export-limit-no').onclick();await pending;assert.equal(saves.length,0);
  pending=exportButton.onclick();doc.getElementById('export-limit-single').onclick();await pending;assert.equal(saves.length,1);assert.equal(saves[0].name,'Sheet.ms2mml');saves.length=0;
- pending=exportButton.onclick();doc.getElementById('export-limit-parts').onclick();await pending;assert.ok(saves.length>1);assert.equal(saves[0].name,'Sheet-part-01.ms2mml');
+ bundles=0;pending=exportButton.onclick();doc.getElementById('export-limit-parts').onclick();await pending;assert.ok(saves.length>1);assert.equal(saves[0].name,'Sheet-part-01.ms2mml');
+ assert.equal(bundles,1,'the parts are delivered once, as a folder, not one dialog each');
+ // Ticking the archive box sends the same set through the zip route instead.
+ doc.getElementById('export-zip').checked=true;saves.length=0;archives=0;
+ pending=exportButton.onclick();doc.getElementById('export-limit-parts').onclick();await pending;
+ assert.equal(archives,1,'an archive is written once');assert.ok(saves.length>1);
+ assert.match(doc.getElementById('status').textContent,/Exported \d+ files to C:\/exports\/Sheet\.zip/);
+ doc.getElementById('export-zip').checked=false;
  for(const saved of saves){const texts=[...saved.text.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>/g)].map(m=>m[1]);assert.ok(texts.join('').length<=60);}
  assert.equal(run('JSON.stringify(project)'),unchanged);
  saves.length=0;pending=exportButton.onclick();dialog.oncancel({preventDefault(){}});await pending;assert.equal(saves.length,0);
@@ -268,7 +285,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.equal(doc.getElementById('section-control').hidden,false);const nav=doc.getElementById('section-nav');nav.value='128';nav.onchange();assert.equal(doc.getElementById('view').scrollLeft,128);
  const structure=(await load('src/music/structure.ts')).namespace;assert.equal(structure.measureLines(run('project'),128,129)[0].bar,1);
  (await load('src/history.ts')).namespace.undo();assert.equal(run('project.notes[2].resetMeasures'),undefined);assert.equal(reset.checked,false);
- doc.getElementById('export-sections').checked=true;doc.getElementById('scope-all').checked=true;doc.getElementById('scope-selected').checked=false;saves.length=0;await doc.getElementById('export-run').onclick();
+ doc.getElementById('export-sections').checked=true;doc.getElementById('scope-selected').checked=false;saves.length=0;await doc.getElementById('export-run').onclick();
  assert.deepEqual(saves.map(s=>s.name),['01-Opening-Piano.ms2mml','02-Next song-Flute.ms2mml']);assert.equal(dialog.open,false);
  doc.getElementById('new').onclick();assert.equal(projectName.value,'Untitled');assert.equal(doc.getElementById('section-control').hidden,true);
 

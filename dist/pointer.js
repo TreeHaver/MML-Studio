@@ -15,6 +15,7 @@ import { valid } from './model/validation.js';
 import { move, resize, stretchBack } from './music/note-operations.js';
 import { previewNote } from './playback/preview.js';
 import { seekToTick } from './playback/transport.js';
+import { loopRegion, loopEdgeAt, setLoopRegion, clearLoopRegion, loopSpan, looping, freeTick } from './playback/loop-region.js';
 import { setPastePosition } from './note-clipboard.js';
 import { advancedInstructions } from './advanced-instructions.js';
 let stopEdgeScroll = () => { };
@@ -50,7 +51,7 @@ export function installPointer() {
         if (eraseAt({ x: from.x + (to.x - from.x) * i / steps, y: from.y + (to.y - from.y) * i / steps }))
             removed = true; return removed; };
     let keyGesture = null;
-    let scrubbing = false;
+    let scrubbing = false, loopDrag = null;
     // Box selection scrolls both axes; moving notes scrolls horizontally near the roll edges.
     const EDGE = 52, EDGE_SPEED = 20;
     let edgeFrame = 0, edgePoint = null;
@@ -108,9 +109,22 @@ export function installPointer() {
         if (p.y < HEAD) {
             if (e.button === 0 && p.x >= KEY) {
                 e.preventDefault();
-                scrubbing = true;
                 canvas.setPointerCapture(e.pointerId);
-                seekToTick(musical(p).tick);
+                const tick = musical(p).tick, end = loopEdgeAt(tick, threshold / state.zoom);
+                // Shift draws the rehearsal loop; taking hold of an end of an existing one needs no key,
+                // and a plain drag still moves the playhead, which is what the ruler has always done.
+                if (e.shiftKey && !end) {
+                    loopDrag = { anchor: freeTick(tick) };
+                    clearLoopRegion();
+                    draw();
+                }
+                else if (end) {
+                    loopDrag = { anchor: end === 'start' ? loopRegion.end : loopRegion.start };
+                }
+                else {
+                    scrubbing = true;
+                    seekToTick(tick);
+                }
             }
             return;
         }
@@ -219,7 +233,13 @@ export function installPointer() {
         draw();
     };
     canvas.onpointermove = e => {
+        // A loop lands exactly where it is drawn. G puts it on the grid afterwards, if wanted.
         const p = point(e);
+        if (loopDrag) {
+            setLoopRegion(loopDrag.anchor, musical(p).tick);
+            draw();
+            return;
+        }
         if (scrubbing) {
             seekToTick(musical(p).tick);
             return;
@@ -236,7 +256,7 @@ export function installPointer() {
         }
         if (!state.gesture) {
             if (p.y < HEAD) {
-                canvas.style.cursor = p.x >= KEY ? 'pointer' : 'default';
+                canvas.style.cursor = p.x < KEY ? 'default' : loopEdgeAt(musical(p).tick, threshold / state.zoom) ? 'ew-resize' : 'pointer';
                 return;
             }
             const n = p.x >= KEY ? hit(p) : undefined;
@@ -281,6 +301,15 @@ export function installPointer() {
         draw();
     };
     canvas.onpointerup = e => {
+        if (loopDrag) {
+            loopDrag = null;
+            if (canvas.hasPointerCapture(e.pointerId))
+                canvas.releasePointerCapture(e.pointerId);
+            // A shift-click with no drag has both ends on one cell, which is how the loop is cleared.
+            status(loopSpan() > 0 ? `Repeating ticks ${loopRegion.start}-${loopRegion.end}. G puts the ends on the grid, L switches the loop off.` : 'Loop cleared.');
+            draw();
+            return;
+        }
         if (scrubbing) {
             scrubbing = false;
             if (canvas.hasPointerCapture(e.pointerId))

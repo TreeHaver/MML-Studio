@@ -16,6 +16,7 @@ import {move,resize,stretchBack} from './music/note-operations.ts';
 import type {Note} from './model/types.ts';
 import {previewNote} from './playback/preview.ts';
 import {seekToTick} from './playback/transport.ts';
+import {loopRegion,loopEdgeAt,setLoopRegion,clearLoopRegion,loopSpan,looping,freeTick} from './playback/loop-region.ts';
 import {setPastePosition} from './note-clipboard.ts';
 import {advancedInstructions} from './advanced-instructions.ts';
 
@@ -29,7 +30,7 @@ export function installPointer(){
  // Sample the path so a fast drag cannot jump over a note between two move events.
  const eraseTrail=(from:any,to:any)=>{const steps=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.y-from.y)/4));let removed=false;for(let i=1;i<=steps;i++)if(eraseAt({x:from.x+(to.x-from.x)*i/steps,y:from.y+(to.y-from.y)*i/steps}))removed=true;return removed;};
  let keyGesture:{pointerId:number,pitch:number}|null=null;
- let scrubbing=false;
+ let scrubbing=false,loopDrag:{anchor:number}|null=null;
  // Box selection scrolls both axes; moving notes scrolls horizontally near the roll edges.
  const EDGE=52,EDGE_SPEED=20;
  let edgeFrame=0,edgePoint:{x:number,y:number}|null=null;
@@ -56,7 +57,18 @@ export function installPointer(){
  const previewKey=(p:any)=>{const instrument=state.project.instruments[state.active],pitch=musical(p).pitch;if(pitch<0||pitch>127)return;state.previewPitch=pitch;draw();if(keyHighlightTimer!==undefined)window.clearTimeout(keyHighlightTimer);keyHighlightTimer=window.setTimeout(()=>{if(state.previewPitch===pitch){state.previewPitch=null;draw();}},500);void previewNote(playbackPitch(instrument,pitch),instrument.midiProgram??0,instrument.isDrum===true||!!instrument.ms2Drum);return pitch;};
 canvas.onpointerdown=e=>{
  if(e.button!==0&&e.button!==2)return;const p=point(e);
- if(p.y<HEAD){if(e.button===0&&p.x>=KEY){e.preventDefault();scrubbing=true;canvas.setPointerCapture(e.pointerId);seekToTick(musical(p).tick);}return;}
+ if(p.y<HEAD){
+  if(e.button===0&&p.x>=KEY){
+   e.preventDefault();canvas.setPointerCapture(e.pointerId);
+   const tick=musical(p).tick,end=loopEdgeAt(tick,threshold/state.zoom);
+   // Shift draws the rehearsal loop; taking hold of an end of an existing one needs no key,
+   // and a plain drag still moves the playhead, which is what the ruler has always done.
+   if(e.shiftKey&&!end){loopDrag={anchor:freeTick(tick)};clearLoopRegion();draw();}
+   else if(end){loopDrag={anchor:end==='start'?loopRegion.end:loopRegion.start};}
+   else{scrubbing=true;seekToTick(tick);}
+  }
+  return;
+ }
  if(p.x<KEY){
   if(e.button===0&&p.x>=0&&!isMuted(state.active)){e.preventDefault();canvas.focus();const instrument=state.project.instruments[state.active];if(instrument.isInstructions){status('Instructions are silent. Draw a marker in the roll and edit its tempo, time signature or section.');return;}const pitch=previewKey(p);if(pitch===undefined)return;keyGesture={pointerId:e.pointerId,pitch};}
   return;
@@ -89,7 +101,9 @@ canvas.onpointerdown=e=>{
  canvas.setPointerCapture(e.pointerId);info();draw();
 };
 canvas.onpointermove=e=>{
- const p=point(e);if(scrubbing){seekToTick(musical(p).tick);return;}if(keyGesture){if(p.x>=0&&p.x<KEY&&p.y>=HEAD){const pitch=musical(p).pitch;if(pitch!==keyGesture.pitch&&pitch>=0&&pitch<=127){keyGesture.pitch=pitch;previewKey(p);}}return;}if(!state.gesture){if(p.y<HEAD){canvas.style.cursor=p.x>=KEY?'pointer':'default';return;}const n=p.x>=KEY?hit(p):undefined;canvas.style.cursor=n&&edge(n,p)?'ew-resize':'default';return;}
+ // A loop lands exactly where it is drawn. G puts it on the grid afterwards, if wanted.
+ const p=point(e);if(loopDrag){setLoopRegion(loopDrag.anchor,musical(p).tick);draw();return;}
+ if(scrubbing){seekToTick(musical(p).tick);return;}if(keyGesture){if(p.x>=0&&p.x<KEY&&p.y>=HEAD){const pitch=musical(p).pitch;if(pitch!==keyGesture.pitch&&pitch>=0&&pitch<=127){keyGesture.pitch=pitch;previewKey(p);}}return;}if(!state.gesture){if(p.y<HEAD){canvas.style.cursor=p.x<KEY?'default':loopEdgeAt(musical(p).tick,threshold/state.zoom)?'ew-resize':'pointer';return;}const n=p.x>=KEY?hit(p):undefined;canvas.style.cursor=n&&edge(n,p)?'ew-resize':'default';return;}
  state.gesture.current=p;
  if(state.gesture.kind==='erase'){if(eraseTrail(state.gesture.last,p)){info();draw();}state.gesture.last=p;return;}
  const dx=p.x-state.gesture.start.x,dy=p.y-state.gesture.start.y;
@@ -105,7 +119,14 @@ canvas.onpointermove=e=>{
  }
  info();draw();
 };
-canvas.onpointerup=e=>{if(scrubbing){scrubbing=false;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);return;}if(keyGesture){keyGesture=null;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);return;}if(!state.gesture)return;
+canvas.onpointerup=e=>{
+ if(loopDrag){
+  loopDrag=null;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);
+  // A shift-click with no drag has both ends on one cell, which is how the loop is cleared.
+  status(loopSpan()>0?`Repeating ticks ${loopRegion.start}-${loopRegion.end}. G puts the ends on the grid, L switches the loop off.`:'Loop cleared.');
+  draw();return;
+ }
+ if(scrubbing){scrubbing=false;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);return;}if(keyGesture){keyGesture=null;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);return;}if(!state.gesture)return;
  if(state.gesture.kind==='box'){const ids=boxIds(state.gesture.music,musical(state.gesture.current));state.selection=state.gesture.add?new Set([...state.selection,...ids]):new Set(ids);if(!state.gesture.moved)setPastePosition(Math.max(0,cellStart(state.gesture.music.tick,state.project.grid)));}
  if(!fitsCurrentView(state.project)){state.project=JSON.parse(state.gesture.before);status('This edit extends beyond the current view. Return to Project to edit across its boundary.');}
  if(JSON.stringify(state.project)!==state.gesture.before){state.history.push(historySnapshot(JSON.parse(state.gesture.before)));if(state.history.length>100)state.history.shift();state.future=[];state.dirty=true;}

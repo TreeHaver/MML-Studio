@@ -15,7 +15,7 @@ app.on('browser-window-created',(_,win)=>win.webContents.once('did-finish-load',
    state.active=1;refresh();document.getElementById('view').scrollTop=1200;
   })`);
   await wait(200);
-  assert.equal(await evaluate(`[...document.querySelectorAll('#instruments .instrument')].map(card=>card.querySelector(':scope > .select-control > select'))[1].value`),'instructions');
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('#instruments .instrument')].map(card=>[card.classList.contains('instructions-lane'),card.querySelector('.instrument-name').textContent])`),[[false,'Piano'],[true,'Instructions']]);
   const pixel=await evaluate(`Promise.all([import('./dist/constants.js'),import('./dist/state.js')]).then(([{KEY,HEAD},{state}])=>Array.from(document.getElementById('canvas').getContext('2d').getImageData(Math.round((KEY+128*state.zoom)*devicePixelRatio),Math.round((HEAD+100)*devicePixelRatio),1,1).data))`);
   assert.deepEqual(pixel,[244,211,94,255]);result.checks.push('Instructions selector and yellow unbound tempo line rendered in native canvas');
   fs.writeFileSync(path.join(output,'electron-timeline.png'),(await wc.capturePage()).toPNG());

@@ -41,7 +41,7 @@ function setZoom(horizontal, vertical, anchorY = 0) {
     if (state.gesture)
         return;
     const time = view.scrollLeft / state.zoom, pitchPosition = (view.scrollTop + anchorY) / state.verticalZoom;
-    state.zoom = Math.max(1, Math.min(8, horizontal));
+    state.zoom = Math.max(1, Math.min(11, horizontal));
     state.verticalZoom = Math.max(.5, Math.min(3, vertical));
     input('zoom').value = String(state.zoom);
     input('vertical-zoom').value = String(state.verticalZoom);

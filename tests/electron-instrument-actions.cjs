@@ -22,7 +22,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  await evaluate(`document.querySelector('.instrument-name').click()`);
  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.instrument-actions')).display`),'none');
  await evaluate(`document.querySelector('.instrument-name').click();prefs.muted.add(1);prefs.collapsed.add(2);refresh();
- const select=document.querySelector('.instrument-destination');select.value='1';select.dispatchEvent(new Event('change'));`);
+ const select=document.querySelector('.instrument-destination');select.fillOptions();select.value='1';select.dispatchEvent(new Event('change'));`);
  assert.equal(await evaluate(`[...document.querySelectorAll('.instrument-actions button')].find(b=>b.textContent==='Merge').disabled`),false);
  await evaluate(`approve=true;[...document.querySelectorAll('.instrument-actions button')].find(b=>b.textContent==='Merge').click()`);
  assert.deepEqual(await evaluate('[s.project.instruments.length,s.project.notes.length,s.active,prefs.muted.has(0),prefs.collapsed.has(1)]'),[2,3,0,true,true]);

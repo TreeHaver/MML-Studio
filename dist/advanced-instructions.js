@@ -37,10 +37,10 @@ export function instructionCard(index = state.project.instruments.findIndex(i =>
         state.selection.clear();
         refresh();
     };
-    const help = document.createElement('small');
-    help.className = 'instrument-help';
-    help.textContent = 'Always active. Draw a marker, then edit tempo, time signature, section or loops in the inspector.';
-    row.append(button, help);
+    // Read once and then in the way for good: the lane's manner of working lives in its
+    // tooltip, like the drum kit's warning, rather than under every card for ever.
+    button.title = 'Always active, and silent. Draw a marker, then edit tempo, time signature, section or loops in the inspector.';
+    row.append(button);
     return row;
 }
 export function installAdvancedInstructions() {

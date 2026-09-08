@@ -6,11 +6,53 @@ import { tickAtSeconds, tempoAt, secondsAtTick, tempoMap } from '../music/tempo.
 import { volumeAt } from '../music/volume.js';
 import { getEngine, setMasterVolume } from './engine.js';
 import { followPlayback } from '../viewport.js';
+import { loopRegion, looping } from './loop-region.js';
 let position = null;
 export const playback = { get tick() { return position === null ? null : phase === 'idle' || !plan ? position : plan.sourceTick(position); }, set tick(value) { position = value; } };
 export const playbackSettings = { speed: 1, volume: 1 };
 let phase = 'idle', engine = null, plan = null;
 let snapshot = null, frame = 0, generation = 0, voiceRevision = 0, loadedVoiceRevision = 0;
+/**
+ * The loop cannot ride on the animation frame. Chromium stops painting a window that is
+ * behind another application, so the frame callback stops with it while the audio thread
+ * plays straight on - which is why the whole song went past the loop as soon as the editor
+ * lost focus. This timer reads the sequencer's own clock instead, and keeps the loop honest
+ * whether or not anything is being drawn.
+ */
+let rewinding = false;
+/**
+ * Taking the loop back to its start. A sequencer that has reached the end of the song is
+ * finished for good: putting its clock back is not enough, it has to be told to play again,
+ * or the position freezes at the start with the last notes still held down - which is the
+ * crackle that was reported when a loop reached past the end of the music.
+ */
+async function rewindLoop() {
+    if (rewinding || !engine || !plan)
+        return;
+    rewinding = true;
+    try {
+        const finished = engine.seq.isFinished;
+        seekToTick(loopRegion.start);
+        if (!finished)
+            return;
+        const token = generation;
+        await engine.play();
+        if (token !== generation || phase !== 'playing')
+            return;
+        seekToTick(loopRegion.start);
+        restoreHeld();
+    }
+    finally {
+        rewinding = false;
+    }
+}
+function loopGuard() {
+    if (phase !== 'playing' || !looping() || !engine || !plan)
+        return;
+    const heard = plan.sourceTick(tickAtSeconds(plan.map, Math.max(0, engine.seq.currentHighResolutionTime)));
+    if (heard >= loopRegion.end || engine.seq.isFinished)
+        void rewindLoop();
+}
 // Recompile only the playback snapshot's voices. Other song edits keep their
 // existing Stop/Play semantics. Re-trigger held notes with their remaining time.
 async function loadSnapshot(token) {
@@ -19,7 +61,9 @@ async function loadSnapshot(token) {
         const revision = voiceRevision, from = position ?? 0;
         snapshot.instruments = structuredClone(state.project.instruments);
         const range = state.segment?.projection.range;
-        const next = compilePlayback(snapshot, range ? range.end - range.start : 0);
+        // A loop drawn past the end of the music still has to be played to its end, so the
+        // performance is compiled at least that long; without it the song simply stops early.
+        const next = compilePlayback(snapshot, Math.max(range ? range.end - range.start : 0, looping() ? loopRegion.end : 0));
         await engine.load(next.binary);
         if (token !== generation)
             return false;
@@ -141,9 +185,21 @@ function animate() {
         return;
     const time = engine.seq.currentHighResolutionTime;
     position = Math.min(plan.end, tickAtSeconds(plan.map, Math.max(0, time)));
+    // The rehearsal loop is measured in the ticks the user sees, so it is checked here
+    // rather than in the compiled performance, and simply seeks back when it runs past.
+    if (looping() && playback.tick !== null && playback.tick >= loopRegion.end) {
+        void rewindLoop();
+        frame = requestAnimationFrame(animate);
+        return;
+    }
     followPlayback(playback.tick);
     draw();
     if (engine.seq.isFinished) {
+        if (looping()) {
+            void rewindLoop();
+            frame = requestAnimationFrame(animate);
+            return;
+        }
         stopPlayback(false);
         return;
     }
@@ -186,6 +242,9 @@ export async function play() {
     const section = $('section-nav').value;
     if (position === null && section !== '')
         position = Number(section);
+    // Starting outside the loop would play on and never come round, so it starts inside it.
+    if (looping() && (position === null || position < loopRegion.start || position >= loopRegion.end))
+        position = loopRegion.start;
     const token = ++generation;
     phase = 'loading';
     buttons();
@@ -247,6 +306,8 @@ export function installPlayback() {
         void play(); };
     $('stop').onclick = () => stopPlayback();
     buttons();
+    // 40ms is far below the shortest loop worth rehearsing and costs nothing while idle.
+    setInterval(loopGuard, 40);
     $('start').onclick = () => setPosition(0);
     $('rewind').onclick = () => setPosition((engine?.seq.currentHighResolutionTime ?? 0) - 5);
     $('forward').onclick = () => setPosition((engine?.seq.currentHighResolutionTime ?? 0) + 5);

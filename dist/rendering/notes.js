@@ -27,6 +27,13 @@ export function noteLabelColor(background) { let color = labelColors.get(backgro
 } return color; }
 export function drawNotes() {
     const visible = visibleNotes();
+    // The font and baseline are the same for every label, and setting them on the context is
+    // not free: hoisted out of the loop they are set once a frame instead of once a note.
+    ctx.font = '10px Segoe UI, sans-serif';
+    ctx.textBaseline = 'middle';
+    // A rough width per character at this size, used only to decide whether a label can
+    // overflow its note. When it cannot, the clip - and its save/restore pair - is skipped.
+    const CHARACTER = 6.4;
     const preview = state.gesture?.kind === 'box' ? new Set(boxIds(state.gesture.music, musical(state.gesture.current), visible)) : null;
     for (const n of visible) {
         if (isMuted(n.instrument) || state.project.instruments[n.instrument].isInstructions)
@@ -62,15 +69,18 @@ export function drawNotes() {
             ctx.fillRect(r.x + r.w - 4, r.y + 3, 1, r.h - 6);
         }
         if (r.w > 8) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(r.x + 2, r.y, Math.max(0, r.w - 4), r.h);
-            ctx.clip();
+            const text = instructions ? ([n.section, n.timeSignature, n.tempo == null ? '' : `T${n.tempo}`].filter(Boolean).join(' · ') || 'Event') : name(n.pitch) + (n.tempo == null ? '' : ` T${n.tempo}`);
+            const clipped = text.length * CHARACTER > r.w - 6;
+            if (clipped) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(r.x + 2, r.y, Math.max(0, r.w - 4), r.h);
+                ctx.clip();
+            }
             ctx.fillStyle = noteLabelColor(instructions ? INSTRUCTIONS_COLOR : state.project.instruments[n.instrument].color);
-            ctx.font = '10px Segoe UI, sans-serif';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(instructions ? ([n.section, n.timeSignature, n.tempo == null ? '' : `T${n.tempo}`].filter(Boolean).join(' · ') || 'Event') : name(n.pitch) + (n.tempo == null ? '' : ` T${n.tempo}`), r.x + 4, r.y + r.h / 2);
-            ctx.restore();
+            ctx.fillText(text, r.x + 4, r.y + r.h / 2);
+            if (clipped)
+                ctx.restore();
         }
         ctx.globalAlpha = 1;
     }

@@ -2,7 +2,8 @@ const {app,dialog}=require('electron'),fs=require('node:fs'),path=require('node:
 fs.mkdirSync('.validation',{recursive:true});const root=fs.mkdtempSync(path.resolve('.validation/structure-'));app.setPath('userData',path.join(root,'profile'));app.disableHardwareAcceleration();
 let started=false,stage='startup',written=[];const timer=setTimeout(()=>finish(Error('Timed out: '+stage)),30000);
 function finish(error){clearTimeout(timer);fs.writeFileSync('.validation/electron-structure.json',JSON.stringify({passed:!error,error:error?.stack,stage,files:written},null,2));app.exit(error?1:0);}
-dialog.showSaveDialog=async(_,options)=>{const filePath=path.join(root,options.defaultPath);written.push(filePath);return {canceled:false,filePath};};
+dialog.showSaveDialog=async(_,options)=>{const filePath=path.join(root,path.basename(options.defaultPath));written.push(filePath);return {canceled:false,filePath};};
+dialog.showOpenDialog=async()=>({canceled:false,filePaths:[root]});
 app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.webContents.once('did-finish-load',async()=>{try{
  const evaluate=code=>{stage=code;return win.webContents.executeJavaScript(code,true);};
  await evaluate(`import("./dist/music/pitch-layout.js").then(layout=>{window.pitchTop=layout.pitchTop;window.pitchHeight=layout.pitchHeight;})`);
@@ -14,8 +15,9 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  assert.equal(await evaluate(`document.getElementById('view').scrollLeft`),384);
  await evaluate(`document.getElementById('save').onclick()`);assert.equal(path.basename(written[0]),'Three-quarter suite.json');
  assert.equal(JSON.parse(fs.readFileSync(written[0],'utf8')).notes[2].resetMeasures,true);
- await evaluate(`document.getElementById('export-sections').checked=true;document.getElementById('scope-all').checked=true;document.getElementById('scope-selected').checked=false;document.getElementById('export-run').onclick()`);
- assert.deepEqual(written.slice(1).map(f=>path.basename(f)),['01-Opening-Piano.ms2mml','02-Second song-Flute.ms2mml']);
+ await evaluate(`document.getElementById('export-sections').checked=true;document.getElementById('scope-selected').checked=false;document.getElementById('export-run').onclick()`);
+ assert.equal(written.length,1,'Several files ask once for a place, not once per file');
+ assert.deepEqual(fs.readdirSync(path.join(root,'Three-quarter suite')),['01-Opening-Piano.ms2mml','02-Second song-Flute.ms2mml']);
  await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`);
  assert.equal(await evaluate(`document.getElementById('export-open').getBoundingClientRect().right<=innerWidth`),true);
  fs.writeFileSync('.validation/electron-structure.png',(await win.webContents.capturePage()).toPNG());

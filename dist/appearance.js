@@ -1,9 +1,9 @@
 import { $ } from './dom.js';
 import { draw } from './painting.js';
-export const palette = { gridA: '#e5f1fa', gridB: '#deedf8', row: '#275d8010', octave: '#387ba447', cRow: '#398bce16', bar: '#3e789760', beat: '#3c73951c', ruler: '#c8dfef', text: '#284d68', keyDark: '#3f4144', keyLight: '#ffffff', keyLine: '#c9ced2', corner: '#b7d3e7', background: '#deedf8', playhead: '#1689dc', pianoWhite: '#ffffff', pianoBlack: '#2b3238', pianoLine: '#b7c4cd', pianoLabel: '#5d7382' };
+export const palette = { gridA: '#e5f1fa', gridB: '#deedf8', row: '#275d8010', octave: '#387ba447', cRow: '#398bce16', bar: '#3e789760', beat: '#3c73951c', ruler: '#c8dfef', text: '#284d68', keyDark: '#3f4144', keyLight: '#ffffff', keyLine: '#c9ced2', corner: '#b7d3e7', background: '#deedf8', playhead: '#1689dc', loop: '#e0a20016', loopBar: '#e0a200', pianoWhite: '#ffffff', pianoBlack: '#2b3238', pianoLine: '#b7c4cd', pianoLabel: '#5d7382' };
 export const keyboardView = { piano: false };
 const sky = { ...palette };
-const night = { gridA: '#171717', gridB: '#1b1b1b', row: '#ffffff08', octave: '#ffffff25', cRow: '#5b9cda18', bar: '#ffffff38', beat: '#ffffff12', ruler: '#252525', text: '#dddddd', keyDark: '#111111', keyLight: '#bfbfbf', keyLine: '#2a2a2a', corner: '#202020', background: '#171717', playhead: '#eeeeee', pianoWhite: '#bfbfbf', pianoBlack: '#101010', pianoLine: '#8f8f8f', pianoLabel: '#3d3d3d' };
+const night = { gridA: '#171717', gridB: '#1b1b1b', row: '#ffffff08', octave: '#ffffff25', cRow: '#5b9cda18', bar: '#ffffff38', beat: '#ffffff12', ruler: '#252525', text: '#dddddd', keyDark: '#111111', keyLight: '#bfbfbf', keyLine: '#2a2a2a', corner: '#202020', background: '#171717', playhead: '#eeeeee', loop: '#ffcc6614', loopBar: '#ffcc66', pianoWhite: '#bfbfbf', pianoBlack: '#101010', pianoLine: '#8f8f8f', pianoLabel: '#3d3d3d' };
 const key = 'mml-studio-workspace-v1';
 export function installAppearance() {
     if (!document.documentElement)
@@ -23,7 +23,10 @@ export function installAppearance() {
         let panel = null, items = [], active = -1, typed = '', typedTimer;
         // Options read "12. Vibraphone", so type-ahead has to match the name, not the number.
         const label = (option) => (option.textContent ?? '').replace(/^\s*\d+\.\s*/, '').toLowerCase();
-        const visibleOptions = () => [...select.options].filter(option => !option.hidden);
+        // A select may hold only its current value until it is used: fill it before reading it.
+        const fill = () => { select.fillOptions?.(); };
+        select.addEventListener('focus', fill);
+        const visibleOptions = () => { fill(); return [...select.options].filter(option => !option.hidden); };
         const close = () => { panel?.remove(); panel = null; items = []; active = -1; typed = ''; shell.classList.remove('open'); if (closeOpenList === close) {
             closeOpenList = null;
             openOwner = null;
@@ -69,6 +72,8 @@ export function installAppearance() {
                 item.type = 'button';
                 item.textContent = option.textContent;
                 item.disabled = option.disabled;
+                if (option.title)
+                    item.title = option.title;
                 item.classList.toggle('preset-warning', option.classList.contains('preset-warning'));
                 item.onclick = () => { const changed = select.value !== option.value; select.value = option.value; close(); select.focus({ preventScroll: true }); if (changed)
                     select.dispatchEvent(new Event('change', { bubbles: true })); };

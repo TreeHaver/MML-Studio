@@ -3,7 +3,8 @@ const {app,dialog}=require('electron'),fs=require('node:fs'),path=require('node:
 fs.mkdirSync('.validation',{recursive:true});const root=fs.mkdtempSync(path.resolve('.validation/segment-view-'));app.setPath('userData',path.join(root,'profile'));app.disableHardwareAcceleration();
 let started=false,stage='startup';const checks=[],written=[];const timer=setTimeout(()=>finish(Error('Timed out: '+stage)),40000);
 function finish(error){clearTimeout(timer);fs.writeFileSync('.validation/electron-segment-view.json',JSON.stringify({passed:!error,error:error?.stack,stage,checks,files:written},null,2));app.exit(error?1:0);}
-dialog.showSaveDialog=async(_,options)=>{const filePath=path.join(root,options.defaultPath);written.push(filePath);return {canceled:false,filePath};};
+dialog.showSaveDialog=async(_,options)=>{const filePath=path.join(root,path.basename(options.defaultPath));written.push(filePath);return {canceled:false,filePath};};
+dialog.showOpenDialog=async()=>({canceled:false,filePaths:[root]});
 app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.webContents.once('did-finish-load',async()=>{try{
  const evaluate=code=>{stage=code;return win.webContents.executeJavaScript(code,true);};
  assert.ok(await evaluate(`document.getElementById('section-menu').hidden`),'Section menu starts hidden without sections');
@@ -48,7 +49,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  await checkReturn();
  assert.equal(await evaluate(`document.getElementById('section-control').hidden`),true);assert.equal(await evaluate(`generateMml(s.project,0).channels.length`),2);
  const channels=await evaluate(`generateMml(s.project,0).channels`),bytes=channels.join('').length;
- await evaluate(`document.getElementById('export-sections').checked=true;document.getElementById('scope-all').checked=true;document.getElementById('scope-selected').checked=false;document.getElementById('export-run').onclick()`);
+ await evaluate(`document.getElementById('export-sections').checked=true;document.getElementById('scope-selected').checked=false;document.getElementById('export-run').onclick()`);
  assert.equal(path.basename(written[0]),'Solo-Piano.ms2mml');const xml=fs.readFileSync(written[0],'utf8');assert.deepEqual([...xml.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>/g)].map(m=>m[1]),channels);assert.ok(!xml.includes('t150'));
  await evaluate(`document.getElementById('save').onclick()`);assert.deepEqual(JSON.parse(fs.readFileSync(written[1],'utf8')),JSON.parse(await evaluate(`originalAlbum`)));
  await evaluate(`(()=>{const limit=document.getElementById('character-limit');limit.value='${bytes}';limit.dispatchEvent(new Event('change'));})()`);

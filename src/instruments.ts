@@ -3,7 +3,7 @@ import {colorSwatch,closeColorPanel} from './color-picker.ts';
 import {instrumentActions,removeInstrument} from './instrument-actions.ts';
 import {GM_PROGRAMS} from './playback/gm-programs.ts';
 import {VANILLA_PROGRAMS} from './playback/vanilla-instruments.ts';
-import {DRUM_KIT_NAME,MS2_DRUMS,type Ms2Drum} from './playback/drums.ts';
+import {DRUM_KIT_NAME,DRUM_MS2_WARNING,MS2_DRUMS,type Ms2Drum} from './playback/drums.ts';
 import {syncAdvancedInstructions,instructionCard} from './advanced-instructions.ts';
 import {draw} from './painting.ts';
 import {info} from './inspector.ts';
@@ -23,12 +23,17 @@ export function instruments(){
  const panel=$('track-panel'),scroll=panel.scrollTop;
  syncAdvancedInstructions();
  $('instrument-count').textContent=String(state.project.instruments.filter(i=>!i.isInstructions).length);
+ // An imported project can carry dozens of tracks: the search narrows the list by name,
+ // matching the whole stored name, not the shortened one on screen.
+ const query=instrumentView.search.trim().toLowerCase();
+ const shown=(name:string)=>!query||name.toLowerCase().includes(query);
  $('instruments').replaceChildren();state.project.instruments.forEach((i,index)=>{
- if(i.isInstructions){$('instruments').append(instructionCard(index));return;}
+ if(i.isInstructions){if(shown(i.name))$('instruments').append(instructionCard(index));return;}
+ if(!shown(i.name))return;
  const row=document.createElement('div');row.className='instrument';row.classList.toggle('selected',index===state.active);const color=colorSwatch(i.color,'Color for '+i.name,value=>{checkpoint();i.color=value;draw();});
  row.dataset.instrument=String(index);
  const collapsed=instrumentView.collapsed.has(index);
- const button=document.createElement('button');button.textContent=i.name+(instrumentView.muted.has(index)?' (muted)':'');button.className='instrument-name';button.classList.toggle('active',index===state.active);
+ const button=document.createElement('button');button.textContent=shortName(i.name)+(instrumentView.muted.has(index)?' (muted)':'');button.className='instrument-name';button.classList.toggle('active',index===state.active);
  button.title=i.name+' · click again to collapse';button.setAttribute('aria-expanded',String(!collapsed));
  const select=()=>{
   if(index===state.active)return;
@@ -44,20 +49,34 @@ export function instruments(){
  const beginRename=()=>{if(row.querySelector('.instrument-rename-field'))return;const field=document.createElement('input');field.type='text';field.className='instrument-rename-field';field.value=i.name;field.setAttribute('aria-label','Rename '+i.name);button.after(field);field.focus({preventScroll:true});field.select();let done=false;const finish=(save:boolean)=>{if(done)return;done=true;if(save&&field.value.trim()&&i.name!==field.value.trim()){checkpoint();i.name=field.value.trim();}instruments();};field.onblur=()=>finish(true);field.onkeydown=e=>{if(e.key==='Enter')finish(true);if(e.key==='Escape')finish(false);};};
  const selected=i.isDrum?'drums':i.ms2Drum??String(i.midiProgram??0);
  const preset=document.createElement('select');preset.title='Playback instrument';preset.setAttribute('aria-label','Playback preset for '+i.name);
- const addPreset=(value:string,label:string,vanilla:boolean)=>{
+ // The warning rides in the tooltip rather than in the label: spelled out, it was the
+ // longest line in the list and stretched the whole panel to fit it.
+ // Only the chosen preset is built now; the other 150 are built the first time the list is
+ // opened. A project with eighty instruments was making twenty thousand option elements on
+ // every edit - the panel is rebuilt whenever anything changes, drawing a note included.
+ const choices:{value:string,label:string,excluded:boolean,note:string}[]=[];
+ const buildOption=(choice:{value:string,label:string,excluded:boolean,note:string})=>{
+  const option=document.createElement('option');option.value=choice.value;option.textContent=choice.label;
+  // Keep an excluded current value in the closed field, but not among selectable choices.
+  option.hidden=choice.excluded;option.disabled=choice.excluded;if(choice.note)option.title=choice.note;
+  option.classList.toggle('preset-warning',choice.value==='drums'||choice.excluded);
+  return option;
+ };
+ const addPreset=(value:string,label:string,vanilla:boolean,note='')=>{
   const excluded=instrumentView.vanillaOnly&&!vanilla;
   if(excluded&&value!==selected)return;
-  const option=document.createElement('option');option.value=value;option.textContent=label;
-  // Keep an excluded current value in the closed field, but not among selectable choices.
-  option.hidden=excluded;option.disabled=excluded;
-  const warning=value==='drums'||excluded;
-  option.classList.toggle('preset-warning',warning);
-  if(value===selected)preset.classList.toggle('preset-warning',warning);
-  preset.append(option);
+  const choice={value,label,excluded,note};choices.push(choice);
+  if(value===selected){preset.append(buildOption(choice));preset.classList.toggle('preset-warning',value==='drums'||excluded);}
  };
  GM_PROGRAMS.forEach((name,program)=>addPreset(String(program),`${program+1}. ${VANILLA_PROGRAMS[program]??name}`,program in VANILLA_PROGRAMS));
- addPreset('drums',`${DRUM_KIT_NAME} (not valid in MS2)`,false);
- for(const [key,drum] of Object.entries(MS2_DRUMS)){const option=document.createElement('option');option.value=key;option.textContent=drum.name;preset.append(option);}
+ addPreset('drums',DRUM_KIT_NAME,false,DRUM_MS2_WARNING);
+ // The MS2 drums are described alongside the rest, and built with them when the list opens.
+ for(const [key,drum] of Object.entries(MS2_DRUMS)){const choice={value:key,label:drum.name,excluded:false,note:''};choices.push(choice);if(key===selected)preset.append(buildOption(choice));}
+ // Rebuilt in order, with the chosen value kept, so the list reads the same as it always did.
+ (preset as any).fillOptions=()=>{
+  if(preset.children.length>=choices.length)return;
+  preset.replaceChildren(...choices.map(buildOption));preset.value=selected;
+ };
  preset.value=selected;preset.onchange=()=>{if(preset.value!=='drums'&&!(preset.value in MS2_DRUMS)&&!/^\d+$/.test(preset.value))return;checkpoint();delete i.ms2Drum;if(preset.value in MS2_DRUMS)i.ms2Drum=preset.value as Ms2Drum;i.isDrum=preset.value==='drums';i.midiProgram=i.isDrum||i.ms2Drum?0:Number(preset.value);if(i.ms2Drum)i.name=MS2_DRUMS[i.ms2Drum].name;void updatePlaybackVoices();instruments();updateMml(true);info();draw();};
  row.append(color,button,preset);$('instruments').append(row);
  const controls=document.createElement('div');controls.className='instrument-controls';
@@ -77,14 +96,34 @@ export function instruments(){
  const rename=document.createElement('button');rename.className='instrument-row-rename';rename.title='Rename '+i.name;rename.setAttribute('aria-label','Rename '+i.name);rename.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';rename.onclick=beginRename;row.append(rename);
  mmlControls(row,instrumentActions(row,index),index);
  });
- if(!state.project.instruments.some(i=>i.isInstructions))$('instruments').append(instructionCard());
+ if(!state.project.instruments.some(i=>i.isInstructions)&&shown('Instructions'))$('instruments').append(instructionCard());
+ ($('instrument-empty') as HTMLElement).hidden=!!$('instruments').children.length||!query;
  panel.scrollTop=scroll;
  // Selects are wrapped by a MutationObserver, which runs after this returns and moves the scroll again.
  queueMicrotask(()=>{panel.scrollTop=scroll;});
 }
 
+/**
+ * A MIDI import names every track after the song, so the screen fills with the same words:
+ * 'Off The Wall - Ch 14 - Electric Guitar'. The tail is what tells them apart, so the first
+ * part is dropped from the label and the whole name stays in the tooltip and in the search.
+ */
+export function shortName(name:string){
+ const parts=name.split(' · ');
+ return parts.length>2?parts.slice(1).join(' · '):name;
+}
 export function installInstruments(){
 $('vanilla-only').onclick=()=>{instrumentView.vanillaOnly=!instrumentView.vanillaOnly;$('vanilla-only').setAttribute('aria-pressed',String(instrumentView.vanillaOnly));instruments();};
+const search=$('instrument-search') as HTMLInputElement;
+search.oninput=()=>{instrumentView.search=search.value;instruments();};
+// One switch for the lot: collapse them all, or open them all if they are already collapsed.
+$('collapse-all').onclick=()=>{
+ const musical=state.project.instruments.map((i,index)=>({i,index})).filter(entry=>!entry.i.isInstructions).map(entry=>entry.index);
+ const anyOpen=musical.some(index=>!instrumentView.collapsed.has(index));
+ if(anyOpen)for(const index of musical)instrumentView.collapsed.add(index);else instrumentView.collapsed.clear();
+ ($('collapse-all') as HTMLButtonElement).setAttribute('aria-pressed',String(anyOpen));
+ instruments();
+};
 $('add').onclick=()=>{checkpoint();const count=state.project.instruments.filter(i=>!i.isInstructions).length;state.project.instruments.push({name:`Instrument ${count+1}`,color:colors[count%colors.length],midiProgram:0});state.active=state.project.instruments.length-1;state.selection.clear();refresh();};
 
 

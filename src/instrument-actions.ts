@@ -49,11 +49,16 @@ export function instrumentActions(row:HTMLElement,index:number):HTMLElement{
  const body=document.createElement('div');body.className='instrument-action-body';
  const destination=document.createElement('select');destination.className='instrument-destination';destination.setAttribute('aria-label','Merge destination for '+state.project.instruments[index].name);
  const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Merge into…';destination.append(placeholder);
- state.project.instruments.forEach((instrument,other)=>{
-  if(other===index||instrument.isInstructions)return;
-  const option=document.createElement('option');option.value=String(other);option.textContent=`${other+1}. ${instrument.name}`;destination.append(option);
- });
- destination.value='';destination.disabled=destination.children.length===1;
+ // Both destination lists name every other instrument, and every card carries them, so a
+ // project with eighty instruments was building thousands of options on each rebuild - and
+ // the panel is rebuilt whenever anything changes. They are filled when the list is opened.
+ const others=state.project.instruments.map((instrument,other)=>({instrument,other})).filter(entry=>entry.other!==index&&!entry.instrument.isInstructions);
+ (destination as any).fillOptions=()=>{
+  if(destination.children.length>1)return;
+  for(const {instrument,other} of others){const option=document.createElement('option');option.value=String(other);option.textContent=`${other+1}. ${instrument.name}`;destination.append(option);}
+  destination.value='';
+ };
+ destination.value='';destination.disabled=!others.length;
  destination.title=destination.disabled?'Add another instrument of the same kind to merge.':'Destination keeps its sound and settings.';
  const merge=document.createElement('button');merge.textContent='Merge';merge.disabled=true;merge.onclick=()=>{if(destination.value!=='')mergeInstrument(index,Number(destination.value));};destination.onchange=()=>{merge.disabled=destination.value==='';};
 
@@ -62,7 +67,12 @@ export function instrumentActions(row:HTMLElement,index:number):HTMLElement{
   const pitch=document.createElement('input');pitch.type='text';pitch.placeholder='B1';pitch.setAttribute('aria-label','Note to split');label.append(pitch);
   const target=document.createElement('select');target.setAttribute('aria-label','Split destination instrument');
   const empty=document.createElement('option');empty.value='';empty.textContent='Instruments…';target.append(empty);
-  state.project.instruments.forEach((instrument,other)=>{if(other===index||instrument.isInstructions)return;const option=document.createElement('option');option.value=String(other);option.textContent=instrument.name;target.append(option);});target.value='';
+  (target as any).fillOptions=()=>{
+  if(target.children.length>1)return;
+  for(const {instrument,other} of others){const option=document.createElement('option');option.value=String(other);option.textContent=instrument.name;target.append(option);}
+  target.value='';
+ };
+  target.value='';
   const split=document.createElement('button');split.textContent='Split';split.onclick=()=>{if(target.value===''){status('Choose a destination instrument.');return;}splitInstrumentNote(index,Number(target.value),pitch.value);};
   body.append(label,target,split);
   if(state.project.instruments[index].isDrum){const kit=document.createElement('button');kit.className='instrument-split-kit';kit.textContent='Split Drumkit';kit.onclick=()=>splitKitInstrument(index);body.append(kit);}

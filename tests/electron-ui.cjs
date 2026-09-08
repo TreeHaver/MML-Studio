@@ -104,8 +104,8 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
   await evaluate(`document.getElementById('right-divider').dispatchEvent(new MouseEvent('dblclick'))`);
  });
 
- await check('brand image loads and the inspector starts empty',async()=>{
-  assert.equal(await evaluate(`document.querySelector('.brand img').naturalWidth>0`),true);
+ await check('the header carries no wordmark and the inspector starts empty',async()=>{
+  assert.equal(await evaluate(`!!document.querySelector('.brand')`),false);
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.note-fields')).display`),'none');
  });
 
@@ -191,7 +191,8 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  });
 
  await check('the MML block sits inside Instrument actions, closed by default',async()=>{
-  assert.equal(await evaluate(`document.querySelectorAll('.instrument-mml').length`),5,'every instrument carries its own MML block');
+  // Four musical instruments carry a block each; Instructions are silent and generate no MML.
+  assert.equal(await evaluate(`document.querySelectorAll('.instrument-mml').length`),4,'every musical instrument carries its own MML block');
   assert.equal(await evaluate(`[...document.querySelectorAll('.instrument-mml')].every(el=>el.closest('.instrument-action-body')!==null)`),true,'each block lives in its actions body');
   assert.equal(await evaluate(`document.querySelectorAll('.instrument-actions')[0].open`),false,'the section starts closed');
   await evaluate(`document.querySelectorAll('.instrument-actions summary')[0].click()`);

@@ -25,6 +25,12 @@ export function noteLabelColor(background:string){let color=labelColors.get(back
 
 export function drawNotes(){
  const visible=visibleNotes();
+ // The font and baseline are the same for every label, and setting them on the context is
+ // not free: hoisted out of the loop they are set once a frame instead of once a note.
+ ctx.font='10px Segoe UI, sans-serif';ctx.textBaseline='middle';
+ // A rough width per character at this size, used only to decide whether a label can
+ // overflow its note. When it cannot, the clip - and its save/restore pair - is skipped.
+ const CHARACTER=6.4;
  const preview=state.gesture?.kind==='box'?new Set(boxIds(state.gesture.music,musical(state.gesture.current),visible)):null;
  for(const n of visible){if(isMuted(n.instrument)||state.project.instruments[n.instrument].isInstructions)continue;const r=rect(n);if(r.x+r.w<=KEY||r.x>=state.width||r.y+r.h<=HEAD||r.y>=state.height)continue;
  const instructions=state.project.instruments[n.instrument].isInstructions;
@@ -35,7 +41,14 @@ export function drawNotes(){
  ctx.strokeRect(r.x+border/2,r.y+border/2,r.w-border,r.h-border);
  if((preview?preview.has(n.id)||(state.gesture.add&&state.selection.has(n.id)):state.selection.has(n.id))){ctx.save();ctx.beginPath();ctx.rect(r.x,r.y,r.w,r.h);ctx.clip();ctx.strokeStyle='#67b7ff';ctx.lineWidth=2;ctx.strokeRect(r.x+1,r.y+1,Math.max(0,r.w-2),r.h-2);ctx.restore();}
  if(!instructions&&state.selection.has(n.id)&&r.w>9){ctx.fillStyle='#ffffffa0';ctx.fillRect(r.x+r.w-4,r.y+3,1,r.h-6);}
- if(r.w>8){ctx.save();ctx.beginPath();ctx.rect(r.x+2,r.y,Math.max(0,r.w-4),r.h);ctx.clip();ctx.fillStyle=noteLabelColor(instructions?INSTRUCTIONS_COLOR:state.project.instruments[n.instrument].color);ctx.font='10px Segoe UI, sans-serif';ctx.textBaseline='middle';ctx.fillText(instructions?([n.section,n.timeSignature,n.tempo==null?'':`T${n.tempo}`].filter(Boolean).join(' · ')||'Event'):name(n.pitch)+(n.tempo==null?'':` T${n.tempo}`),r.x+4,r.y+r.h/2);ctx.restore();}ctx.globalAlpha=1;
+ if(r.w>8){
+  const text=instructions?([n.section,n.timeSignature,n.tempo==null?'':`T${n.tempo}`].filter(Boolean).join(' · ')||'Event'):name(n.pitch)+(n.tempo==null?'':` T${n.tempo}`);
+  const clipped=text.length*CHARACTER>r.w-6;
+  if(clipped){ctx.save();ctx.beginPath();ctx.rect(r.x+2,r.y,Math.max(0,r.w-4),r.h);ctx.clip();}
+  ctx.fillStyle=noteLabelColor(instructions?INSTRUCTIONS_COLOR:state.project.instruments[n.instrument].color);
+  ctx.fillText(text,r.x+4,r.y+r.h/2);
+  if(clipped)ctx.restore();
+ }ctx.globalAlpha=1;
  }
  // Anchored to the content, so the box keeps its corner while the roll scrolls under it.
  if(state.gesture?.kind==='box'){const g=state.gesture,a={x:g.origin.x-view.scrollLeft,y:g.origin.y-view.scrollTop},b=g.current;ctx.fillStyle='#379bf528';ctx.strokeStyle='#67b7ff';ctx.lineWidth=1;ctx.fillRect(Math.min(a.x,b.x),Math.min(a.y,b.y),Math.abs(a.x-b.x),Math.abs(a.y-b.y));ctx.strokeRect(Math.min(a.x,b.x)+.5,Math.min(a.y,b.y)+.5,Math.abs(a.x-b.x),Math.abs(a.y-b.y));}

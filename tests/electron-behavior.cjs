@@ -19,7 +19,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  const peak=()=>evaluate(`(()=>{const meter=meters.at(-1),b=new Float32Array(meter.fftSize);meter.getFloatTimeDomainData(b);return Math.max(...b.map(Math.abs));})()`);
  assert.ok(await peak()>0.00001,'Section seek restores held note');checks.push({sectionTick:tick});
  const change=async value=>{
-  await evaluate(`(()=>{const preset=document.querySelector('#instruments select');preset.value='${value}';preset.dispatchEvent(new Event('change'));})()`);
+  await evaluate(`(()=>{const preset=document.querySelector('#instruments select');preset.fillOptions?.();preset.value='${value}';preset.dispatchEvent(new Event('change'));})()`);
   for(let i=0;i<100;i++){await wait(20);if(!await evaluate(`document.getElementById('play').disabled`))return;}
   throw Error('Voice reload did not finish');
  };

@@ -43,5 +43,36 @@ app.on('browser-window-created',(_,win)=>win.webContents.once('did-finish-load',
  assert.equal(await evaluate(`[...document.querySelectorAll('.select-panel button')].some(b=>b.textContent.includes('Standard Drum Kit'))`),false);
  await evaluate(`document.querySelectorAll('.instrument select[aria-label^="Playback preset"]')[16].dispatchEvent(new KeyboardEvent('keydown',{key:'p',bubbles:true,cancelable:true}));document.querySelectorAll('.instrument select[aria-label^="Playback preset"]')[16].dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))`);
  assert.equal(await evaluate(`document.querySelectorAll('.instrument select[aria-label^="Playback preset"]')[16].value`),'0');
+ // The panel has to stay usable with an imported project: dozens of tracks, all named after
+ // the same song, with the part that tells them apart at the end of the name.
+ await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/commands.js')]).then(([{state,instrumentView},{refresh}])=>{instrumentView.muted.clear();instrumentView.solo=null;state.project.instruments=[{name:'Off The Wall · Ch 2 · Synth Bass',color:'#77baff'},{name:'Off The Wall · Ch 9 · Saxophone',color:'#77baff'},{name:'Off The Wall · Ch 11 · Tenor Sax',color:'#77baff'},{name:'Piano',color:'#77baff'}];state.project.notes=state.project.instruments.map((_,i)=>({id:i+1,instrument:i,start:0,length:128,pitch:60,volume:8}));state.active=0;state.selection.clear();refresh();})`);
+ assert.deepEqual(await evaluate(`[...document.querySelectorAll('.instrument-name')].map(b=>b.textContent)`),
+  ['Ch 2 · Synth Bass','Ch 9 · Saxophone','Ch 11 · Tenor Sax','Piano','Instructions'],
+  'The repeated song title is dropped from the label');
+ assert.match(await evaluate(`document.querySelector('.instrument-name').title`),/Off The Wall/,'the whole name stays in the tooltip');
+
+ // Searching matches the whole stored name, including the part not shown.
+ await evaluate(`(()=>{const s=document.getElementById('instrument-search');s.value='sax';s.dispatchEvent(new Event('input'));})()`);
+ assert.deepEqual(await evaluate(`[...document.querySelectorAll('.instrument-name')].map(b=>b.textContent)`),
+  ['Ch 9 · Saxophone','Ch 11 · Tenor Sax']);
+ await evaluate(`(()=>{const s=document.getElementById('instrument-search');s.value='off the wall';s.dispatchEvent(new Event('input'));})()`);
+ assert.equal(await evaluate(`document.querySelectorAll('.instrument-name').length`),3,'a search on the hidden part of the name still matches');
+ await evaluate(`(()=>{const s=document.getElementById('instrument-search');s.value='zzz';s.dispatchEvent(new Event('input'));})()`);
+ assert.equal(await evaluate(`document.getElementById('instrument-empty').hidden`),false,'an empty result says so');
+ await evaluate(`(()=>{const s=document.getElementById('instrument-search');s.value='';s.dispatchEvent(new Event('input'));})()`);
+ assert.equal(await evaluate(`document.getElementById('instrument-empty').hidden`),true);
+
+ // One switch collapses the lot, and opens them again.
+ const tall=await evaluate(`document.querySelector('.instrument').offsetHeight`);
+ await evaluate(`document.getElementById('collapse-all').click()`);
+ assert.ok(await evaluate(`document.querySelector('.instrument').offsetHeight`)<tall,'collapse all shortens every card');
+ assert.equal(await evaluate(`[...document.querySelectorAll('.instrument:not(.instructions-lane)')].every(el=>el.classList.contains('collapsed'))`),true);
+ await evaluate(`document.getElementById('collapse-all').click()`);
+ assert.equal(await evaluate(`[...document.querySelectorAll('.instrument:not(.instructions-lane)')].some(el=>el.classList.contains('collapsed'))`),false);
+
+ // The two panel switches sit together now, and the preset filter says MS2 for short.
+ assert.equal(await evaluate(`document.getElementById('vanilla-only').closest('.panel-switches')===document.getElementById('advanced-instructions').closest('.panel-switches')`),true);
+ assert.equal(await evaluate(`document.getElementById('vanilla-only').textContent`),'Show only MS2 instruments');
+
  finish();
 }catch(e){finish(e);}}));require('../main.cjs');

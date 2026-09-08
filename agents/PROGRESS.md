@@ -30,6 +30,131 @@ Actual validation: initial `node build.cjs` transpiled modules but failed on the
 
 Authorized `node node_modules/electron/cli.js tests/electron-midi-import.cjs` with both supplied absolute MIDI paths passed with fresh `.validation/electron-midi-import.json`. Native checks cover real file IPC, renderer replacement, success/warning dialogs, unsaved state and version-2 round-trip for both files and the overflow fixture; each supplied project additionally has one silent Instructions record. Existing cancel/malformed/declined-replacement checks, 17 MiB fixture import, and 130,000-note render/playback start-stop checks also passed. OS file selections were substituted; no manual file-picker testing, physical listening, in-game validation or packaged-release rebuild was performed. `git diff --check` passed with line-ending notices only. Working folder updated directly; no ZIP/release requested. Remaining work: none.
 
+## The note loop measured, and two costs taken out of it
+
+**2026-09-08.** A claim to check: that the note drawing does far more than it needs to. Measured rather than argued. The loop already culls through a spatial index, so only visible notes are touched at all, but per note it was doing more than the rectangles: a fill, a shade for sharps, an inset border, a selection stroke, and for any note wider than 8px a save, a clip, a font assignment, a fillText and a restore.
+
+Before: 0.35ms for 75 visible notes, 1.99ms for 225, 4.7ms for 675, against 0.05, 0.09 and 0.78ms for the same notes drawn as two plain rectangles each - roughly six times the floor. The frame as a whole stayed between 0.8 and 5.3ms, which is why the reported lag was the instrument panel and not this.
+
+Two changes, neither of which alters what is drawn: the font and baseline are set once a frame instead of once a note, and the clip around a label is applied only when the text can actually overflow its note, estimated from its length. After: 0.22ms for 75, 0.62ms for 225 and 1.37ms for 300 - a third of what it was where notes are wide enough to read.
+
+At the lowest zoom the labels genuinely overflow, so the clip stays and 675 notes still cost 4.47ms. Raising the threshold at which a label is drawn at all, from 8px to 24px, would take that to 1.61ms, but a 14px note would stop showing its first character or two - a visible change, and therefore the user's to make, not mine.
+
+Owners changed: src/rendering/notes.ts and its dist output.
+
+Actual validation: node tests/run.cjs 134 passing; electron-behavior passing after its preset change opened the list first, as the interface does; electron-timeline still red, and verified twice against a tree without these changes: its instrument-selector check was stale after the Instructions lane became its own card - fixed here - and the remaining canvas pixel mismatch, 207,203,148 where 244,211,94 is expected, reproduces identically without any of this work.
+
+## Fixed: the instrument panel crawled once a project passed eighty instruments
+
+**2026-09-08.** Reported: past about eighty instruments the editor lags badly. Measured before touching anything, and the roll was not the cause - drawing stayed at 1 to 3ms whatever the count. The panel was: 19ms at ten instruments, 212ms at eighty, 335ms at a hundred and twenty, and the panel is rebuilt whenever anything changes, drawing a note included.
+
+The cost was in select options. Every card carried a full preset list (152 options) and two destination lists naming every other instrument, so eighty instruments meant 23,360 option elements built from scratch on each rebuild. All three lists are now described rather than built, and filled the first time the list is opened or focused; until then a select holds only its current value.
+
+Measured after: 37.6ms at eighty instruments and 60.7ms at a hundred and twenty, with 240 option elements instead of 23,360 and 4,003 nodes instead of 27,123. No cap on the number of instruments was added: with the lists deferred the panel is comfortable at counts far past anything MapleStory 2 could use.
+
+Owners changed: src/instruments.ts, src/instrument-actions.ts, src/appearance.ts and dist outputs.
+
+Actual validation: node tests/run.cjs 134 passing, with renderer asserting the contract directly - one option before the list is asked for, the full 132 after - and the simulated DOM taught to honour replaceChildren arguments, which it had been ignoring; electron-instruments and electron-instrument-actions passing, the latter filling the merge list the way the interface does before choosing from it; electron-export-formats passing.
+
+## A set of files arrives as a folder or an archive, and Options fold away
+
+**2026-09-08.** Exporting several files asked for a filename once per file, so a project with thirteen instruments and three sections meant dozens of save dialogs in a row. The destination is now chosen once. Which shape it takes is the user's decision, offered as one checkbox in the export dialog and remembered between sessions: unticked, the export asks for a place and writes a folder named after the project, ready to be loaded in game; ticked, it writes a single .zip, which is what you want when the set is going to somebody else. A single file still goes through the ordinary save dialog.
+
+The archive is written by a new zip.cjs - local headers, central directory, end record, deflate from Node's own zlib - rather than by adding a dependency. Entries that compress larger than they started are stored uncompressed.
+
+Every file dialog also passes an absolute defaultPath again: the folder the last file went to, remembered in the profile, and the system Downloads folder on a fresh install. Windows otherwise falls back to whatever folder its shell used last, which on this machine is OneDrive.
+
+The dialog's Options were reworked at the same time. They are folded behind a summary button, since most exports are run without touching them, and the scope is now a single checkbox - Only <instrument> - rather than two radio buttons, so the section holds checkboxes alone instead of mixing round radios with square boxes.
+
+Owners changed: new zip.cjs; main.cjs (export-folder, export-zip, the remembered folder), preload.cjs, src/export.ts, index.html, studio.css and dist outputs.
+
+Actual validation: the archive was checked against an independent unzipper - Python's zipfile - which read it as valid and returned the file contents byte for byte, 432 bytes deflated to 37. node tests/run.cjs 134 passing, with the simulated export driving all three routes and asserting that a split sheet is delivered once as a folder and once as an archive. electron-sheets records the parts landing in one folder and then as a single PK-signed Sheet test.zip; electron-structure records two section files in one folder; electron-export-formats and electron-segment-view pass with the scope checkbox. electron-audio-export fails in this checkout because vendor/ffmpeg.exe is not installed here; it is git-ignored and unrelated to this change.
+
+## The magnet is gone; G puts the loop on the grid
+
+**2026-09-08.** The magnet button governed one thing only - where a loop end may land - because notes have always snapped to the grid on their own. It was removed at the user's decision, and with it the Ctrl modifier during a drag and the remembered preference. A loop is drawn exactly where the pointer goes, and G puts an existing loop onto the current grid afterwards: an action asked for once, not a mode to remember being in.
+
+Measured while deciding whether the magnet should govern notes as well, since that would have earned it a second purpose: the same 64-note part costs 96 characters quantised and 454 to 887 characters with human timing, five to nine times as much. Off-grid notes are an editing convenience, never an export one, so nothing about note placement changed.
+
+Owners changed: src/playback/loop-region.ts (alignLoopToGrid replaces loopSnap), src/keyboard.ts, src/pointer.ts, src/appearance.ts, index.html and dist outputs.
+
+Actual validation: node tests/run.cjs 134 passing; electron-loop-region records a free drag landing on ticks 70 and 138, G moving those ends to 64 and 128, the same for a different project grid, G doing nothing with no loop marked, and the button being absent; electron-ui 19 of 19.
+
+## Fixed: a loop past the end of the music froze, and the instrument panel now scales
+
+**2026-09-08.** Reported: after one turn the loop stuck with the last notes crackling. Reproduced with a probe and measured: the clock read 0 for 93 consecutive samples. The cause was a loop whose end lies past the end of the music. The sequencer reaches the end of the song and is finished for good; putting its clock back to the loop start is not enough, so the position froze at the start while the synth held its last notes.
+
+Two changes. The performance is now compiled to at least the end of the loop, so a loop drawn past the music has something to play; and every path that takes the loop back goes through one rewindLoop, which tells a finished sequencer to play again and restores the held notes. The same probe now records two clean turns and no stall at all.
+
+The instrument panel was reworked for imported projects, where a dozen tracks all carry the same song title and the part that tells them apart is cut off at the end. A search field filters the list by name, matching the whole stored name rather than the shortened label; one switch collapses or expands every card; and a card shows the tail of an imported name (Ch 9 - Saxophone) with the whole name kept in the tooltip and in the search. The preset filter moved out of the panel heading to sit with the Advanced Instructions switch as a pair, and reads Show only MS2 instruments.
+
+Owners changed: src/playback/transport.ts, src/instruments.ts (shortName, search, collapse switch), src/state.ts, index.html, studio.css and dist outputs.
+
+Actual validation: node tests/run.cjs 134 passing; electron-loop-region gained the reported case - a loop reaching past the music - and records the position turning back and continuing to move rather than freezing; electron-instruments gained the shortened labels, the search including a term only present in the hidden part of the name, the empty-result note, the collapse switch in both directions and the two switches sitting together.
+
+## A magnet beside Grid decides where loop ends land
+
+**2026-09-08.** The grid is now a standing choice rather than a key held during a drag. A magnet button sits beside the Grid selector in the toolbar, since that is where the grid it snaps to is chosen; it starts off, so ends are free by default, and Ctrl held during a drag asks for the opposite of whatever the magnet says - free while it is on, gridded while it is off. B and N follow the same setting.
+
+It is a view preference like the key style: nothing about the project changes, and it is remembered between sessions with the panel widths and the theme.
+
+Owners changed: src/playback/loop-region.ts (loopSnap, and the mark functions take the setting), src/pointer.ts, src/appearance.ts, index.html and dist outputs.
+
+Actual validation: node tests/run.cjs 134 passing; electron-loop-region drives the button and records a shift-drag landing on 64 and 128 with the magnet on, the same drag with Ctrl landing on 70 and 138, and the button switching back off; electron-ui 19 of 19 with the new toolbar button in place.
+
+## The loop is placed freely, with the grid on request
+
+**2026-09-08.** The loop used to round both ends onto the current grid. It now lands on the exact tick it is drawn at, the finest position the editor has, so a stretch can start and end anywhere inside a bar. Holding Ctrl while dragging pulls both ends back onto the grid for a loop that should sit on the bar; B and N mark exactly where the playhead is, with no rounding at all.
+
+A one-tick loop is allowed, since the freedom is the point; both ends on the same tick still clears the loop, which is what a shift-click with no drag does.
+
+Owners changed: src/playback/loop-region.ts (freeTick beside snapTick, setLoopRegion takes a grid flag), src/pointer.ts and dist outputs.
+
+Actual validation: node tests/run.cjs 134 passing, the unit tests rewritten for free placement and a separate case for the grid modifier at two different project grids; electron-loop-region records a shift-drag landing on ticks 70 and 138 rather than on cells, and the same drag with Ctrl landing on 64 and 128. One test failure during this work was the test itself: its second drag began on an end of the loop already marked, so it took hold of that end instead of drawing a new loop; a probe confirmed the modifier path was correct and the test now clears the loop first.
+
+## Fixed: the loop was lost when the editor left the foreground
+
+**2026-09-08.** Reported: the loop repeats correctly, but switching to another application starts the whole song playing. It was a real defect and not a sound-engine problem. The loop was brought round inside the animation frame, and Chromium stops painting a window that sits behind another application, so the frame callback stopped with it while the audio thread played straight on past the end of the loop.
+
+The wrap now lives in a 40ms timer that reads the sequencer clock rather than the drawn position, so it does not care whether anything is being painted, and the main window sets backgroundThrottling:false so that timer is not slowed while the editor is in the background. The frame check stays as well: it reacts within one frame while the window is on screen.
+
+Owners changed: src/playback/transport.ts, main.cjs, tests/renderer.test.cjs (the simulated window had no setInterval), tests/electron-loop-region.cjs and dist output.
+
+Actual validation: node tests/run.cjs 133 passing; electron-behavior passing; electron-loop-region gained a check that removes requestAnimationFrame outright during playback and then samples the sequencer clock - it stayed between 1.01s and 1.96s across eighteen samples, turning back three times, where the loop covers 1.0s to 2.0s at 120 BPM. Before the fix that clock ran past 2.0s and kept going.
+
+## The loop is worked by keys and handles, not by a button
+
+**2026-09-08.** The transport's Loop button is gone at the user's request, and the loop follows the conventions of a video editor's work area instead. B trims its start at the playhead, N its end, L switches it off and on, Shift+L clears it. Both ends are now drawn as the playhead's own shape with the flag turned inwards, so they read as handles rather than as lines, and they are still dragged with the pointer. Shift-dragging the bar numbers still draws a loop from scratch.
+
+Trimming never leaves an empty loop, which is what a work area does: with no loop marked yet, B takes the end of the music as its far end and N reaches back one measure, floored at the start of the piece. The two keys are listed on the inspector shortcut card next to Copy, Undo and Select all, since that card is where the other shortcuts are learned.
+
+Owners changed: src/playback/loop-region.ts (markLoopStart, markLoopEnd), src/rendering/loop-region.ts, src/keyboard.ts, src/playback/transport.ts, index.html, themes.css and dist outputs.
+
+Actual validation: incremental build; node tests/run.cjs 133 passing, with new unit tests for the trimming arithmetic in both directions and for the two empty cases; electron-loop-region drives real key events and records the loop marked at 96-224 by B and N, switched off by L with its marks kept, alongside the earlier drag and wrap checks; electron-ui 19 of 19 with the transport back to six icons.
+
+## The header wordmark removed
+
+**2026-09-08.** The logo, name and tagline are gone from the header. Measured before deciding: the header is a fixed 76px in CSS, so the block cost no height at all - the roll stayed at 611px with the block hidden - and what it did cost was 177px of width inside a left group 494px wide, which only bites in a narrow window. Removed at the user's decision; the application is still named by the window title and the taskbar icon. Its rules left studio.css and themes.css with it, including the two shared selector lists it appeared in, so no dead selectors remain.
+
+Owners changed: index.html, studio.css, themes.css, tests/electron-ui.cjs.
+
+Actual validation: node tests/run.cjs 132 passing; electron-ui 19 of 19 after two expectations were corrected. The transport now holds seven icons rather than six, because of the Loop button. The MML block count is four rather than five, because the Instructions lane - rebuilt as its own card in the pulled work - is silent and generates no MML; that second failure was already standing before this change, not caused by it.
+
+## Rehearsal loop, and a preset label that stretched its panel
+
+**2026-09-08.** Playback can now repeat a chosen stretch of the roll while you work, the way a work area does in a video editor. Shift-dragging across the bar numbers marks it; afterwards either end can be dragged without a modifier, and a plain ruler drag still moves the playhead as before. A shift-click with no drag clears it. The marked stretch is tinted in the roll and barred on the ruler, faded while switched off, and the transport's Loop button switches it without losing the marks. Play from outside the stretch starts inside it, because otherwise it would run on and never come round.
+
+The loop is session state and never touches the project: it is not written to a file and not exported. The musical loops that the game plays are still the Loop Entry/Exit markers in Instructions, which are a different thing with a similar name.
+
+Edges snap to the current grid, and the wrap is checked in source ticks - the ones the playhead and ruler show - rather than in the compiled performance, so a loop set over a Segment view or over expanded loops stays where it was drawn.
+
+Separately, the Standard Drum Kit preset read `Standard Drum Kit (not valid in MS2)`, the longest line in the preset list, and the custom select panel sizes itself to its widest option, so that one label stretched the whole panel to the scroll bar. The label is now the kit's name; the warning moved into the option's tooltip, which the panel copies onto its own rows. The orange marking that flags a preset MapleStory 2 cannot play is unchanged.
+
+Owners changed: new [playback/loop-region.ts](../src/playback/loop-region.ts) and [rendering/loop-region.ts](../src/rendering/loop-region.ts), plus `src/pointer.ts`, `src/playback/transport.ts`, `src/painting.ts`, `src/appearance.ts` (palette and select panel), `src/instruments.ts`, `index.html`, `themes.css` and their dist outputs.
+
+Actual validation: incremental build; `node tests/run.cjs` 132 passing, including the new [loop-region](../tests/loop-region.test.mjs) unit tests for snapping, direction, clearing, the off switch and edge grabbing; new [electron-loop-region](../tests/electron-loop-region.cjs) drives the real ruler with input events and records the sampled playhead turning back at the end of the loop twice, staying inside it, and running past it once switched off; electron-behavior and electron-instruments passing. No visual judgement is claimed - screenshots are for the user.
+
+
 ## Simplify Timing competing notes
 
 **2026-09-08.** Two sequential notes competing within a timing window now compare their original coverage inside that window. Ratios from 40/60 through 60/40 inclusive receive equal half windows; otherwise the larger share takes the window. Held portions outside it remain; losing notes with no remaining duration are removed. This also takes precedence over roll condensation for two-note windows. Existing polyphony, attached instructions, scoped ends, surviving V0/inherited volumes and version-2 fields remain protected. No ownership changes or unrelated working changes were introduced.

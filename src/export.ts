@@ -39,12 +39,19 @@ export function installExport(){
   text:{ext:'.txt',render:channels=>channels.join(SEPARATOR)+'\n'}
  };
  const FORMATS=['ms2mml','text','midi','audio'];
+ // Loose files are ready to load in game; an archive is one attachment to send. Neither is
+ // right for everyone, so the choice is offered once and kept.
+ const zipKey='mml-studio-export-zip';
+ const zipBox=$('export-zip') as HTMLInputElement;
+ try{zipBox.checked=localStorage.getItem(zipKey)==='1';}catch{}
+ zipBox.onchange=()=>{try{localStorage.setItem(zipKey,zipBox.checked?'1':'0');}catch{}};
+ const asZip=()=>zipBox.checked;
  const chosenFormat=()=>FORMATS.find(name=>($('format-'+name) as HTMLInputElement|null)?.checked)??'ms2mml';
  const refreshFormat=()=>{
   const format=chosenFormat(),audio=format==='audio',performance=audio||format==='midi';
-  $('scope-all-label').textContent=performance?'All instruments — one mixed file':'All instruments — one file each';
-  $('export-scope-hint').textContent=audio?'Renders the current view with loops, playback speed, volume, mute and solo settings. Includes the natural sound release.':performance?'All instruments share one MIDI performance.':'Each instrument is its own sheet: a band loads one file per player.';
-  $('export-section-options').hidden=audio;
+  // Unticked means the whole project, so the hint says what that means for this format.
+  $('export-scope-hint').textContent=audio?'Left unticked, every instrument is rendered into one recording, with loops, playback speed, volume, mute and solo as you have them.':performance?'Left unticked, all instruments share one MIDI performance.':'Left unticked, each instrument is written as its own sheet: a band loads one file per player.';
+  $('export-section-options').hidden=audio;$('export-zip-options').hidden=audio;
  };
  for(const format of FORMATS)$('format-'+format).onchange=refreshFormat;
  const audioDialog=$('audio-export-dialog') as HTMLDialogElement;
@@ -78,41 +85,47 @@ export function installExport(){
    const separate=!state.segment&&($('export-sections') as HTMLInputElement).checked;
    const segments=exportSegments(separate?expandLoops(project).project:project,separate);
    const prefixed=(segmentName:string,stem:string)=>{const prefix=state.segment?.projection.range.name??segmentName;return (prefix?prefix+'-':'')+stem;};
+   // Every file is worked out first: how they are delivered depends on how many there are.
+   const files:{name:string,text?:string,bytes?:Uint8Array}[]=[];
    // MIDI is a performance rather than a sheet: one file per scope, and no character limit.
    if(format==='midi'){
-    let count=0;
     for(const segment of segments){
      const instructions=(index:number)=>!!segment.project.instruments[index]?.isInstructions;
      // Instructions carry the tempo changes, so they travel with a single instrument too.
      const notes=projectExport?segment.project.notes:segment.project.notes.filter(n=>n.instrument===state.active||instructions(n.instrument));
      if(!notes.some(n=>!instructions(n.instrument)))continue;
      const stem=prefixed(segment.name,projectExport?(project.name?.trim()||'Project'):project.instruments[state.active].name);
-     const binary=compilePlayback({...segment.project,notes}).binary;
-     if(!await (window as any).files.exportMidi(stem+'.mid',new Uint8Array(binary))){status(`Export canceled after saving ${count} file${count===1?'':'s'}.`);return;}
-     count++;
+     files.push({name:stem+'.mid',bytes:new Uint8Array(compilePlayback({...segment.project,notes}).binary)});
     }
-    if(!count){status('No notes to export.');return;}
-    status(`Exported ${count} MIDI file${count===1?'':'s'}.`);return;
+    if(!files.length){status('No notes to export.');return;}
+   }else{
+    const {ext,render}=sheetFormats[format]??sheetFormats.ms2mml;
+    for(const segment of segments)for(const index of indexes){
+     if(segment.project.instruments[index].isInstructions||!segment.project.notes.some(n=>n.instrument===index))continue;
+     const plan=createSheetPlanner(segment.project,index,limit),name=prefixed(segment.name,project.instruments[index].name);
+     if(!plan.whole.channels.length)continue;
+     const choice=plan.whole.bytes>limit?await choose(name,plan.whole.bytes,limit):'single';
+     if(choice==='cancel'){status('Export canceled.');return;}
+     if(choice==='parts'){
+      const parts=plan.split();parts.forEach((part,i)=>files.push({name:`${name}-part-${String(i+1).padStart(2,'0')}${ext}`,text:render(part.channels)}));
+     }else files.push({name:name+ext,text:render(plan.whole.channels)});
+    }
+    if(!files.length){status('No musical MML to export.');return;}
    }
-   const {ext,render}=sheetFormats[format]??sheetFormats.ms2mml;
-   const files:{name:string,text:string}[]=[];
-   for(const segment of segments)for(const index of indexes){
-    if(segment.project.instruments[index].isInstructions||!segment.project.notes.some(n=>n.instrument===index))continue;
-    const plan=createSheetPlanner(segment.project,index,limit),name=prefixed(segment.name,project.instruments[index].name);
-    if(!plan.whole.channels.length)continue;
-    const choice=plan.whole.bytes>limit?await choose(name,plan.whole.bytes,limit):'single';
-    if(choice==='cancel'){status('Export canceled.');return;}
-    if(choice==='parts'){
-     const parts=plan.split();parts.forEach((part,i)=>files.push({name:`${name}-part-${String(i+1).padStart(2,'0')}${ext}`,text:render(part.channels)}));
-    }else files.push({name:name+ext,text:render(plan.whole.channels)});
+   // One file is one save dialog, as it always was. Several files would have meant one dialog
+   // each, so the destination is chosen once: a folder of loose files ready to be loaded, or
+   // a single archive to hand to somebody. The choice is the user's and it is remembered.
+   if(files.length===1){
+    const only=files[0];
+    const save=only.bytes?(window as any).files.exportMidi:format==='text'?(window as any).files.exportText:(window as any).files.exportMml;
+    status(await save(only.name,only.bytes??only.text)?`Exported ${only.name}.`:'Export canceled.');return;
    }
-   if(!files.length){status('No musical MML to export.');return;}
-   const save=format==='text'?(window as any).files.exportText:(window as any).files.exportMml;
-   let count=0;
-   for(const file of files){if(!await save(file.name,file.text)){status(`Export canceled after saving ${count} of ${files.length} files.`);return;}count++;}
-   status(`Exported ${count} file${count===1?'':'s'}.`);
+   const bundle=projectExport?(project.name?.trim()||'Project'):(project.instruments[state.active]?.name||'Instrument');
+   const target=asZip()?await (window as any).files.exportZip(bundle,files):await (window as any).files.exportFolder(bundle,files);
+   status(target?`Exported ${files.length} files to ${target}.`:'Export canceled.');
   }catch(error){status('Export failed: '+error);}
   finally{exporting=false;action.disabled=false;}
  };
- action.onclick=()=>run(($('scope-all') as HTMLInputElement).checked);
+ // One box, so there is one thing to decide: the whole project, or only what is selected.
+ action.onclick=()=>run(!($('scope-selected') as HTMLInputElement).checked);
 }

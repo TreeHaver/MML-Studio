@@ -12,7 +12,7 @@ app.on('browser-window-created',(_,win)=>win.webContents.once('did-finish-load',
  s.project={format:'mml-studio',version:2,grid:4,name:'Audio test',instruments:[{name:'Flute',color:'#4488aa',midiProgram:73},{name:'Instructions',color:'#f4d35e',isInstructions:true}],notes:[{id:1,instrument:0,start:16,length:16,pitch:72,volume:10},{id:2,instrument:1,start:0,length:1,pitch:60,volume:0,loopEntry:true,loopCount:3},{id:3,instrument:1,start:32,length:1,pitch:60,volume:0,loopExit:true}]};s.active=0;s.selection.clear();commands.refresh();})`);
  const before=await evaluate('JSON.stringify(s.project)');let captured=false;
  const run=async()=>{
-  await evaluate(`document.getElementById('format-audio').checked=true;document.getElementById('scope-all').checked=true;document.getElementById('export-open').click();`);
+  await evaluate(`document.getElementById('format-audio').checked=true;document.getElementById('scope-selected').checked=false;document.getElementById('export-open').click();`);
   assert.equal(await evaluate(`document.getElementById('export-section-options').hidden`),true);
   if(!captured){await evaluate(`new Promise(r=>setTimeout(r,100))`);fs.writeFileSync('.validation/audio-export-options.png',(await win.webContents.capturePage()).toPNG());captured=true;}
   await evaluate(`document.getElementById('export-run').click()`);

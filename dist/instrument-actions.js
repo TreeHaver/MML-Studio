@@ -97,16 +97,23 @@ export function instrumentActions(row, index) {
     placeholder.value = '';
     placeholder.textContent = 'Merge into…';
     destination.append(placeholder);
-    state.project.instruments.forEach((instrument, other) => {
-        if (other === index || instrument.isInstructions)
+    // Both destination lists name every other instrument, and every card carries them, so a
+    // project with eighty instruments was building thousands of options on each rebuild - and
+    // the panel is rebuilt whenever anything changes. They are filled when the list is opened.
+    const others = state.project.instruments.map((instrument, other) => ({ instrument, other })).filter(entry => entry.other !== index && !entry.instrument.isInstructions);
+    destination.fillOptions = () => {
+        if (destination.children.length > 1)
             return;
-        const option = document.createElement('option');
-        option.value = String(other);
-        option.textContent = `${other + 1}. ${instrument.name}`;
-        destination.append(option);
-    });
+        for (const { instrument, other } of others) {
+            const option = document.createElement('option');
+            option.value = String(other);
+            option.textContent = `${other + 1}. ${instrument.name}`;
+            destination.append(option);
+        }
+        destination.value = '';
+    };
     destination.value = '';
-    destination.disabled = destination.children.length === 1;
+    destination.disabled = !others.length;
     destination.title = destination.disabled ? 'Add another instrument of the same kind to merge.' : 'Destination keeps its sound and settings.';
     const merge = document.createElement('button');
     merge.textContent = 'Merge';
@@ -129,8 +136,17 @@ export function instrumentActions(row, index) {
         empty.value = '';
         empty.textContent = 'Instruments…';
         target.append(empty);
-        state.project.instruments.forEach((instrument, other) => { if (other === index || instrument.isInstructions)
-            return; const option = document.createElement('option'); option.value = String(other); option.textContent = instrument.name; target.append(option); });
+        target.fillOptions = () => {
+            if (target.children.length > 1)
+                return;
+            for (const { instrument, other } of others) {
+                const option = document.createElement('option');
+                option.value = String(other);
+                option.textContent = instrument.name;
+                target.append(option);
+            }
+            target.value = '';
+        };
         target.value = '';
         const split = document.createElement('button');
         split.textContent = 'Split';

@@ -9,6 +9,23 @@ app.setAppUserModelId('com.mmlstudio.editor');
 app.commandLine.appendSwitch('disable-http-cache');
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 function safeFileStem(value){let name=(typeof value==='string'?value:'Untitled').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').replace(/[. ]+$/,'').trim()||'Untitled';if(/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name))name='_'+name;return name;}
+const {zipArchive}=require('./zip.cjs');
+// Windows opens a file dialog wherever its shell was last used, which on many machines is
+// OneDrive. Passing an absolute defaultPath keeps that decision here: the folder the last
+// file went to, and the system Downloads folder on a fresh profile.
+let lastFolder=null;
+const folderMemory=()=>path.join(app.getPath('userData'),'last-folder.json');
+async function startFolder(){
+ if(lastFolder)return lastFolder;
+ try{const stored=JSON.parse(await fs.readFile(folderMemory(),'utf8')).folder;if(typeof stored==='string')lastFolder=stored;}catch{}
+ if(!lastFolder)lastFolder=app.getPath('downloads');
+ return lastFolder;
+}
+function rememberFolder(folder){lastFolder=folder;fs.writeFile(folderMemory(),JSON.stringify({folder})).catch(()=>{});}
+const startPath=async name=>path.join(await startFolder(),safeFileStem(name));
+const exists=async target=>{try{await fs.access(target);return true;}catch{return false;}};
+// A set of files is described the same way whichever way it is delivered.
+const validSet=files=>Array.isArray(files)&&files.length>0&&files.every(file=>file&&typeof file.name==='string'&&(typeof file.text==='string'||file.bytes instanceof Uint8Array));
 let win,closeReady=false,closePending=false,closeAllowed=false,closeRequest=0;
 ipcMain.on('editor-close-ready',event=>{if(win&&event.sender===win.webContents)closeReady=true;});
 ipcMain.on('editor-close-response',(event,id,allowed)=>{
@@ -29,7 +46,11 @@ ipcMain.on('confirm-action',(event,message)=>{
  finally{restoreEditorFocus();event.returnValue=accepted;}
 });
 app.whenReady().then(()=>{
- win=new BrowserWindow({width:1320,height:850,minWidth:900,minHeight:560,icon:path.join(__dirname,'assets','logo.png'),backgroundColor:'#171d21',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+ win=new BrowserWindow({width:1320,height:850,minWidth:900,minHeight:560,icon:path.join(__dirname,'assets','logo.png'),backgroundColor:'#171d21',show:false,
+  // Playback keeps its own time while the editor sits behind another window, so this
+  // renderer's timers must not be throttled the way a background browser tab's are:
+  // the rehearsal loop is brought round by a timer, not by the frames being painted.
+  webPreferences:{backgroundThrottling:false,preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  win.on('close',event=>{
   if(closeAllowed||!closeReady)return;event.preventDefault();if(closePending)return;
   closePending=true;win.webContents.send('editor-close-request',++closeRequest);
@@ -40,18 +61,41 @@ app.whenReady().then(()=>{
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  win.webContents.on('will-navigate',e=>e.preventDefault());
 });
-ipcMain.handle('save',async(_,text)=>{if(typeof text!=='string')throw Error('Invalid project');const r=await fileDialog('showSaveDialog',{defaultPath:safeFileStem(JSON.parse(text).name)+'.json',filters:[{name:'Studio JSON',extensions:['json']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text);return true;});
-ipcMain.handle('open',async()=>{const r=await fileDialog('showOpenDialog',{properties:['openFile'],filters:[{name:'Studio JSON',extensions:['json']}]});return r.canceled?null:fs.readFile(r.filePaths[0],'utf8');});
+ipcMain.handle('save',async(_,text)=>{if(typeof text!=='string')throw Error('Invalid project');const r=await fileDialog('showSaveDialog',{defaultPath:await startPath(JSON.parse(text).name+'.json'),filters:[{name:'Studio JSON',extensions:['json']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text);rememberFolder(path.dirname(r.filePath));return true;});
+ipcMain.handle('open',async()=>{const r=await fileDialog('showOpenDialog',{defaultPath:await startFolder(),properties:['openFile'],filters:[{name:'Studio JSON',extensions:['json']}]});if(r.canceled)return null;rememberFolder(path.dirname(r.filePaths[0]));return fs.readFile(r.filePaths[0],'utf8');});
 ipcMain.handle('import-midi',async()=>{
- const r=await fileDialog('showOpenDialog',{title:'Import MIDI or MML',properties:['openFile'],filters:[{name:'MIDI and MML files',extensions:['mid','midi','mml','ms2mml','mne']},{name:'Text files',extensions:['txt','xml']},{name:'All files',extensions:['*']}]});
+ const r=await fileDialog('showOpenDialog',{title:'Import MIDI or MML',defaultPath:await startFolder(),properties:['openFile'],filters:[{name:'MIDI and MML files',extensions:['mid','midi','mml','ms2mml','mne']},{name:'Text files',extensions:['txt','xml']},{name:'All files',extensions:['*']}]});
  if(r.canceled)return null;
- const file=r.filePaths[0],bytes=await fs.readFile(file);
+ const file=r.filePaths[0],bytes=await fs.readFile(file);rememberFolder(path.dirname(file));
  return {name:path.basename(file),bytes:new Uint8Array(bytes)};
 });
-ipcMain.handle('export-mml',async(_,name,text)=>{if(typeof name!=='string'||typeof text!=='string')throw Error('Invalid MML export');const r=await fileDialog('showSaveDialog',{defaultPath:safeFileStem(name),filters:[{name:'MapleStory 2 MML',extensions:['ms2mml']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text,'utf8');return true;});
+ipcMain.handle('export-mml',async(_,name,text)=>{if(typeof name!=='string'||typeof text!=='string')throw Error('Invalid MML export');const r=await fileDialog('showSaveDialog',{defaultPath:await startPath(name),filters:[{name:'MapleStory 2 MML',extensions:['ms2mml']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text,'utf8');rememberFolder(path.dirname(r.filePath));return true;});
 // Plain MML text and MIDI are the same export decision with a different file on the end.
-ipcMain.handle('export-text',async(_,name,text)=>{if(typeof name!=='string'||typeof text!=='string')throw Error('Invalid text export');const r=await fileDialog('showSaveDialog',{defaultPath:safeFileStem(name),filters:[{name:'MML text',extensions:['txt']},{name:'All files',extensions:['*']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text,'utf8');return true;});
-ipcMain.handle('export-midi',async(_,name,bytes)=>{if(typeof name!=='string'||!(bytes instanceof Uint8Array))throw Error('Invalid MIDI export');const r=await fileDialog('showSaveDialog',{defaultPath:safeFileStem(name),filters:[{name:'MIDI file',extensions:['mid']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,Buffer.from(bytes));return true;});
+ipcMain.handle('export-text',async(_,name,text)=>{if(typeof name!=='string'||typeof text!=='string')throw Error('Invalid text export');const r=await fileDialog('showSaveDialog',{defaultPath:await startPath(name),filters:[{name:'MML text',extensions:['txt']},{name:'All files',extensions:['*']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text,'utf8');rememberFolder(path.dirname(r.filePath));return true;});
+ipcMain.handle('export-midi',async(_,name,bytes)=>{if(typeof name!=='string'||!(bytes instanceof Uint8Array))throw Error('Invalid MIDI export');const r=await fileDialog('showSaveDialog',{defaultPath:await startPath(name),filters:[{name:'MIDI file',extensions:['mid']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,Buffer.from(bytes));rememberFolder(path.dirname(r.filePath));return true;});
+// A whole project, or a sheet split into parts, is many files at once. Asking for a filename
+// each time meant one save dialog per file; the destination is chosen once instead, either as
+// a folder of loose files ready to be loaded, or as one archive to hand to somebody.
+ipcMain.handle('export-folder',async(_,folderName,files)=>{
+ if(typeof folderName!=='string'||!validSet(files))throw Error('Invalid export');
+ const r=await fileDialog('showOpenDialog',{title:'Choose where to save the export',defaultPath:await startFolder(),buttonLabel:'Export here',properties:['openDirectory','createDirectory']});
+ if(r.canceled)return null;
+ const parent=r.filePaths[0];rememberFolder(parent);
+ const stem=safeFileStem(folderName);let folder=path.join(parent,stem);
+ // An earlier export of the same name is never written over; this one becomes 'Name (2)'.
+ for(let n=2;await exists(folder);n++)folder=path.join(parent,stem+' ('+n+')');
+ await fs.mkdir(folder,{recursive:true});
+ for(const file of files)await fs.writeFile(path.join(folder,safeFileStem(file.name)),file.bytes?Buffer.from(file.bytes):file.text,file.bytes?undefined:'utf8');
+ return folder;
+});
+ipcMain.handle('export-zip',async(_,archiveName,files)=>{
+ if(typeof archiveName!=='string'||!validSet(files))throw Error('Invalid export');
+ const r=await fileDialog('showSaveDialog',{title:'Save the export as an archive',defaultPath:await startPath(archiveName+'.zip'),filters:[{name:'Zip archive',extensions:['zip']}]});
+ if(r.canceled)return null;
+ await fs.writeFile(r.filePath,zipArchive(files.map(file=>({name:safeFileStem(file.name),text:file.text,bytes:file.bytes}))));
+ rememberFolder(path.dirname(r.filePath));
+ return r.filePath;
+});
 require('./audio-export.cjs')({ipcMain,getWindow:()=>win,fileDialog,safeFileStem});
 app.on('window-all-closed',()=>app.quit());
 ipcMain.handle('sound-bank',async()=>new Uint8Array(await fs.readFile(path.join(__dirname,'assets','TimGM6mb.sf2'))));

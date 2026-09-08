@@ -11,6 +11,7 @@ import { KEY, HEAD } from './constants.js';
 import { drawGrid } from './rendering/grid.js';
 import { drawNotes } from './rendering/notes.js';
 import { drawRuler } from './rendering/ruler.js';
+import { drawLoopSpan, drawLoopBar } from './rendering/loop-region.js';
 import { drawKeyboard } from './rendering/keyboard.js';
 import { drawInstructionLines, drawLoopRegions, drawTempoMarkers } from './rendering/tempo.js';
 export function draw() {
@@ -26,6 +27,7 @@ export function draw() {
     ctx.rect(KEY, HEAD, width - KEY, height - HEAD);
     ctx.clip();
     drawGrid();
+    drawLoopSpan();
     drawLoopRegions();
     drawInstructionLines();
     drawCrowdedRegions();
@@ -33,6 +35,7 @@ export function draw() {
     drawOverlapMarkers();
     ctx.restore();
     drawRuler();
+    drawLoopBar();
     drawCrowdedMarkers();
     drawKeyboard();
     drawTempoMarkers();
