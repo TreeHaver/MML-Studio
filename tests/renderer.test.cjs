@@ -427,6 +427,13 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.match(mmlBox().children[0].textContent,new RegExp('count: '+generate(run('project'),0).bytes+' bytes'));
  const overlapHistory=run('state.history.length');doc.getElementById('remove-overlap').onclick();assert.equal(run('state.history.length'),overlapHistory);
  (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeOverlap);
+ run('project.notes=[{id:1,instrument:0,start:0,length:128,pitch:60,volume:1},{id:2,instrument:0,start:0,length:4,pitch:60,volume:4}]');commands.refresh();
+ const beforeDuplicates=run('JSON.stringify(project.notes)');
+ doc.getElementById('remove-overlap').onclick();
+ assert.deepEqual(plain('project.notes.map(n=>n.id)'),[2]);
+ assert.match(doc.getElementById('status').textContent,/1 simultaneous duplicates deleted/);
+ const duplicateHistory=run('state.history.length');doc.getElementById('remove-overlap').onclick();assert.equal(run('state.history.length'),duplicateHistory);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeDuplicates);
 
  run('project.notes=[{id:1,instrument:0,start:0,length:512,pitch:60,volume:11}]');commands.refresh();transport.seekToTick(170);
  currentSignature.onfocus();currentSignature.value='6/8';currentSignature.onchange();

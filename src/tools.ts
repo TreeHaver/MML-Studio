@@ -45,7 +45,7 @@ export function installTools(){
   if(state.project.instruments[state.active].isInstructions){status('Select a musical instrument to remove note overlap.');return;}
   const result=removeOverlap(state.project,state.active);
   if(result.changed)commitNotes(result.notes);
-  status(`Remove overlap: ${result.changed} notes shortened.${result.duplicates?` ${result.duplicates} simultaneous duplicates kept because cutting them would give zero length.`:''}`);
+  status(`Remove overlap: ${result.shortened} notes shortened.${result.duplicates?` ${result.duplicates} simultaneous duplicates deleted.`:''}`);
  };
  input('simplify-length').value='64';
  $('simplify-timing').onclick=()=>{

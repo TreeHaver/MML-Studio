@@ -4,6 +4,14 @@ Keep new entries at the top: behavior/outcome, changed files, actual validation,
 
 The [original 2026-09-06–08 log](history/PROGRESS-2026-09-06-08.md) preserves prior entries and validation byte-for-byte, including working changes present at the start of this documentation task. Its ordering and old failures are historical. The recent checkpoints below are condensed references, not new test claims.
 
+## Remove overlap resolves simultaneous duplicates
+
+**2026-09-08.** Fixed the explicit Remove overlap command retaining same-start, same-pitch duplicates on the active instrument instance. Equal lengths keep the highest resolved V; longer notes win unless a shorter note is at least three V steps louder. Larger groups keep the longest note within two V steps of the loudest, with volume then lowest ID breaking ties. Selection uses original lengths before the existing next-onset trimming. Surviving inherited V (including V0), chords, other instrument instances and Instructions are preserved; deletion-only changes are undoable and the status reports deletions.
+
+Changed: `src/music/remove-overlap.ts`, `src/tools.ts`, their generated modules, `tests/remove-overlap.test.mjs`, `tests/renderer.test.cjs`, `agents/EDITOR.md`, and this log. Ownership and version-2 format are unchanged; pre-existing generated working changes were preserved.
+
+Actual validation: initial `node build.cjs` transpiled editor modules but failed on the documented sandbox esbuild directory access; elevated rerun passed. `node --experimental-vm-modules --test tests/remove-overlap.test.mjs tests/volume.test.mjs tests/segment-view.test.mjs tests/note-density.test.mjs tests/renderer.test.cjs` passed **24/24**. Coverage includes both requested V1/V4 and V2/V4 duration examples, equal lengths, threshold boundaries, source-order independence, multi-note groups, inherited V0, instrument/pitch isolation, existing scoped trimming, simulated command/status and Undo/no-op history. These are pure/model and simulated DOM checks; no native UI, packaged-release or listening test was run. Working folder updated directly; remaining work: none.
+
 ## Volume for the whole piece, in one move
 
 **2026-09-08.** The per-instrument row answered how to balance parts; it did not answer how to raise a finished piece without going instrument by instrument. Tools now carries a Volume item that moves every instrument by the same amount, which keeps both the differences between notes inside a part and the distances between the parts, since the arrangement is exactly those distances.
