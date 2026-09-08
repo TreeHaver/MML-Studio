@@ -4,6 +4,8 @@ export function installChrome(){
  // without keyboard focus on Windows. Keep confirmation behavior native.
  const nativeDialogs=(window as any).nativeDialogs;
  if(nativeDialogs)window.confirm=message=>nativeDialogs.confirm(String(message));
+ const appInfo=(window as any).appInfo;
+ if(appInfo)void appInfo.version().then((version:unknown)=>{if(typeof version==='string'&&/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version))$('app-version').textContent='v'+version;});
  const menus=[$('file-menu'),$('theme-menu'),$('tools-menu'),$('section-menu'),$('playback-menu')] as HTMLDetailsElement[];
  document.onclick=event=>{
   const target=event.target as HTMLElement;

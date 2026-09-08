@@ -14,9 +14,11 @@ test('release app exactly matches clean staging and includes runtime code/assets
   assert.doesNotMatch(file,/\.md$|\.zip$|\.map$|^\.|node_modules|^src\/|^tests\/|\.bat$|\.ps1$/);
   assert.ok(fs.readFileSync(path.join(stage,file)).equals(fs.readFileSync(path.join(app,file))),file);
  }
- for(const file of ['main.cjs','preload.cjs','dist/renderer.js','dist/mml-window.js','vendor/synth.js','vendor/spessasynth_processor.min.js','vendor/SpessaSynth-Core-LICENSE.txt','assets/TimGM6mb.sf2','assets/GPL-2.txt'])assert.ok(staged.includes(file),file);
+ for(const file of ['main.cjs','updater.cjs','preload.cjs','dist/renderer.js','dist/mml-window.js','vendor/synth.js','vendor/spessasynth_processor.min.js','vendor/SpessaSynth-Core-LICENSE.txt','assets/TimGM6mb.sf2','assets/GPL-2.txt'])assert.ok(staged.includes(file),file);
  const manifest=JSON.parse(fs.readFileSync(path.join(app,'package.json')));
+ const sourceManifest=JSON.parse(fs.readFileSync(path.join(root,'package.json')));
  assert.equal(manifest.main,'main.cjs');assert.equal(manifest.type,'module');assert.equal(manifest.dependencies,undefined);assert.equal(manifest.scripts,undefined);
+ assert.equal(manifest.version,sourceManifest.version);
  assert.ok(fs.existsSync(path.join(release,'MML Music Studio.exe')));
  assert.ok(fs.existsSync(path.join(release,'LICENSES.chromium.html')));
  assert.ok(fs.existsSync(path.join(release,'locales/en-US.pak')));

@@ -10,6 +10,7 @@ app.commandLine.appendSwitch('disable-http-cache');
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 function safeFileStem(value){let name=(typeof value==='string'?value:'Untitled').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').replace(/[. ]+$/,'').trim()||'Untitled';if(/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name))name='_'+name;return name;}
 const {zipArchive}=require('./zip.cjs');
+const {createPortableUpdater,launchPortableUpdate}=require('./updater.cjs');
 // Windows opens a file dialog wherever its shell was last used, which on many machines is
 // OneDrive. Passing an absolute defaultPath keeps that decision here: the folder the last
 // file went to, and the system Downloads folder on a fresh profile.
@@ -26,11 +27,11 @@ const startPath=async name=>path.join(await startFolder(),safeFileStem(name));
 const exists=async target=>{try{await fs.access(target);return true;}catch{return false;}};
 // A set of files is described the same way whichever way it is delivered.
 const validSet=files=>Array.isArray(files)&&files.length>0&&files.every(file=>file&&typeof file.name==='string'&&(typeof file.text==='string'||file.bytes instanceof Uint8Array));
-let win,closeReady=false,closePending=false,closeAllowed=false,closeRequest=0;
+let win,closeReady=false,closePending=false,closeAllowed=false,closeRequest=0,pendingUpdate=null;
 ipcMain.on('editor-close-ready',event=>{if(win&&event.sender===win.webContents)closeReady=true;});
 ipcMain.on('editor-close-response',(event,id,allowed)=>{
  if(!win||win.isDestroyed()||event.sender!==win.webContents||!closePending||id!==closeRequest)return;
- closePending=false;if(allowed===true){closeAllowed=true;win.close();}
+ closePending=false;if(allowed===true){closeAllowed=true;win.close();}else pendingUpdate=null;
 });
 ipcMain.handle('close-choice',async event=>{
  if(!win||win.isDestroyed()||event.sender!==win.webContents)return 'cancel';
@@ -45,6 +46,7 @@ ipcMain.on('confirm-action',(event,message)=>{
  try{accepted=dialog.showMessageBoxSync(win,{type:'question',title:'MML Studio',message,buttons:['Continue','Cancel'],defaultId:1,cancelId:1,noLink:true})===0;}
  finally{restoreEditorFocus();event.returnValue=accepted;}
 });
+ipcMain.handle('app-version',event=>win&&!win.isDestroyed()&&event.sender===win.webContents?app.getVersion():null);
 app.whenReady().then(()=>{
  win=new BrowserWindow({width:1320,height:850,minWidth:900,minHeight:560,icon:path.join(__dirname,'assets','logo.png'),backgroundColor:'#171d21',show:false,
   // Playback keeps its own time while the editor sits behind another window, so this
@@ -57,9 +59,10 @@ app.whenReady().then(()=>{
  });
  // Stay hidden until the module script has run, so the empty skeleton is never shown.
  win.webContents.once('did-finish-load',()=>win.show());
- win.setMenuBarVisibility(false);win.setClosable(true);win.loadFile(path.join(__dirname,'index.html'));win.on('closed',()=>{if(mmlWindow&&!mmlWindow.isDestroyed())mmlWindow.close();mmlWindow=null;mmlData=null;});
+ win.setMenuBarVisibility(false);win.setClosable(true);win.loadFile(path.join(__dirname,'index.html'));win.on('closed',()=>{if(mmlWindow&&!mmlWindow.isDestroyed())mmlWindow.close();mmlWindow=null;mmlData=null;const update=pendingUpdate;pendingUpdate=null;if(update)launchPortableUpdate(update);});
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  win.webContents.on('will-navigate',e=>e.preventDefault());
+ createPortableUpdater({app,dialog,getWindow:()=>win,onReady:update=>{pendingUpdate=update;if(win&&!win.isDestroyed())win.close();}}).start();
 });
 ipcMain.handle('save',async(_,text)=>{if(typeof text!=='string')throw Error('Invalid project');const r=await fileDialog('showSaveDialog',{defaultPath:await startPath(JSON.parse(text).name+'.json'),filters:[{name:'Studio JSON',extensions:['json']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text);rememberFolder(path.dirname(r.filePath));return true;});
 ipcMain.handle('open',async()=>{const r=await fileDialog('showOpenDialog',{defaultPath:await startFolder(),properties:['openFile'],filters:[{name:'Studio JSON',extensions:['json']}]});if(r.canceled)return null;rememberFolder(path.dirname(r.filePaths[0]));return fs.readFile(r.filePaths[0],'utf8');});

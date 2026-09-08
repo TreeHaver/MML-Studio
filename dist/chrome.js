@@ -5,6 +5,10 @@ export function installChrome() {
     const nativeDialogs = window.nativeDialogs;
     if (nativeDialogs)
         window.confirm = message => nativeDialogs.confirm(String(message));
+    const appInfo = window.appInfo;
+    if (appInfo)
+        void appInfo.version().then((version) => { if (typeof version === 'string' && /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version))
+            $('app-version').textContent = 'v' + version; });
     const menus = [$('file-menu'), $('theme-menu'), $('tools-menu'), $('section-menu'), $('playback-menu')];
     document.onclick = event => {
         const target = event.target;

@@ -1,6 +1,6 @@
 # Project map
 
-Source ownership checked **2026-09-08** against all current `src/**/*.ts` files, native entrypoints, build scripts and existing test entrypoints. Application version: **0.3.0**. Saved JSON: **version 2**.
+Source ownership checked **2026-09-08** against all current `src/**/*.ts` files, native entrypoints, build scripts and existing test entrypoints. Application version comes from `package.json` and is displayed through `app.getVersion()`; saved JSON remains **version 2**.
 
 Start with the row for the requested feature, then its related imports/tests. Read [PROGRESS.md](PROGRESS.md) for recent changes and actual validation; [DEVELOPMENT.md](DEVELOPMENT.md) supplies workflow/commands. Feature documents explain behavior without duplicating this ownership inventory.
 
@@ -124,6 +124,8 @@ Behavior, setup and dependency boundaries: [PLAYBACK_AUDIO](PLAYBACK_AUDIO.md).
 | Concern | Files and purpose |
 | --- | --- |
 | Manifest / locked runtime dependencies | [package.json](../package.json), [package-lock.json](../package-lock.json). `npm start` runs prestart → build → Electron. |
+| Application version display and release-version contract | [package.json](../package.json), [main.cjs](../main.cjs), [preload.cjs](../preload.cjs), [chrome.ts](../src/chrome.ts), [DEVELOPMENT](DEVELOPMENT.md#windows-release-build) |
+| Public GitHub release check, verified ZIP download and portable PowerShell handoff | [updater.cjs](../updater.cjs), wired by [main.cjs](../main.cjs); packaged by [package-release.ps1](../package-release.ps1) | [updater](../tests/updater.test.cjs), packaged payload in [release](../tests/release.test.cjs) |
 | Incremental TypeScript output | [build.cjs](../build.cjs), [transpile.cjs](../transpile.cjs). `src/` mirrors into `dist/`; unchanged bytes are not rewritten. No static type-check stage. |
 | Three SF2-only audio bundles | [build-audio.cjs](../build-audio.cjs), local rejection adapter [index.js](../packages/sf2-only-decoder/index.js) and [package.json](../packages/sf2-only-decoder/package.json). Generates `vendor/synth.js`, `vendor/spessasynth_processor.min.js`, `vendor/audio-worker.cjs`. |
 | Optional checkout encoder warning | [check-ffmpeg.cjs](../check-ffmpeg.cjs), npm prestart. Presence check only; encoder/provenance are Git-ignored. |

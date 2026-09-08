@@ -61,6 +61,10 @@ Run additional native checks when the changed behavior warrants them. Documentat
 
 ## Windows release build
 
+Every user-facing update must bump the semantic version in `package.json` before packaging. The visible version is read from Electron's `app.getVersion()` and must never be hardcoded in HTML/CSS. The package version, Git tag, release/update metadata, ZIP name or release entry, and embedded EXE file/product version must all identify the same release. Do not publish an update while any of these versions disagree.
+
+Packaged Windows builds check the public `TreeHaver/MML-Studio` latest release four seconds after startup. Release assets must include exactly one Windows portable archive named `MML Music Studio-win32-x64.zip` or `MML.Music.Studio-win32-x64.zip`, with GitHub's `sha256:` digest populated. The updater never runs from a development checkout. It prompts before downloading, streams at most 512 MiB into the user profile, verifies exact size and SHA-256, then uses an external hidden PowerShell handoff after the normal Save/Discard/Cancel close flow. Keep `updater.cjs` in the release runtime list. A release without the expected ZIP or digest is not installable automatically.
+
 After `npm ci` and [encoder setup](PLAYBACK_AUDIO.md#encoder-setup), close any running copy of the packaged app and run:
 
 ```powershell
