@@ -2,8 +2,9 @@ import {mmlControls,updateMml} from './mml.ts';
 import {colorSwatch,closeColorPanel} from './color-picker.ts';
 import {instrumentActions,removeInstrument} from './instrument-actions.ts';
 import {GM_PROGRAMS} from './playback/gm-programs.ts';
+import {VANILLA_PROGRAMS} from './playback/vanilla-instruments.ts';
 import {DRUM_KIT_NAME,MS2_DRUMS,type Ms2Drum} from './playback/drums.ts';
-import {INSTRUCTIONS_NAME,INSTRUCTIONS_COLOR} from './model/instructions.ts';
+import {syncAdvancedInstructions,instructionCard} from './advanced-instructions.ts';
 import {draw} from './painting.ts';
 import {info} from './inspector.ts';
 import {checkpoint} from './history.ts';
@@ -20,15 +21,18 @@ export function instruments(){
  // A colour panel anchored to a swatch that is about to be replaced would be orphaned.
  closeColorPanel();
  const panel=$('track-panel'),scroll=panel.scrollTop;
- $('instrument-count').textContent=String(state.project.instruments.length);
+ syncAdvancedInstructions();
+ $('instrument-count').textContent=String(state.project.instruments.filter(i=>!i.isInstructions).length);
  $('instruments').replaceChildren();state.project.instruments.forEach((i,index)=>{
+ if(i.isInstructions){$('instruments').append(instructionCard(index));return;}
  const row=document.createElement('div');row.className='instrument';row.classList.toggle('selected',index===state.active);const color=colorSwatch(i.color,'Color for '+i.name,value=>{checkpoint();i.color=value;draw();});
+ row.dataset.instrument=String(index);
  const collapsed=instrumentView.collapsed.has(index);
  const button=document.createElement('button');button.textContent=i.name+(instrumentView.muted.has(index)?' (muted)':'');button.className='instrument-name';button.classList.toggle('active',index===state.active);
  button.title=i.name+' · click again to collapse';button.setAttribute('aria-expanded',String(!collapsed));
  const select=()=>{
   if(index===state.active)return;
-  state.active=index;state.selection.clear();document.querySelectorAll('.instrument-name').forEach((el,j)=>el.classList.toggle('active',j===index));document.querySelectorAll('.instrument').forEach((el,j)=>el.classList.toggle('selected',j===index));info();draw();
+  state.active=index;state.selection.clear();document.querySelectorAll('.instrument').forEach(el=>{const active=(el as HTMLElement).dataset.instrument===String(index);el.classList.toggle('selected',active);el.querySelector('.instrument-name')?.classList.toggle('active',active);});info();draw();
  };
  button.onclick=()=>{
   const collapse=index===state.active&&!instrumentView.collapsed.has(index);
@@ -38,13 +42,24 @@ export function instruments(){
  };
  row.onclick=e=>{if(!(e.target as HTMLElement).closest?.('button,select,input,label,summary'))select();};
  const beginRename=()=>{if(row.querySelector('.instrument-rename-field'))return;const field=document.createElement('input');field.type='text';field.className='instrument-rename-field';field.value=i.name;field.setAttribute('aria-label','Rename '+i.name);button.after(field);field.focus({preventScroll:true});field.select();let done=false;const finish=(save:boolean)=>{if(done)return;done=true;if(save&&field.value.trim()&&i.name!==field.value.trim()){checkpoint();i.name=field.value.trim();}instruments();};field.onblur=()=>finish(true);field.onkeydown=e=>{if(e.key==='Enter')finish(true);if(e.key==='Escape')finish(false);};};
- const preset=document.createElement('select');preset.title='General MIDI playback instrument';preset.setAttribute('aria-label','Playback preset for '+i.name);GM_PROGRAMS.forEach((name,program)=>{const option=document.createElement('option');option.value=String(program);option.textContent=`${program+1}. ${name}`;preset.append(option);});
- const drums=document.createElement('option');drums.value='drums';drums.textContent=`${DRUM_KIT_NAME} (not valid in MS2)`;preset.append(drums);
+ const selected=i.isDrum?'drums':i.ms2Drum??String(i.midiProgram??0);
+ const preset=document.createElement('select');preset.title='Playback instrument';preset.setAttribute('aria-label','Playback preset for '+i.name);
+ const addPreset=(value:string,label:string,vanilla:boolean)=>{
+  const excluded=instrumentView.vanillaOnly&&!vanilla;
+  if(excluded&&value!==selected)return;
+  const option=document.createElement('option');option.value=value;option.textContent=label;
+  // Keep an excluded current value in the closed field, but not among selectable choices.
+  option.hidden=excluded;option.disabled=excluded;
+  const warning=value==='drums'||excluded;
+  option.classList.toggle('preset-warning',warning);
+  if(value===selected)preset.classList.toggle('preset-warning',warning);
+  preset.append(option);
+ };
+ GM_PROGRAMS.forEach((name,program)=>addPreset(String(program),`${program+1}. ${VANILLA_PROGRAMS[program]??name}`,program in VANILLA_PROGRAMS));
+ addPreset('drums',`${DRUM_KIT_NAME} (not valid in MS2)`,false);
  for(const [key,drum] of Object.entries(MS2_DRUMS)){const option=document.createElement('option');option.value=key;option.textContent=drum.name;preset.append(option);}
- const instructions=document.createElement('option');instructions.value='instructions';instructions.textContent='Instructions (silent)';preset.append(instructions);
- preset.value=i.isInstructions?'instructions':i.isDrum?'drums':i.ms2Drum??String(i.midiProgram??0);preset.onchange=()=>{checkpoint();delete i.ms2Drum;if(preset.value in MS2_DRUMS)i.ms2Drum=preset.value as Ms2Drum;i.isDrum=preset.value==='drums';i.isInstructions=preset.value==='instructions';i.midiProgram=i.isDrum||i.isInstructions||i.ms2Drum?0:Number(preset.value);if(i.isInstructions){i.name=INSTRUCTIONS_NAME;i.color=INSTRUCTIONS_COLOR;}if(i.ms2Drum)i.name=MS2_DRUMS[i.ms2Drum].name;void updatePlaybackVoices();instruments();updateMml(true);info();draw();};
+ preset.value=selected;preset.onchange=()=>{if(preset.value!=='drums'&&!(preset.value in MS2_DRUMS)&&!/^\d+$/.test(preset.value))return;checkpoint();delete i.ms2Drum;if(preset.value in MS2_DRUMS)i.ms2Drum=preset.value as Ms2Drum;i.isDrum=preset.value==='drums';i.midiProgram=i.isDrum||i.ms2Drum?0:Number(preset.value);if(i.ms2Drum)i.name=MS2_DRUMS[i.ms2Drum].name;void updatePlaybackVoices();instruments();updateMml(true);info();draw();};
  row.append(color,button,preset);$('instruments').append(row);
- if(i.isInstructions){const help=document.createElement('small');help.className='instrument-help';help.textContent='Silent events. Draw a marker, then edit tempo, time signature or section in the inspector.';row.append(help);}
  const controls=document.createElement('div');controls.className='instrument-controls';
  const changed=()=>{state.selection.clear();updatePlaybackMutes();instruments();info();draw();};
  const muted=instrumentView.muted.has(index),soloed=instrumentView.solo===index;
@@ -62,13 +77,15 @@ export function instruments(){
  const rename=document.createElement('button');rename.className='instrument-row-rename';rename.title='Rename '+i.name;rename.setAttribute('aria-label','Rename '+i.name);rename.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';rename.onclick=beginRename;row.append(rename);
  mmlControls(row,instrumentActions(row,index),index);
  });
+ if(!state.project.instruments.some(i=>i.isInstructions))$('instruments').append(instructionCard());
  panel.scrollTop=scroll;
  // Selects are wrapped by a MutationObserver, which runs after this returns and moves the scroll again.
  queueMicrotask(()=>{panel.scrollTop=scroll;});
 }
 
 export function installInstruments(){
-$('add').onclick=()=>{checkpoint();state.project.instruments.push({name:`Instrument ${state.project.instruments.length+1}`,color:colors[state.project.instruments.length%colors.length],midiProgram:0});state.active=state.project.instruments.length-1;state.selection.clear();refresh();};
+$('vanilla-only').onclick=()=>{instrumentView.vanillaOnly=!instrumentView.vanillaOnly;$('vanilla-only').setAttribute('aria-pressed',String(instrumentView.vanillaOnly));instruments();};
+$('add').onclick=()=>{checkpoint();const count=state.project.instruments.filter(i=>!i.isInstructions).length;state.project.instruments.push({name:`Instrument ${count+1}`,color:colors[count%colors.length],midiProgram:0});state.active=state.project.instruments.length-1;state.selection.clear();refresh();};
 
 
 }

@@ -23,6 +23,7 @@ export function installAppearance() {
         let panel = null, items = [], active = -1, typed = '', typedTimer;
         // Options read "12. Vibraphone", so type-ahead has to match the name, not the number.
         const label = (option) => (option.textContent ?? '').replace(/^\s*\d+\.\s*/, '').toLowerCase();
+        const visibleOptions = () => [...select.options].filter(option => !option.hidden);
         const close = () => { panel?.remove(); panel = null; items = []; active = -1; typed = ''; shell.classList.remove('open'); if (closeOpenList === close) {
             closeOpenList = null;
             openOwner = null;
@@ -43,7 +44,7 @@ export function installAppearance() {
             window.clearTimeout(typedTimer);
             typedTimer = window.setTimeout(() => { typed = ''; }, 900);
             typed += character.toLowerCase();
-            const options = [...select.options];
+            const options = visibleOptions();
             let found = options.findIndex(option => label(option).startsWith(typed));
             // A dead end usually means a new word was started rather than a typo.
             if (found < 0 && typed.length > 1) {
@@ -63,11 +64,12 @@ export function installAppearance() {
             panel = document.createElement('div');
             panel.className = 'menu-panel select-panel';
             panel.onpointerdown = e => e.preventDefault();
-            items = [...select.options].map(option => {
+            items = visibleOptions().map(option => {
                 const item = document.createElement('button');
                 item.type = 'button';
                 item.textContent = option.textContent;
                 item.disabled = option.disabled;
+                item.classList.toggle('preset-warning', option.classList.contains('preset-warning'));
                 item.onclick = () => { const changed = select.value !== option.value; select.value = option.value; close(); select.focus({ preventScroll: true }); if (changed)
                     select.dispatchEvent(new Event('change', { bubbles: true })); };
                 panel.append(item);
@@ -85,7 +87,7 @@ export function installAppearance() {
             panel.style.maxHeight = height + 'px';
             panel.style.left = Math.round(Math.max(8, Math.min(box.left, innerWidth - panel.offsetWidth - 8))) + 'px';
             panel.style.top = Math.round(below >= height ? box.bottom + 4 : box.top - height - 4) + 'px';
-            const chosen = Math.max(0, select.selectedIndex);
+            const chosen = visibleOptions().findIndex(option => option.value === select.value);
             items[chosen]?.classList.add('current');
             active = chosen;
             if (height < full && items[chosen])

@@ -1,5 +1,6 @@
 import { importMml } from './import/mml.js';
-import { ensureInstructions } from './model/instructions.js';
+import { ensureInstructions, hasInstructions } from './model/instructions.js';
+import { advancedInstructions } from './advanced-instructions.js';
 import { state, isMuted } from './state.js';
 import { checkpoint } from './history.js';
 import { refresh } from './commands.js';
@@ -82,6 +83,8 @@ export function pasteMml(text) {
         state.project = project;
         state.selection = new Set(added.map(n => n.id));
         position = start + imported.span;
+        if (hasInstructions(imported.project))
+            advancedInstructions.enabled = true;
         refresh();
         status('Pasted ' + imported.noteCount + ' MML notes. ' + imported.warnings.join(' '));
         return true;

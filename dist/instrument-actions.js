@@ -27,10 +27,10 @@ function apply(project, source, active) {
 }
 export function removeInstrument(index) {
     const instrument = state.project.instruments[index];
-    if (!instrument)
+    if (!instrument || instrument.isInstructions)
         return;
     const notes = state.project.notes.filter(n => n.instrument === index), tempos = notes.filter(n => n.tempo != null).length;
-    const contents = `${notes.length} notes/events${tempos ? `, including ${tempos} global tempo instructions` : ''}`, last = state.project.instruments.length === 1;
+    const contents = `${notes.length} notes/events${tempos ? `, including ${tempos} global tempo instructions` : ''}`, last = state.project.instruments.filter(i => !i.isInstructions).length === 1;
     if (state.segment) {
         if (!notes.length) {
             status('This instrument has no notes in the current view.');
@@ -51,6 +51,20 @@ export function removeInstrument(index) {
         ? `“${instrument.name}” is the only instrument, so it cannot be deleted — it will be emptied instead.\nIts ${contents} will be cleared and it will be reset to an empty Piano.\nYou can undo this.`
         : `Delete “${instrument.name}” and its ${contents}?\nYou can undo this.`))
         return;
+    if (last) {
+        stopPlayback(false);
+        checkpoint();
+        state.project = deleteInstrument(state.project, index);
+        instrumentView.muted.delete(index);
+        instrumentView.collapsed.delete(index);
+        if (instrumentView.solo === index)
+            instrumentView.solo = null;
+        state.selection.clear();
+        state.gesture = null;
+        refresh();
+        status(`Emptied “${instrument.name}”. Undo to restore it.`);
+        return;
+    }
     const active = state.active === index ? Math.max(0, Math.min(index, state.project.instruments.length - 2)) : state.active > index ? state.active - 1 : state.active;
     apply(deleteInstrument(state.project, index), index, active);
     status(`${last ? 'Emptied' : 'Deleted'} “${instrument.name}”. Undo to restore it.`);
@@ -84,7 +98,7 @@ export function instrumentActions(row, index) {
     placeholder.textContent = 'Merge into…';
     destination.append(placeholder);
     state.project.instruments.forEach((instrument, other) => {
-        if (other === index || !!instrument.isInstructions !== !!state.project.instruments[index].isInstructions)
+        if (other === index || instrument.isInstructions)
             return;
         const option = document.createElement('option');
         option.value = String(other);

@@ -16783,6 +16783,23 @@ function resolveVolumes(notes) {
 // src/model/instructions.ts
 var INSTRUCTIONS_NAME = "Instructions";
 var INSTRUCTIONS_COLOR = "#f4d35e";
+function consolidateInstructions(project) {
+  const first = project.instruments.findIndex((i) => i.isInstructions);
+  if (first < 0) return;
+  const routes = [];
+  const instruments = [];
+  project.instruments.forEach((instrument, index) => {
+    if (instrument.isInstructions && index !== first) {
+      routes[index] = routes[first];
+      return;
+    }
+    routes[index] = instruments.length;
+    instruments.push(instrument);
+  });
+  if (instruments.length === project.instruments.length) return;
+  project.instruments = instruments;
+  project.notes = project.notes.map((n) => ({ ...n, instrument: routes[n.instrument] }));
+}
 function ensureInstructions(project) {
   const existing = project.instruments.findIndex((i) => i.isInstructions);
   if (existing >= 0) return existing;
@@ -17147,6 +17164,7 @@ function parse(text) {
   }
   if (!valid(p.notes)) throw Error("Invalid timing or conflicting tempo instructions.");
   recognizeLegacyInstructions(p);
+  consolidateInstructions(p);
   return p;
 }
 

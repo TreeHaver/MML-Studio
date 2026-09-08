@@ -8,6 +8,10 @@ function check(project, index) {
 }
 export function deleteInstrument(project, index) {
     check(project, index);
+    if (project.instruments[index].isInstructions)
+        throw Error('Instructions is a permanent lane. Delete its events instead.');
+    if (project.instruments.filter(i => !i.isInstructions).length === 1)
+        return { ...project, instruments: project.instruments.map((i, j) => j === index ? fresh().instruments[0] : i), notes: project.notes.filter(n => n.instrument !== index) };
     const instruments = project.instruments.filter((_, i) => i !== index);
     return { ...project, instruments: instruments.length ? instruments : fresh().instruments,
         notes: project.notes.filter(n => n.instrument !== index).map(n => ({ ...n, instrument: n.instrument > index ? n.instrument - 1 : n.instrument })) };
@@ -17,8 +21,8 @@ export function mergeInstruments(project, source, target) {
     check(project, target);
     if (source === target)
         throw Error('Choose a different destination.');
-    if (!!project.instruments[source].isInstructions !== !!project.instruments[target].isInstructions)
-        throw Error('Merge silent Instructions with another Instructions instrument; merge musical instruments with musical instruments.');
+    if (project.instruments[source].isInstructions || project.instruments[target].isInstructions)
+        throw Error('Cannot merge silent Instructions. Merge musical instruments only.');
     // Resolve each original lane before combining, so interleaved notes retain V inheritance.
     const volumes = resolveVolumes(project.notes.filter(n => n.instrument === source || n.instrument === target));
     const notes = project.notes.map(n => {

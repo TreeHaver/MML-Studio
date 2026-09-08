@@ -32,6 +32,8 @@ Song routes have fixed tuning for their lifetime, including release tails and se
 
 **Standard Drum Kit** maps note numbers to GM percussion instead of melodic pitch. It is supported for import/editing/preview with the requested warning: **Not a valid MS2 instrument. Available for editing and preview.** The instrument-card warning marker is informational. Channel-10 MIDI import selects Standard Kit; alternate kits reduce to Standard with a notice. Other GM2/GS/XG/SysEx drum routing is not detected.
 
+Its preset text is always yellow. The [Vanilla instrument filter](EDITOR.md#instruments) hides it from new choices while retaining any existing kit unchanged. Fixed MS2 drums remain selectable with that filter on.
+
 | MIDI key | Editor label | Standard Kit sound |
 | --- | --- | --- |
 | 36 | C2 | Bass Drum 1 |

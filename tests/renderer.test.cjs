@@ -61,7 +61,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  doc.getElementById('grid').value='128';doc.getElementById('grid').onchange();run("setTool('draw')");click(158,240);assert.equal(run('project.notes[0].length'),1);
  // Each instrument gets the full GM list, and a selected note can carry bounded T.
  const preset=doc.getElementById('instruments').children[0].children[2];
- assert.equal(preset.children.length,133);preset.value='40';preset.onchange();assert.equal(run('project.instruments[0].midiProgram'),40);
+ assert.equal(preset.children.length,132);preset.value='40';preset.onchange();assert.equal(run('project.instruments[0].midiProgram'),40);
  const tempo=doc.getElementById('tempo');tempo.value='32';tempo.onchange();assert.equal(run('project.notes[0].tempo'),32);
  tempo.value='300';tempo.onchange();assert.equal(run('project.notes[0].tempo'),300);
  tempo.value='300.5';tempo.onchange();assert.equal(run('project.notes[0].tempo'),300);
@@ -92,8 +92,9 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.deepEqual(previewCalls.at(-1),{pitch:65,program:0}); // 20px crosses a 15px sharp row here.
  // Instructions create one-unit silent events, allow horizontal movement,
  // and draw a yellow global line even while another instrument is active.
- (await load('src/commands.ts')).namespace.refresh();
- const instructionPreset=doc.getElementById('instruments').children[1].children[2];instructionPreset.value='instructions';instructionPreset.onchange();
+ run('project.instruments.pop()');(await load('src/commands.ts')).namespace.refresh();
+ if(doc.getElementById('advanced-instructions').getAttribute('aria-pressed')!=='true')doc.getElementById('advanced-instructions').onclick();
+ doc.getElementById('instruments').children[1].children[0].onclick();
  assert.equal(run('project.instruments[1].name'),'Instructions');
  drag(350,240,400,280);
  const marker=run('project.notes.find(n=>n.instrument===1)');assert.equal(marker.length,1);assert.equal(marker.volume,0);
@@ -118,7 +119,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  const prefs=(await load('src/state.ts')).namespace;
  const rows=()=>doc.getElementById('instruments').children;
  const control=(index,label)=>rows()[index].children.find(el=>el.className==='instrument-controls').children.find(el=>el.textContent===label);
- run('project.instruments.push({name:"Third",color:"#fff"})');
+ run('project.instruments[1]={name:"Second",color:"#ffffff"};project.instruments.push({name:"Third",color:"#fff"})');
  (await load('src/commands.ts')).namespace.refresh();
  const saved=run('JSON.stringify(project)'),history=run('state.history.length');
  control(0,'Mute').onclick();assert.equal(prefs.isMuted(0),true);assert.equal(prefs.isMuted(1),false);
@@ -171,7 +172,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  (await load('src/history.ts')).namespace.undo(true);assert.equal(run('project.notes.length'),4);
  run('selection=new Set([12,13])');keys('v');assert.deepEqual(JSON.parse(run('JSON.stringify(project.notes.slice(-2).map(n=>n.start))')),[28,37]);
  run('state.active=2');clipboard.setPastePosition(64);keys('v');assert.equal(run('project.notes.at(-1).instrument'),2);assert.equal(run('project.notes.at(-1).start'),9);
- const pasted=run('JSON.stringify(project)');run('state.active=1');keys('v');assert.equal(run('JSON.stringify(project)'),pasted);
+ run('project.instruments[1].isInstructions=true');const pasted=run('JSON.stringify(project)');run('state.active=1');keys('v');assert.equal(run('JSON.stringify(project)'),pasted);
  run('state.active=2');prefs.instrumentView.muted.add(2);keys('v');assert.equal(run('JSON.stringify(project)'),pasted);prefs.instrumentView.muted.delete(2);
  const textField=new El();textField.matches=()=>true;doc.onkeydown({key:'v',ctrlKey:true,target:textField,preventDefault(){throw Error('Text editing must keep native paste');}});
  // A long low note supplies the latest end, regardless of onset, pitch, or selection order.
@@ -306,7 +307,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  let release;loadGate=new Promise(resolve=>{release=resolve});changeVoice('73');await settle();changeVoice('24');release();loadGate=null;await settle();
  assert.ok(latestEvents().some(e=>e.status===192&&e.data[0]===24));assert.equal(seq.currentTime,.5);
  (await load('src/history.ts')).namespace.undo();await settle();assert.ok(latestEvents().some(e=>e.status===192&&e.data[0]===73));
- changeVoice('instructions');await settle();assert.equal(restoredNotes.at(-1).length,0);assert.ok(!latestEvents().some(e=>(e.status>>4)===9));
+ const beforeInvalidPreset=run('JSON.stringify(project)');changeVoice('instructions');await settle();assert.equal(run('JSON.stringify(project)'),beforeInvalidPreset,'Instructions cannot replace a musical preset');
  changeVoice('0');await settle();assert.equal(restoredNotes.at(-1)[0].pitch,60);
  loadGate=new Promise(resolve=>{release=resolve});changeVoice('40');await settle();transport.stopPlayback(false);release();loadGate=null;await settle();
  assert.equal(frame,null);assert.equal(transport.playback.tick,null);assert.equal(doc.getElementById('play').title,'Play');
@@ -381,10 +382,20 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  run('project.notes=[{id:1,instrument:0,start:1,length:4,pitch:60,volume:11},{id:2,instrument:0,start:5,length:3,pitch:64,volume:11}]');commands.refresh();
  const beforeSimplify=run('JSON.stringify(project.notes)');
  doc.getElementById('simplify-length').value='64';doc.getElementById('simplify-timing').onclick();
- assert.deepEqual(plain('project.notes.map(n=>[n.start,n.length,n.volume])'),[[0,4,11],[4,4,11]]);
- assert.match(doc.getElementById('status').textContent,/2 notes changed/);
+ assert.deepEqual(plain('project.notes.map(n=>[n.start,n.length,n.volume])'),[[0,5,11],[5,3,11]]);
+ assert.match(doc.getElementById('status').textContent,/1 notes changed/);
  assert.match(mmlBox().children[0].textContent,new RegExp('count: '+generate(run('project'),0).bytes+' bytes'));
  (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeSimplify);
+ run('project.notes=[{id:1,instrument:0,start:0,length:2,pitch:60,volume:11},{id:2,instrument:0,start:2,length:2,pitch:62,volume:11},{id:3,instrument:0,start:4,length:2,pitch:64,volume:11},{id:4,instrument:0,start:16,length:1,pitch:65,volume:11},{id:5,instrument:0,start:17,length:15,pitch:67,volume:11}]');commands.refresh();
+ const beforeOrnaments=run('JSON.stringify(project.notes)');
+ doc.getElementById('simplify-length').value='16';doc.getElementById('simplify-timing').onclick();
+ assert.deepEqual(plain('project.notes.map(n=>[n.id,n.start,n.length,n.pitch])'),[[1,0,8,60],[5,16,16,67]]);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeOrnaments);
+ run('project.notes=[{id:1,instrument:0,start:0,length:4,pitch:60,volume:11},{id:2,instrument:0,start:4,length:6,pitch:62,volume:8}]');commands.refresh();
+ const beforeCompetition=run('JSON.stringify(project.notes)');
+ doc.getElementById('simplify-length').value='8';doc.getElementById('simplify-timing').onclick();
+ assert.deepEqual(plain('project.notes.map(n=>[n.id,n.start,n.length])'),[[1,0,8],[2,8,8]]);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeCompetition);
  run('project.notes=[{id:1,instrument:0,start:0,length:20,pitch:60,volume:11},{id:2,instrument:0,start:7,length:16,pitch:60,volume:8}]');commands.refresh();
  const beforeOverlap=run('JSON.stringify(project.notes)');
  doc.getElementById('remove-overlap').onclick();

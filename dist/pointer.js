@@ -16,6 +16,7 @@ import { move, resize, stretchBack } from './music/note-operations.js';
 import { previewNote } from './playback/preview.js';
 import { seekToTick } from './playback/transport.js';
 import { setPastePosition } from './note-clipboard.js';
+import { advancedInstructions } from './advanced-instructions.js';
 let stopEdgeScroll = () => { };
 export function endGesture(cancel = false) { stopEdgeScroll(); if (!state.gesture)
     return; if (cancel && state.gesture.before)
@@ -131,6 +132,7 @@ export function installPointer() {
         }
         const marker = instructionCaptionHit(p) ?? (!hit(p) ? instructionLineHit(p) : undefined);
         if (e.button === 0 && marker && marker.instrument !== state.active) {
+            advancedInstructions.enabled = true;
             state.active = marker.instrument;
             state.selection = new Set([marker.id]);
             refresh();

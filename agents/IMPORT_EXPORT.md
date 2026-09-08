@@ -2,6 +2,8 @@
 
 File > Import MIDI / MML parses before replacing the open project. Cancellation, invalid input or declining unsaved replacement leaves the project intact. Successful imports are unsaved version-2 projects; save JSON to keep them. Failures open an Import failed report, and conversion notices appear in the success report.
 
+Project/open/import instruction events automatically enable Advanced Instructions, including unbound tempo changes from MIDI/MML and imported signatures. The dedicated Instructions card stays last and does not count toward the musical-instrument total in the sidebar or import report. Its events remain active if the card is hidden. Version-2 files with multiple old Instructions lanes are loaded into one dedicated lane, preserving events and remapping owners.
+
 Import/editing have no application-imposed file-size, note/event/track/instrument-count caps or MS2 tempo clamps. Keep decoder validation and reported model conversions distinct from export compatibility. [MUSIC_MODEL.md](MUSIC_MODEL.md) is the behavior contract; [PROJECT_MAP.md](PROJECT_MAP.md) links implementation and tests.
 
 ## MIDI import

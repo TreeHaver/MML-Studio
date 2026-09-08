@@ -17,7 +17,8 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  await evaluate(`document.getElementById('undo').click()`);assert.equal(await evaluate('JSON.stringify(s.project)'),before);
  await evaluate(`document.querySelector('.instrument-row-delete').click()`);assert.equal(await evaluate('JSON.stringify(s.project)'),before);
  assert.match(await evaluate('confirmation'),/global tempo/);
- assert.equal(await evaluate(`document.querySelectorAll('.instrument-destination')[2].disabled`),true);
+ assert.equal(await evaluate(`document.querySelector('.instructions-lane .instrument-actions')`),null);
+ assert.equal(await evaluate(`[...document.querySelectorAll('.instrument-destination option')].some(o=>o.value==='2')`),false);
  await evaluate(`document.querySelector('.instrument-name').click()`);
  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.instrument-actions')).display`),'none');
  await evaluate(`document.querySelector('.instrument-name').click();prefs.muted.add(1);prefs.collapsed.add(2);refresh();
@@ -28,9 +29,9 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  assert.equal(await evaluate(`s.project.notes.find(n=>n.id===3).tempo`),90);
  await evaluate(`document.getElementById('undo').click()`);assert.equal(await evaluate('JSON.stringify(s.project)'),before);
  await evaluate(`document.getElementById('redo').click();document.querySelector('.instrument-row-delete').click()`);
- assert.deepEqual(await evaluate('[s.project.instruments.length,s.project.notes.length,s.project.notes[0].instrument]'),[1,1,0]);
+ assert.deepEqual(await evaluate('[s.project.instruments.length,s.project.notes.length,s.project.notes[0].instrument]'),[2,1,1]);
  await evaluate(`document.querySelector('.instrument-row-delete').click()`);
- assert.deepEqual(await evaluate('[s.project.instruments.length,s.project.notes.length,s.active]'),[1,0,0]);
+ assert.deepEqual(await evaluate('[s.project.instruments.length,s.project.notes.length,s.active]'),[2,1,0]);
  await evaluate(`document.getElementById('undo').click();document.getElementById('undo').click();document.getElementById('undo').click();`);
  assert.equal(await evaluate('JSON.stringify(s.project)'),before);
  win.setSize(1100,800);

@@ -29,7 +29,7 @@ test('merge preserves simultaneous volume differences, retains overlaps and prot
  const result=mergeInstruments(p,0,1);assert.equal(result.volumeConflict,false);assert.equal(result.project.notes.length,4);
  assert.deepEqual(result.project.notes.slice(0,2).map(n=>volumeAt(result.project,n)),[12,8]);
  p.instruments[0].isInstructions=true;assert.throws(()=>mergeInstruments(p,0,1),/silent Instructions/);
- p.instruments[1].isInstructions=true;assert.equal(mergeInstruments(p,0,1).project.instruments[0].isInstructions,true);
+ p.instruments[1].isInstructions=true;assert.throws(()=>mergeInstruments(p,0,1),/silent Instructions/);
  assert.throws(()=>mergeInstruments(p,0,0),/different/);assert.throws(()=>deleteInstrument(p,-1),/existing/);
 });
 
@@ -50,6 +50,23 @@ test('MS2 drums persist, play fixed percussion keys and export only C4 without c
  }
  const p=fixture();p.instruments[0].ms2Drum='invalid';assert.throws(()=>parse(JSON.stringify(p)),/MS2 drum/);
  p.instruments[0].ms2Drum='bass';p.instruments[0].isDrum=true;assert.throws(()=>parse(JSON.stringify(p)),/MS2 drum/);
+});
+test('Instructions cannot be deleted or merged; deleting the last musical lane retains its events',()=>{
+ const p=fixture();p.instruments=p.instruments.slice(0,2);p.instruments[1].isInstructions=true;
+ p.notes=p.notes.filter(n=>n.instrument<2);p.notes[1].tempo=90;
+ assert.throws(()=>deleteInstrument(p,1),/permanent lane/);
+ assert.throws(()=>mergeInstruments(p,0,1),/silent Instructions/);
+ const result=deleteInstrument(p,0);
+ assert.equal(result.instruments.length,2);assert.equal(result.instruments[0].name,'Piano');
+ assert.deepEqual(result.notes,p.notes.filter(n=>n.instrument===1));
+ assert.deepEqual(parse(JSON.stringify(result)),result);
+});
+test('legacy version-2 Instructions lanes consolidate without losing events or musical routing',()=>{
+ const p=fixture();p.instruments[0].isInstructions=true;p.instruments[2].isInstructions=true;
+ const loaded=parse(JSON.stringify(p));
+ assert.equal(loaded.instruments.filter(i=>i.isInstructions).length,1);
+ assert.equal(loaded.notes.length,p.notes.length);assert.deepEqual(tempoMap(loaded.notes),tempoMap(p.notes));
+ for(const n of loaded.notes){const before=p.notes.find(o=>o.id===n.id);assert.deepEqual({...n,instrument:before.instrument},before);assert.equal(!!loaded.instruments[n.instrument].isInstructions,!!p.instruments[before.instrument].isInstructions);}
 });
 test('split exact pitch preserves source and destination inheritance, tempos, IDs and timing',()=>{
  const p=fixture(),before=JSON.stringify(p);const r=splitNotes(p,0,1,60);

@@ -1,5 +1,5 @@
 import { valid } from './validation.js';
-import { recognizeLegacyInstructions } from './instructions.js';
+import { recognizeLegacyInstructions, consolidateInstructions } from './instructions.js';
 export function parse(text) {
     const p = JSON.parse(text);
     if (p.format !== 'mml-studio' || p.version !== 2 || ![4, 8, 16, 32, 64, 128].includes(p.grid) || !Array.isArray(p.instruments) || !p.instruments.length || !p.instruments.every((i) => typeof i.name === 'string' && /^#[0-9a-f]{6}$/i.test(i.color)) || !Array.isArray(p.notes))
@@ -30,5 +30,6 @@ export function parse(text) {
     if (!valid(p.notes))
         throw Error('Invalid timing or conflicting tempo instructions.');
     recognizeLegacyInstructions(p);
+    consolidateInstructions(p);
     return p;
 }

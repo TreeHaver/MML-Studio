@@ -4,7 +4,7 @@ These features use optional metadata in version-2 JSON. [MUSIC_MODEL.md](MUSIC_M
 
 ## Silent Instructions
 
-Choose **Instructions (silent)** in an instrument's preset selector, draw a marker and select it. The inspector exposes Tempo, Time signature, Section, Reset measure count and loop fields. Pitch/length/volume editing is disabled for these events. New markers have no explicit tempo, so adding a visual guide does not introduce a T command.
+Turn on **Enable Advanced Instructions**, select the dedicated **Instructions** card at the bottom of the instrument list, draw a marker and select it. The inspector exposes Tempo, Time signature, Section, Reset measure count and loop fields. Pitch/length/volume editing is disabled for these events. New markers have no explicit tempo, so adding a visual guide does not introduce a T command. The card is hidden by default and auto-enabled for project/import instruction events. Hiding it never disables tempo, sections or loops; musical Mute/Solo never affects Instructions.
 
 Unbound tempo and imported MIDI signatures reuse/create this silent lane. Instructions are stored as note-shaped records but never sound or consume musical MIDI/MML channels. Moving/deleting a marker moves/removes its instructions and supports Undo.
 
@@ -25,7 +25,7 @@ Typed signatures accept 1–32 beats over 1/2/4/8/16/32/64/128. Files use the br
 
 A nonblank Section names a boundary. **Reset measure count** on a named section realigns that exact tick to measure 1 using the active signature. With reset off, the name alone neither realigns nor renumbers measures. Blank names never reset measures. Conflicting nonblank names or signatures at one tick are rejected; identical duplicates are allowed.
 
-Signature/section/reset metadata becomes active as visual structure only on Instructions lanes. It remains stored if the user changes the lane's preset and becomes active again on switching back. These guides do not themselves change generated MML or sounding notes; export slicing is a separate chosen action.
+Signature/section/reset metadata becomes active as visual structure only on Instructions lanes. Legacy metadata on musical lanes remains stored without automatic activation. Instructions is no longer a switchable sound preset. These guides do not themselves change generated MML or sounding notes; export slicing is a separate chosen action.
 
 ## Section navigation and scoped boundaries
 

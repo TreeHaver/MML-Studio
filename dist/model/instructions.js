@@ -1,4 +1,28 @@
 export const INSTRUCTIONS_NAME = 'Instructions', INSTRUCTIONS_COLOR = '#f4d35e';
+export function hasInstructions(project) {
+    return project.notes.some(n => project.instruments[n.instrument]?.isInstructions || n.tempo != null || n.timeSignature || n.section || n.resetMeasures || n.loopEntry || n.loopExit || n.loopTie || n.loopCount != null);
+}
+// Older version-2 files may contain several Instructions lanes. Preserve every
+// event and its ID while routing them to the single dedicated lane.
+export function consolidateInstructions(project) {
+    const first = project.instruments.findIndex(i => i.isInstructions);
+    if (first < 0)
+        return;
+    const routes = [];
+    const instruments = [];
+    project.instruments.forEach((instrument, index) => {
+        if (instrument.isInstructions && index !== first) {
+            routes[index] = routes[first];
+            return;
+        }
+        routes[index] = instruments.length;
+        instruments.push(instrument);
+    });
+    if (instruments.length === project.instruments.length)
+        return;
+    project.instruments = instruments;
+    project.notes = project.notes.map(n => ({ ...n, instrument: routes[n.instrument] }));
+}
 export function ensureInstructions(project) {
     const existing = project.instruments.findIndex(i => i.isInstructions);
     if (existing >= 0)

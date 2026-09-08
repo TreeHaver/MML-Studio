@@ -9,6 +9,7 @@ import { state, resetInstrumentView } from './state.js';
 import { fresh } from './model/project.js';
 import { parse } from './model/serialization.js';
 import { fullProject, resetSegment } from './segment-session.js';
+import { resetAdvancedInstructions } from './advanced-instructions.js';
 // Adding and removing an instrument leaves the project as it was, so comparing against the
 // last saved contents avoids warning about work that no longer differs from it.
 const snapshot = () => JSON.stringify(fullProject());
@@ -61,6 +62,7 @@ export function installFiles() {
                 return;
             stopPlayback(false);
             resetInstrumentView();
+            resetAdvancedInstructions();
             resetSegment();
             state.project = imported.project;
             state.project.name = file.name.replace(/\.[^.]+$/, '') || 'Untitled';
@@ -74,7 +76,7 @@ export function installFiles() {
             refresh();
             view.scrollTop = Math.max(0, pitchTop(state.topPitch, (state.project.notes.find(n => n.instrument === 0)?.pitch ?? 60) + 5));
             draw();
-            const count = state.project.instruments.length;
+            const count = state.project.instruments.filter(i => !i.isInstructions).length;
             const instructions = state.project.notes.filter(n => state.project.instruments[n.instrument].isInstructions).length;
             const summary = `Imported ${imported.noteCount} note${imported.noteCount === 1 ? '' : 's'}${instructions ? ` and ${instructions} unbound instruction${instructions === 1 ? '' : 's'}` : ''} from ${file.name} into ${count} instrument${count === 1 ? '' : 's'}. Save JSON to keep this project.`;
             status(summary);
@@ -115,6 +117,7 @@ export function installFiles() {
         const loaded = parse(text);
         stopPlayback(false);
         resetInstrumentView();
+        resetAdvancedInstructions();
         resetSegment();
         state.project = loaded;
         state.selection.clear();
@@ -134,6 +137,7 @@ export function installFiles() {
             return;
         stopPlayback(false);
         resetInstrumentView();
+        resetAdvancedInstructions();
         resetSegment();
         state.project = fresh();
         state.selection.clear();

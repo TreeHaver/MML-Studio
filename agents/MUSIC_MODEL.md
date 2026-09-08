@@ -17,6 +17,8 @@ Notes belong to instrument instances, not presets or editable channels. Two inst
 
 Instructions use existing note-shaped records, marked by the owner's `isInstructions` flag. Newly drawn/imported silent carriers use length 1 and V0; do not synthesize them as musical notes. `src/model/instructions.ts` recognizes the old specifically named `Tempo markers (silent)` lane when its records are silent tempo carriers.
 
+Instructions is a permanent, dedicated UI lane, hidden by default behind Enable Advanced Instructions and automatically revealed for project/import instructions. It is excluded from musical instrument counts, preset choices, Mute/Solo and instrument actions. Its events always apply even while the card is hidden or a musical instrument is soloed. The unused card is virtual until selected or needed by an edit/import, so simply toggling visibility does not add project data. Selection materializes the existing version-2 `isInstructions` record; no new JSON fields are introduced. Loading older files with multiple Instructions lanes consolidates them into the first, retaining every event/ID and remapping instrument ownership.
+
 Selection, viewport/zoom, tools, playback settings, Mute/Solo, collapse state, generated MML and Song/Segment session metadata are not project fields. Theme, panel geometry, piano-key style and character limit are local application preferences. Grid is stored in the project even though it only controls editing resolution.
 
 ## Timing: model units are not MML denominators
@@ -85,7 +87,7 @@ Standard Drum Kit is supported for General MIDI import/editing/preview. Show the
 
 Import/editing must not enforce export limits: no application file-size, note/event/track/instrument-count caps, no truncation, no MS2 tempo clamping. Keep malformed-file checks and report actual decoder/model limitations. Export warnings and character-limit choices do not grant permission to change original music. Broader target-specific resolution choices remain future work.
 
-Instrument merge retains destination settings, transfers source notes/events, materializes inherited V as needed and reindexes owners. Instructions merge only with Instructions. Deleting the final full-project instrument leaves an empty Piano. Scoped operations preserve outside music and shared instruments; use the projection helpers rather than applying full-project deletion semantics blindly.
+Instrument merge retains destination settings, transfers source notes/events, materializes inherited V as needed and reindexes owners. Instructions cannot be merged from/to or deleted as a lane; its individual events remain editable/deletable. Deleting the final musical instrument leaves an empty Piano and preserves the dedicated Instructions events. Scoped operations preserve outside music and shared instruments; use the projection helpers rather than applying full-project deletion semantics blindly.
 
 ## Saving and closing
 

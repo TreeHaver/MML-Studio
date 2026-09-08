@@ -9,6 +9,7 @@ import {state,resetInstrumentView} from './state.ts';
 import {fresh} from './model/project.ts';
 import {parse} from './model/serialization.ts';
 import {fullProject,resetSegment} from './segment-session.ts';
+import {resetAdvancedInstructions} from './advanced-instructions.ts';
 
 
 
@@ -39,10 +40,10 @@ $('import-midi').onclick=async()=>{
   const bytes=new Uint8Array(file.bytes);
   const imported=/\.(mid|midi)$/i.test(file.name)?importMidi(bytes):importMml(new TextDecoder('utf-8',{fatal:true}).decode(bytes),file.name.replace(/\.[^.]+$/,''));
   if(unsaved()&&!confirm('Replace the current project with this import and discard unsaved changes?'))return;
-  stopPlayback(false);resetInstrumentView();resetSegment();state.project=imported.project;state.project.name=file.name.replace(/\.[^.]+$/,'')||'Untitled';state.selection.clear();state.active=0;
+  stopPlayback(false);resetInstrumentView();resetAdvancedInstructions();resetSegment();state.project=imported.project;state.project.name=file.name.replace(/\.[^.]+$/,'')||'Untitled';state.selection.clear();state.active=0;
   state.history=[];state.future=[];state.dirty=true;state.saved='';view.scrollLeft=0;
   refresh();view.scrollTop=Math.max(0,pitchTop(state.topPitch,(state.project.notes.find(n=>n.instrument===0)?.pitch??60)+5));draw();
-  const count=state.project.instruments.length;
+  const count=state.project.instruments.filter(i=>!i.isInstructions).length;
   const instructions=state.project.notes.filter(n=>state.project.instruments[n.instrument].isInstructions).length;
   const summary=`Imported ${imported.noteCount} note${imported.noteCount===1?'':'s'}${instructions?` and ${instructions} unbound instruction${instructions===1?'':'s'}`:''} from ${file.name} into ${count} instrument${count===1?'':'s'}. Save JSON to keep this project.`;
   status(summary);$('midi-report-title').textContent='Import complete';$('midi-report-note').hidden=false;$('midi-summary').textContent=summary;
@@ -63,8 +64,8 @@ $('import-midi').onclick=async()=>{
 };
 $('midi-report-close').onclick=()=>($('midi-report') as HTMLDialogElement).close();
 $('save').onclick=()=>saveProject();
-$('open').onclick=async()=>{try{if(unsaved()&&!confirm('Discard unsaved changes and open a project?'))return;const text=await (window as any).files.open();if(text===null)return;const loaded=parse(text);stopPlayback(false);resetInstrumentView();resetSegment();state.project=loaded;state.selection.clear();state.active=0;state.history=[];state.future=[];view.scrollLeft=0;refresh();markSaved();status('Project opened.');}catch(e){status('Open failed: '+e);}};
-$('new').onclick=()=>{if(unsaved()&&!confirm('Discard unsaved changes?'))return;stopPlayback(false);resetInstrumentView();resetSegment();state.project=fresh();state.selection.clear();state.active=0;state.history=[];state.future=[];view.scrollLeft=0;refresh();markSaved();
+$('open').onclick=async()=>{try{if(unsaved()&&!confirm('Discard unsaved changes and open a project?'))return;const text=await (window as any).files.open();if(text===null)return;const loaded=parse(text);stopPlayback(false);resetInstrumentView();resetAdvancedInstructions();resetSegment();state.project=loaded;state.selection.clear();state.active=0;state.history=[];state.future=[];view.scrollLeft=0;refresh();markSaved();status('Project opened.');}catch(e){status('Open failed: '+e);}};
+$('new').onclick=()=>{if(unsaved()&&!confirm('Discard unsaved changes?'))return;stopPlayback(false);resetInstrumentView();resetAdvancedInstructions();resetSegment();state.project=fresh();state.selection.clear();state.active=0;state.history=[];state.future=[];view.scrollLeft=0;refresh();markSaved();
  status('New project. Type a name, or start drawing.');
  const name=input('project-name');name.focus({preventScroll:true});name.select();};
 (window as any).editorClose?.onRequest(async()=>{

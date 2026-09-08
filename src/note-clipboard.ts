@@ -1,5 +1,6 @@
 import {importMml} from './import/mml.ts';
-import {ensureInstructions} from './model/instructions.ts';
+import {ensureInstructions,hasInstructions} from './model/instructions.ts';
+import {advancedInstructions} from './advanced-instructions.ts';
 import {state,isMuted} from './state.ts';
 import {checkpoint} from './history.ts';
 import {refresh} from './commands.ts';
@@ -48,7 +49,7 @@ export function pasteMml(text:string):boolean{
   project.notes.push(...added);
   if(!fitsCurrentView(project)){status('The pasted MML extends beyond this view. Return to Project to paste across its boundary.');return true;}
   if(!valid(project.notes)){status('Cannot paste MML: conflicting global tempo instructions.');return true;}
-  checkpoint();state.project=project;state.selection=new Set(added.map(n=>n.id));position=start+imported.span;refresh();
+  checkpoint();state.project=project;state.selection=new Set(added.map(n=>n.id));position=start+imported.span;if(hasInstructions(imported.project))advancedInstructions.enabled=true;refresh();
   status('Pasted '+imported.noteCount+' MML notes. '+imported.warnings.join(' '));return true;
  }catch(error){status('Text is not supported MML: '+error);return false;}
 }

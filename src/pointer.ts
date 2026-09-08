@@ -17,6 +17,7 @@ import type {Note} from './model/types.ts';
 import {previewNote} from './playback/preview.ts';
 import {seekToTick} from './playback/transport.ts';
 import {setPastePosition} from './note-clipboard.ts';
+import {advancedInstructions} from './advanced-instructions.ts';
 
 let stopEdgeScroll=()=>{};
 export function endGesture(cancel=false){stopEdgeScroll();if(!state.gesture)return;if(cancel&&state.gesture.before)state.project=JSON.parse(state.gesture.before);state.gesture=null;canvas.style.cursor='default';if(state.segment)refresh();else{info();layout();}}
@@ -60,7 +61,7 @@ canvas.onpointerdown=e=>{
   if(e.button===0&&p.x>=0&&!isMuted(state.active)){e.preventDefault();canvas.focus();const instrument=state.project.instruments[state.active];if(instrument.isInstructions){status('Instructions are silent. Draw a marker in the roll and edit its tempo, time signature or section.');return;}const pitch=previewKey(p);if(pitch===undefined)return;keyGesture={pointerId:e.pointerId,pitch};}
   return;
  }
- const marker=instructionCaptionHit(p)??(!hit(p)?instructionLineHit(p):undefined);if(e.button===0&&marker&&marker.instrument!==state.active){state.active=marker.instrument;state.selection=new Set([marker.id]);refresh();draw();return;}
+ const marker=instructionCaptionHit(p)??(!hit(p)?instructionLineHit(p):undefined);if(e.button===0&&marker&&marker.instrument!==state.active){advancedInstructions.enabled=true;state.active=marker.instrument;state.selection=new Set([marker.id]);refresh();draw();return;}
  if(isMuted(state.active)){status('Unmute this instrument to edit its notes.');return;}e.preventDefault();canvas.focus();const n=hit(p);
  const add=e.ctrlKey||e.metaKey;const before=JSON.stringify(state.project);const m=musical(p);
  if(e.button===2){state.gesture={kind:'erase',start:p,current:p,last:p,before};canvas.setPointerCapture(e.pointerId);eraseAt(p);info();draw();return;}
