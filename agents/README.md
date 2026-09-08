@@ -1,6 +1,6 @@
 # MML Music Studio
 
-An Electron/TypeScript piano-roll editor for MapleStory 2 MML, with General MIDI preview. The active application is version **0.3.0**; its saved project format remains **version 2**. Earlier web and Avalonia prototypes are not this codebase.
+An Electron/TypeScript piano-roll editor for MapleStory 2 MML, with General MIDI preview. The application version is defined by `package.json` and displayed from that manifest at runtime; its saved project format remains **version 2**. Earlier web and Avalonia prototypes are not this codebase.
 
 The editor supports note drawing and group editing, instruments and drums, MIDI/MML import, nested loops, temporary Song/Segment views, live MML counts, sheet splitting, and MS2MML/text/MIDI/audio export. Playback uses a bundled SoundFont and needs no MIDI device or network connection after installation.
 
@@ -15,7 +15,7 @@ npm start
 
 `npm start` checks for the optional audio encoder, builds the source, and launches Electron. If `vendor/ffmpeg.exe` is missing, editing and preview still work; see [audio encoder setup](PLAYBACK_AUDIO.md#encoder-setup) for audio export. TypeScript compilation transpiles the source; it does not perform static type checking.
 
-To run a packaged Windows release, extract the entire release ZIP and launch `MML Music Studio.exe`. The `Example Project` folder sits beside the executable. Node/npm are not required for the packaged application. See [release builds](DEVELOPMENT.md#windows-release-build).
+To run a packaged Windows release, extract the entire release ZIP and launch `MML Music Studio.exe`. The `Example Project` folder sits beside the executable. Node/npm are not required for the packaged application. Starting with version 0.3.5, packaged Windows builds check the public GitHub releases feed and can download, verify and apply later portable updates after confirmation. See [release builds](DEVELOPMENT.md#windows-release-build).
 
 ## Find the right document
 
