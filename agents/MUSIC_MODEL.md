@@ -17,6 +17,7 @@ Notes belong to instrument instances, not presets or editable channels. Two inst
 
 Instructions use existing note-shaped records, marked by the owner's `isInstructions` flag. Newly drawn/imported silent carriers use length 1 and V0; do not synthesize them as musical notes. `src/model/instructions.ts` recognizes the old specifically named `Tempo markers (silent)` lane when its records are silent tempo carriers.
 
+
 Instructions is a permanent, dedicated UI lane, hidden by default behind Enable Advanced Instructions and automatically revealed for project/import instructions. It is excluded from musical instrument counts, preset choices, Mute/Solo and instrument actions. Its events always apply even while the card is hidden or a musical instrument is soloed. The unused card is virtual until selected or needed by an edit/import, so simply toggling visibility does not add project data. Selection materializes the existing version-2 `isInstructions` record; no new JSON fields are introduced. Loading older files with multiple Instructions lanes consolidates them into the first, retaining every event/ID and remapping instrument ownership.
 
 Selection, viewport/zoom, tools, playback settings, Mute/Solo, collapse state, generated MML and Song/Segment session metadata are not project fields. Theme, panel geometry, piano-key style and character limit are local application preferences. Grid is stored in the project even though it only controls editing resolution.
@@ -54,11 +55,17 @@ Song/Segment views copy the last explicit V before the boundary per instrument, 
 
 Default tempo is **120 BPM**. Stored T instructions are positive integers; no editing/import clamp to MS2 T32–T255 is permitted. Fractional MIDI tempos round to the nearest whole BPM with a conversion notice. Conflicting simultaneous explicit tempos are invalid; matching values are allowed.
 
+Only additive drag/drop imports into populated projects offer retaining or removing T instructions; menu replacements and empty-project drops retain T automatically. Retained file conflicts are normalized before commit: the last encountered source tempo wins, and a dropped tempo supersedes conflicting existing T at the same position (later dropped files win). Report replacements rather than rejecting the import. This import policy does not relax stored-project/editing validation or change strict clipboard-paste behavior. Removing imported T preserves musical notes/V and other instruction payloads, and uses the current/default clock.
+
+File import may explicitly offer the user a Speed Multiplier conversion for out-of-range tempos, as described in IMPORT_EXPORT. Automatic conversion uses only ×2/×4 with at most 2 BPM error, or exact ÷2/÷4 for slowdown. Report approximations; tempos that cannot fit remain unchanged with a notice. Declining retains original tempos. This is not an implicit parser clamp or a restriction on manually edited/stored Speed Multiplier values.
+
 Note-bound and unbound tempos share one global clock. Unbound supported tempos belong to Instructions, including changes in rests or inside held notes. Muting an instrument must not remove its tempo from live playback, audio rendering or musical MML channels. Yellow timeline indicators use the same clock and omit redundant changes/implicit default 120.
 
 Generated musical channels must carry global tempo changes through their last note. Split rests and held notes at tempo boundaries; tie held continuations. MS2 ties prefix the continued note: emit `c4t150&c4`, never `c4&t150c4`. The selected-instrument MIDI file exporter currently has a separate [tempo-filtering limitation](IMPORT_EXPORT.md#known-export-limitations); it is not an exception to intended global-tempo semantics.
 
 ## Simulated speed zones
+
+**User-reported in-game observation, 2026-09-09:** the removed sound-conversion experiment's tempo behavior worked with generated timing substantially finer than 1/128. Treat 128 as the editor/model resolution, not a demonstrated maximum MML-engine denominator or audio sample rate. No exact upper engine limit has been measured. Speed Multiplier may continue deriving finer output durations from integer notes; this does not authorize finer imported/stored note positions or lengths. Import and the program grid remain at 1/128-whole-note resolution (one integer model unit), with existing reported rounding/rejection for fractional source timing. The converter itself is not retained.
 
 Advanced Instructions offers Multiplier Entry (default 2×) and Multiplier Exit. Optional version-2 fields are booleans `speedEntry` / `speedExit` and a positive finite numeric `speedMultiplier`; absent fields preserve existing behavior. See [zone and view rules](STRUCTURE_VIEWS.md#simulated-speed-multiplier-zones).
 
@@ -92,6 +99,7 @@ Melodic preview must sound from C0 through B8 and both accidental boundaries. Ke
 Standard Drum Kit is supported for General MIDI import/editing/preview. Show the user's non-blocking warning: **Not a valid MS2 instrument. Available for editing and preview.** Keep projects saveable; do not silently convert/delete drum parts. Fixed MS2 Snare Drum, Bass Drum and Cymbals are separate supported presets. Their mappings and explicit splitting tools are described in PLAYBACK_AUDIO.
 
 Import/editing must not enforce export limits: no application file-size, note/event/track/instrument-count caps, no truncation, no MS2 tempo clamping. Keep malformed-file checks and report actual decoder/model limitations. Export warnings and character-limit choices do not grant permission to change original music. Broader target-specific resolution choices remain future work.
+
 
 Instrument merge retains destination settings, transfers source notes/events, materializes inherited V as needed and reindexes owners. Instructions cannot be merged from/to or deleted as a lane; its individual events remain editable/deletable. Deleting the final musical instrument leaves an empty Piano and preserves the dedicated Instructions events. Scoped operations preserve outside music and shared instruments; use the projection helpers rather than applying full-project deletion semantics blindly.
 

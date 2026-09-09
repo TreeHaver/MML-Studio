@@ -5,7 +5,7 @@ import type {Note} from '../model/types.ts';
 
 const strip=(s:string)=>s.replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/[^\r\n]*/g,'');
 /** Strict common MML dialect. Unknown commands fail rather than dropping music. */
-export function importMml(text:string,name='MML'){
+export function importMml(text:string,name='MML',options:{tempoConflicts?:'last'}={}){
  const project=fresh();project.instruments=[];
  const warnings=new Set<string>(),tempos=new Map<number,number>();let id=0,span=0;
  const parts:{name:string,channels:string[],program?:number}[]=[];
@@ -50,7 +50,7 @@ export function importMml(text:string,name='MML'){
     if(c==='<'||c==='>'){octave+=c==='>'?1:-1;continue;}
     if(c==='l'){if(!/\d/.test(s[p]??'')){warnings.add('An L with no length was ignored; the previous default length still applies.');continue;}defaultLength=length();continue;}
     if(c==='v'){volume=number(true)!;if(volume>15)throw Error('Volume outside model range 0–15.');continue;}
-    if(c==='t'){const bpm=number(true)!;if(bpm<1)throw Error('Tempo must be a positive integer.');const at=Math.round(tick);if(tempos.has(at)&&tempos.get(at)!==bpm)throw Error('Conflicting global tempos at '+at);tempos.set(at,bpm);continue;}
+    if(c==='t'){const bpm=number(true)!;if(bpm<1)throw Error('Tempo must be a positive integer.');const at=Math.round(tick);if(tempos.has(at)&&tempos.get(at)!==bpm){if(options.tempoConflicts!=='last')throw Error('Conflicting global tempos at '+at);warnings.add(`Conflicting imported tempos at ${at}: the last encountered tempo was used.`);}tempos.set(at,bpm);continue;}
     if(c==='&'){if(!last)throw Error('Invalid tie.');if(tie)warnings.add('Repeated tie markers were treated as one; no notes were changed.');tie=true;continue;}
     // Converters annotate measures as M29, M30 …; verified to land on exact measure boundaries.
     if(c==='m'){number();warnings.add('Measure labels from the source editor were ignored; they mark positions and carry no sound.');continue;}

@@ -47,6 +47,12 @@ ipcMain.on('confirm-action',(event,message)=>{
  finally{restoreEditorFocus();event.returnValue=accepted;}
 });
 ipcMain.handle('app-version',event=>win&&!win.isDestroyed()&&event.sender===win.webContents?app.getVersion():null);
+ipcMain.on('import-tempo-choice',(event,name)=>{
+ if(!win||win.isDestroyed()||event.sender!==win.webContents){event.returnValue=false;return;}
+ let keep=false;
+ try{keep=dialog.showMessageBoxSync(win,{type:'question',title:'Import tempo instructions',message:`Import tempo instructions from ${typeof name==='string'?name:'this file'}?`,detail:'Imported tempos replace conflicting tempos at the same position. The last encountered tempo wins. Remove tempos to import the notes using the current project clock (120 BPM by default).',buttons:['Import tempos','Remove tempos'],defaultId:0,cancelId:1,noLink:true})===0;}
+ finally{restoreEditorFocus();event.returnValue=keep;}
+});
 app.whenReady().then(()=>{
  win=new BrowserWindow({width:1320,height:850,minWidth:900,minHeight:560,icon:path.join(__dirname,'assets','logo.png'),backgroundColor:'#171d21',show:false,
   // Playback keeps its own time while the editor sits behind another window, so this

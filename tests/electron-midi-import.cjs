@@ -8,6 +8,8 @@ const validFile=path.join(output,'midi-import.fixture.mid'),badFile=path.join(ou
 fs.writeFileSync(validFile,padMidi(midi([[e(0,192,40),e(5,144,60,100),e(7,128,60,0),e(3,144,64,127),e(11,128,64,0),end()]]),17*1024*1024));
 fs.writeFileSync(badFile,'not MIDI');
 let selection=null;
+let keepTempos=true;const tempoChoices=[];
+dialog.showMessageBoxSync=(_,options)=>{assert.equal(options.title,'Import tempo instructions');assert.deepEqual(options.buttons,['Import tempos','Remove tempos']);tempoChoices.push(options);return keepTempos?0:1;};
 dialog.showOpenDialog=async()=>selection?{canceled:false,filePaths:[selection]}:{canceled:true,filePaths:[]};
 const result={checks:[],errors:[]};
 const deadline=setTimeout(()=>finish(Error('Native MIDI test timed out')),45000);
@@ -41,6 +43,40 @@ app.on('browser-window-created',(_,win)=>{
    assert.equal(await run(`document.getElementById('play').classList.contains('is-playing')`),true);
    await run(`document.getElementById('stop').click()`);
    result.checks.push('Real file IPC accepts a file over 16 MiB, imports 7/11-unit notes and GM Violin, displays report, marks unsaved, and starts playback');
+   for(const extension of ['mid','mml']){
+    const tempoFile=path.join(output,'speed-import.fixture.'+extension);
+    fs.writeFileSync(tempoFile,extension==='mid'?midi([[e(0,255,81,3,1,134,160),e(0,144,60,100),e(32,128,60,0),end()]]):'t600c4');
+    selection=tempoFile;
+    for(const accept of [false,true]){
+     await run(`import('./dist/state.js').then(({state})=>{state.dirty=false;window.speedPrompts=[];window.confirm=message=>{window.speedPrompts.push(message);return ${accept};};})`);
+     await importClick();
+     const prompts=await run('window.speedPrompts');assert.equal(prompts.length,1);
+     assert.match(prompts[0],/Speed Multiplier/);assert.match(prompts[0],/more instructions/);assert.match(prompts[0],/unexpected results/);
+     const current=(await state()).project;assert.equal(current.notes.some(n=>n.speedEntry),accept);
+     assert.equal(current.notes.find(n=>n.tempo).tempo,accept?150:600);
+     assert.equal(await run(`import('./dist/music/tempo.js').then(m=>import('./dist/state.js').then(({state})=>m.tempoAt(state.project.notes,0)))`),600);
+     assert.equal(await run(`document.getElementById('midi-report-title').textContent`),'Import complete');
+     await run(`document.getElementById('midi-report-close').click()`);
+    }
+    keepTempos=false;const choiceCount=tempoChoices.length;
+    await run(`import('./dist/state.js').then(({state})=>{state.dirty=false;window.speedPrompts=[];window.confirm=message=>{window.speedPrompts.push(message);return true;};})`);
+    await importClick();assert.equal(tempoChoices.length,choiceCount);assert.equal((await run('window.speedPrompts')).length,1);
+    assert.ok((await state()).project.notes.some(n=>n.tempo!=null));
+    await run(`document.getElementById('midi-report-close').click()`);keepTempos=true;
+   }
+   selection=validFile;
+   await run(`import('./dist/state.js').then(({state})=>{state.dirty=false;window.speedPrompts=[];window.confirm=message=>{window.speedPrompts.push(message);return true;};})`);
+   await importClick();assert.deepEqual(await run('window.speedPrompts'),[]);
+   await run(`document.getElementById('midi-report-close').click()`);
+   result.checks.push('MIDI and MML out-of-range tempos prompt with both warnings; accept adds speed instructions, decline retains T600; in-range imports do not prompt');
+   const rushFile=path.join(output,'rush-tempo.fixture.mml');fs.writeFileSync(rushFile,'t578c4t15d4t2048e4');selection=rushFile;
+   await run(`import('./dist/state.js').then(({state})=>{state.dirty=false;window.confirm=()=>true;})`);await importClick();
+   const rush=(await state()).project;assert.deepEqual(rush.notes.filter(n=>n.tempo!=null).map(n=>n.tempo),[145,60,2048]);
+   assert.deepEqual(rush.notes.filter(n=>n.speedEntry).map(n=>n.speedMultiplier),[4,0.25]);
+   assert.match(await run(`document.getElementById('midi-warnings').textContent`),/578 BPM was approximated as 580 BPM/);
+   assert.match(await run(`document.getElementById('midi-warnings').textContent`),/2048 BPM was left unchanged/);
+   await run(`document.getElementById('midi-report-close').click()`);
+   result.checks.push('578 BPM converts to T145 ×4, 15 BPM to T60 ÷4, and 2048 BPM stays unchanged with notices; no factors beyond ×2/×4 or ÷2/÷4');
    win.setSize(900,700);await new Promise(resolve=>setTimeout(resolve,200));
    result.checks.push({minimumWidthOverflow:await run(`document.documentElement.scrollWidth>innerWidth`)});
    fs.writeFileSync(path.join(output,'midi-import-editor.png'),(await wc.capturePage()).toPNG());
@@ -68,6 +104,63 @@ app.on('browser-window-created',(_,win)=>{
     result.checks.push({file:path.basename(file),notes:current.project.notes.length,warnings,version2RoundTrip:true});
     await run(`document.getElementById('midi-report-close').click()`);
    }
+   await run(`window.confirm=()=>true;document.getElementById('new').click()`);
+   const drop=async files=>run(`(async()=>{const transfer=new DataTransfer();for(const f of ${JSON.stringify(files)})transfer.items.add(new File([new Uint8Array(f.bytes)],f.name));const event=new DragEvent('drop',{dataTransfer:transfer,bubbles:true,cancelable:true});const handler=document.ondrop;let work;document.ondrop=e=>{work=handler(e);};try{document.dispatchEvent(event);await work;return event.defaultPrevented;}finally{document.ondrop=handler;}})()`);
+   const textFile=(name,text)=>({name,bytes:[...Buffer.from(text)]});
+   const empty=await state();
+   assert.equal(await run(`typeof window.audioImport`),'undefined');
+   for(const name of ['removed.mp3','removed.wav']){
+    await drop([textFile(name,'not audio')]);assert.deepEqual(await state(),empty);
+    assert.match(await run(`document.getElementById('midi-summary').textContent`),/Unsupported dropped file/);
+    await run(`document.getElementById('midi-report-close').click()`);
+   }
+   await drop([textFile('part.mml','c4'),textFile('removed.mp3','not audio')]);assert.deepEqual(await state(),empty);
+   await run(`document.getElementById('midi-report-close').click()`);
+   result.checks.push('Sound-file import bridge is absent; MP3/WAV and mixed sound-file batches reject without changing the empty project');
+   assert.equal(await drop([textFile('part.txt','v13c4'),{name:'part.mid',bytes:[...midi([[e(0,144,67,100),e(32,128,67,0),end()]])]}]),true);
+   let dropped=await state();assert.equal(dropped.project.instruments.filter(i=>!i.isInstructions).length,2);assert.equal(dropped.project.notes.length,2);assert.equal(dropped.project.name,'part');
+   assert.equal(dropped.project.notes[0].volume,13);assert.notEqual(dropped.project.notes[0].instrument,dropped.project.notes[1].instrument);
+   assert.equal(await run(`import('./dist/state.js').then(({state})=>state.history.length)`),0);
+   await run(`document.getElementById('midi-report-close').click();document.getElementById('new').click()`);
+   assert.deepEqual((await state()).project,empty.project);
+   await drop([textFile('good.mml','c4'),textFile('bad.txt','not MML!')]);assert.deepEqual((await state()).project,empty.project);
+   assert.equal(await run(`document.getElementById('midi-report-title').textContent`),'Import failed');
+   await run(`document.getElementById('midi-report-close').click()`);
+   const multipleEmptyChoices=tempoChoices.length;keepTempos=false;
+   await run(`import('./dist/state.js').then(({state})=>state.project.instruments.push({...state.project.instruments[0],name:'Second empty instrument'}))`);
+   await drop([textFile('multiple-empty.mml','t180c4')]);assert.equal(tempoChoices.length,multipleEmptyChoices+1);assert.equal((await state()).project.instruments.filter(i=>!i.isInstructions).length,3);assert.ok((await state()).project.notes.every(n=>n.tempo==null));
+   await run(`document.getElementById('midi-report-close').click();document.getElementById('new').click()`);
+   const emptyChoices=tempoChoices.length;
+   await run(`Promise.all([import('./dist/state.js'),import('./dist/model/instructions.js')]).then(([{state},m])=>m.ensureInstructions(state.project))`);
+   await drop([textFile('empty-tempo.mml','t180c4')]);assert.equal(tempoChoices.length,emptyChoices);assert.equal((await state()).project.instruments.filter(i=>!i.isInstructions).length,1);assert.equal((await state()).project.notes.find(n=>n.tempo).tempo,180);assert.equal((await state()).project.name,'empty-tempo');
+   await run(`document.getElementById('midi-report-close').click();document.getElementById('new').click()`);keepTempos=true;
+   await drop([textFile('first.mml','t120c4')]);assert.equal(tempoChoices.length,emptyChoices);await run(`document.getElementById('midi-report-close').click()`);
+   const beforeConflict=await state();await drop([textFile('conflict.mml','t150c4')]);assert.deepEqual((await state()).project.notes.filter(n=>n.tempo!=null).map(n=>n.tempo),[150]);
+   assert.equal(tempoChoices.length,emptyChoices+1);
+   assert.match(await run(`document.getElementById('midi-warnings').textContent`),/replaced by imported tempos/);
+   await run(`document.getElementById('midi-report-close').click();import('./dist/history.js').then(m=>m.undo())`);assert.deepEqual((await state()).project,beforeConflict.project);
+   keepTempos=false;await drop([textFile('removed-tempo.mml','t180c4')]);assert.deepEqual((await state()).project.notes.filter(n=>n.tempo!=null).map(n=>n.tempo),[120]);
+   await run(`document.getElementById('midi-report-close').click();import('./dist/history.js').then(m=>m.undo())`);keepTempos=true;
+   await drop([textFile('channel-conflicts.mml','t120c4,t150e4')]);assert.equal(await run(`document.getElementById('midi-report-title').textContent`),'Import complete');assert.deepEqual((await state()).project.notes.filter(n=>n.tempo!=null).map(n=>n.tempo),[150]);
+   await run(`document.getElementById('midi-report-close').click();import('./dist/history.js').then(m=>m.undo())`);
+   await run(`document.getElementById('new').click()`);
+   await run(`Promise.all([import('./dist/state.js'),import('./dist/segment-session.js')]).then(([{state},session])=>session.enterSegment(state.project,{kind:'segment',name:'Test',start:0,end:32}))`);
+   const scopedBefore=await state();await drop([textFile('too-long.mml','c1')]);assert.deepEqual(await state(),scopedBefore);
+   assert.match(await run(`document.getElementById('midi-summary').textContent`),/beyond this view/);
+   await run(`document.getElementById('midi-report-close').click()`);
+   await drop([textFile('fits.mml','c4')]);const fitted=(await state()).project;assert.equal(fitted.notes.filter(n=>!fitted.instruments[n.instrument].isInstructions).length,1);
+   assert.equal(await run(`import('./dist/segment-session.js').then(m=>m.fullProject().notes.length)`),1);
+   await run(`document.getElementById('midi-report-close').click();import('./dist/history.js').then(m=>m.undo())`);assert.deepEqual((await state()).project,scopedBefore.project);
+   await drop([textFile('scoped-tempo.mml','t150c4')]);assert.equal(await run(`document.getElementById('midi-report-title').textContent`),'Import complete');
+   assert.equal(await run(`import('./dist/segment-session.js').then(m=>m.fullProject().notes.find(n=>n.tempo!=null).tempo)`),150);
+   await run(`document.getElementById('midi-report-close').click();import('./dist/history.js').then(m=>m.undo())`);assert.deepEqual((await state()).project,scopedBefore.project);
+   await run(`import('./dist/segment-session.js').then(m=>m.resetSegment());document.getElementById('new').click()`);
+   await run(`(async()=>{const {importDroppedFiles}=await import('./dist/drop-files.js');let release;const pending=importDroppedFiles([{name:'late.mml',arrayBuffer:()=>new Promise(r=>{release=r;})}]);const {state}=await import('./dist/state.js');state.project.name='Edited while reading';release(new TextEncoder().encode('c4').buffer);await pending;})()`);
+   assert.equal((await state()).project.name,'Edited while reading');assert.equal((await state()).project.notes.length,0);
+   assert.match(await run(`document.getElementById('midi-summary').textContent`),/project changed/);
+   await run(`document.getElementById('midi-report-close').click()`);
+   result.checks.push('Menu imports retain tempos without keep/remove questions; empty-project drops replace the placeholder/name/session like menu imports, including unused Instructions and batches; populated drops alone ask keep/remove and preserve Undo/conflict resolution');
+   result.checks.push('Scoped drop rejects oversized music, merges fitting new instruments and supports Undo; edits during asynchronous reads prevent stale commits');
    await run(`import('./dist/state.js').then(({state})=>{state.dirty=false;})`);finish();
   }catch(error){finish(error);}
  });

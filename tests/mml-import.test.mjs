@@ -12,6 +12,9 @@ test('MML notes, accidentals, defaults, numbered notes, ties and global tempo',(
 });
 test('arbitrary denominators and fractional timing report conversion',()=>{
  assert.equal(importMml('c25.').project.notes[0].length,8); assert.throws(()=>importMml('c25.6')); 
+ const finer=importMml('c256');assert.equal(finer.project.notes[0].length,1);assert.ok(finer.warnings.some(w=>/rounded/.test(w)));
+ assert.ok(finer.project.notes.every(n=>Number.isInteger(n.start)&&Number.isInteger(n.length)));
+ assert.throws(()=>importMml('c512'));
 });
 test('MML containers preserve channels and names',()=>{
  const xml=importMml('<?xml version="1.0"?><ms2><melody><![CDATA[o4c4t170&c4]]></melody><chord index="1">o3g1</chord></ms2>');

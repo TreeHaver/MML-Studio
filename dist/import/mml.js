@@ -3,7 +3,7 @@ import { ensureInstructions } from '../model/instructions.js';
 import { valid } from '../model/validation.js';
 const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\r\n]*/g, '');
 /** Strict common MML dialect. Unknown commands fail rather than dropping music. */
-export function importMml(text, name = 'MML') {
+export function importMml(text, name = 'MML', options = {}) {
     const project = fresh();
     project.instruments = [];
     const warnings = new Set(), tempos = new Map();
@@ -98,8 +98,11 @@ export function importMml(text, name = 'MML') {
                     if (bpm < 1)
                         throw Error('Tempo must be a positive integer.');
                     const at = Math.round(tick);
-                    if (tempos.has(at) && tempos.get(at) !== bpm)
-                        throw Error('Conflicting global tempos at ' + at);
+                    if (tempos.has(at) && tempos.get(at) !== bpm) {
+                        if (options.tempoConflicts !== 'last')
+                            throw Error('Conflicting global tempos at ' + at);
+                        warnings.add(`Conflicting imported tempos at ${at}: the last encountered tempo was used.`);
+                    }
                     tempos.set(at, bpm);
                     continue;
                 }

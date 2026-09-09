@@ -18,6 +18,7 @@ import { installAdvancedInstructions } from './advanced-instructions.js';
 import { installHistory } from './history.js';
 import { installKeyboard } from './keyboard.js';
 import { installFiles } from './files.js';
+import { installFileDrop } from './drop-files.js';
 import { installExport } from './export.js';
 // Composition root: wire modules once, then initialize the editor.
 installPointer();
@@ -31,6 +32,7 @@ installAdvancedInstructions();
 installHistory();
 installKeyboard();
 installFiles();
+installFileDrop();
 installExport();
 view.onscroll = draw;
 new ResizeObserver(layout).observe(view);

@@ -18,6 +18,7 @@ import {installAdvancedInstructions} from './advanced-instructions.ts';
 import {installHistory} from './history.ts';
 import {installKeyboard} from './keyboard.ts';
 import {installFiles} from './files.ts';
+import {installFileDrop} from './drop-files.ts';
 import {installExport} from './export.ts';
 // Composition root: wire modules once, then initialize the editor.
 
@@ -32,6 +33,7 @@ installAdvancedInstructions();
 installHistory();
 installKeyboard();
 installFiles();
+installFileDrop();
 installExport();
 view.onscroll=draw;
 new ResizeObserver(layout).observe(view);

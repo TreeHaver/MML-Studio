@@ -309,7 +309,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  nav.value='128';nav.onchange();assert.equal(seq.currentTime,3);
  const changeVoice=value=>{const preset=rows()[0].children[2];preset.value=value;preset.onchange();};
  const settle=()=>new Promise(setImmediate);
- const smfModule=await load('src/import/smf.ts');await smfModule.link(()=>{});await smfModule.evaluate();const readMidi=smfModule.namespace.readSMF;
+ const smfModule=await load('src/import/smf.ts');if(smfModule.status==='unlinked')await smfModule.link(()=>{});await smfModule.evaluate();const readMidi=smfModule.namespace.readSMF;
  const latestEvents=()=>readMidi(new Uint8Array(songLoads.at(-1))).events;
  changeVoice('40');await settle();assert.equal(seq.currentTime,3);assert.equal(doc.getElementById('play').title,'Pause');
  assert.ok(latestEvents().some(e=>e.status===192&&e.data[0]===40));assert.equal(restoredNotes.at(-1)[0].pitch,60);

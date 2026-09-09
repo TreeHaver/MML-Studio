@@ -80,6 +80,8 @@ MML generation, counts, sheet planning and preview share loop expansion. Section
 
 ## Simulated speed multiplier zones
 
+The user reported on 2026-09-09 that in-game tempo behavior worked at substantially finer timing than 1/128 during an experimental sound conversion (now removed). This supports finer derived Speed Multiplier output, not a specific measured maximum engine rate. The grid and imported/stored notes remain integer 1/128-whole-note units; no finer import mode is introduced.
+
 Enable Advanced Instructions, draw/select an instruction, enable **Multiplier Entry**, and set **Speed multiplier** (default 2). Enable **Multiplier Exit** on a later instruction to end the zone. A 2× zone plays T120 as 240 BPM while MML retains T120 and halves note/rest durations. The editor keeps the original note positions and lengths.
 
 Positive decimal values are accepted, including 0.5×. Nested zones multiply together; each Exit closes the innermost Entry, with Exits processed before Entries at a shared tick. One event may close a zone and open the next. An Entry without an Exit continues to the end; an unmatched Exit warns and is ignored. Captions and shaded regions identify zones.
@@ -88,7 +90,7 @@ Tempo changes inside a zone retain their base BPM in MML and use multiplied BPM 
 
 Song/Segment projections inherit all active zones without saving automatic context into the parent. An inherited Entry is read-only in the speed inspector: return to Project to edit its source Entry. Actual markers inside the view remain editable and undoable. An Exit at the exact view start is consumed as boundary context rather than closing an unrelated inherited zone.
 
-Stored projects remain version 2 with optional speed fields; older projects without them retain their behavior. Exported MML has ordinary notes, rests, ties and base T commands, not custom multiplier commands. Fine derived durations are retained exactly with a warning when explicit denominators exceed 128; target-player support has not been verified in game.
+Stored projects remain version 2 with optional speed fields; older projects without them retain their behavior. Exported MML has ordinary notes, rests, ties and base T commands, not custom multiplier commands. Fine derived durations are retained exactly with a warning when explicit denominators exceed 128. The user reported successful finer in-game timing; the exact upper limit and universal support across target players remain unmeasured.
 
 ## Maintenance boundaries
 

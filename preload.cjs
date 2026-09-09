@@ -1,5 +1,5 @@
 const {contextBridge,ipcRenderer}=require('electron');
-contextBridge.exposeInMainWorld('nativeDialogs',{confirm:message=>ipcRenderer.sendSync('confirm-action',message),closeChoice:()=>ipcRenderer.invoke('close-choice')});
+contextBridge.exposeInMainWorld('nativeDialogs',{confirm:message=>ipcRenderer.sendSync('confirm-action',message),importTempos:name=>ipcRenderer.sendSync('import-tempo-choice',name),closeChoice:()=>ipcRenderer.invoke('close-choice')});
 contextBridge.exposeInMainWorld('appInfo',{version:()=>ipcRenderer.invoke('app-version')});
 contextBridge.exposeInMainWorld('files',{exportAudio:(name,request)=>ipcRenderer.invoke('export-audio',name,request),cancelAudioExport:()=>ipcRenderer.send('cancel-audio-export'),onAudioProgress:callback=>ipcRenderer.on('audio-export-progress',(_,progress)=>callback(progress)),soundBank:()=>ipcRenderer.invoke('sound-bank'),save:text=>ipcRenderer.invoke('save',text),open:()=>ipcRenderer.invoke('open'),importMidi:()=>ipcRenderer.invoke('import-midi'),exportMml:(name,text)=>ipcRenderer.invoke('export-mml',name,text),exportText:(name,text)=>ipcRenderer.invoke('export-text',name,text),exportMidi:(name,bytes)=>ipcRenderer.invoke('export-midi',name,bytes),exportFolder:(name,files)=>ipcRenderer.invoke('export-folder',name,files),exportZip:(name,files)=>ipcRenderer.invoke('export-zip',name,files)});
 
