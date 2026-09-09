@@ -17226,6 +17226,7 @@ function readSMF(bytes) {
 function parse(text) {
   const p = JSON.parse(text);
   if (p.format !== "mml-studio" || p.version !== 2 || ![4, 8, 16, 32, 64, 128].includes(p.grid) || !Array.isArray(p.instruments) || !p.instruments.length || !p.instruments.every((i) => typeof i.name === "string" && /^#[0-9a-f]{6}$/i.test(i.color)) || !Array.isArray(p.notes)) throw Error("Expected a version 2 MML Studio project.");
+  for (const i of p.instruments) if (i.volume !== void 0 && (!Number.isInteger(i.volume) || i.volume < 0 || i.volume > 100)) throw Error("Invalid instrument volume.");
   for (const i of p.instruments) {
     if (i.midiProgram !== void 0 && (!Number.isInteger(i.midiProgram) || i.midiProgram < 0 || i.midiProgram > 127)) throw Error("Invalid General MIDI program.");
     if (i.isDrum !== void 0 && typeof i.isDrum !== "boolean") throw Error("Invalid drum kit flag.");
@@ -17274,6 +17275,7 @@ async function renderAudio(request, bankBytes, write, progress = () => {
   synth.reset();
   for (const route of plan.channels) {
     const owner = plan.project.instruments[route.instrument];
+    synth.midiChannels[route.channel].setSystemParameter("gain", (owner.volume ?? 100) / 100);
     synth.midiChannels[route.channel].setDrums(!!(owner.isDrum || owner.ms2Drum));
   }
   for (const channel of plan.mutedChannels) synth.midiChannels[channel].setSystemParameter("isMuted", true);

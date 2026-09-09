@@ -13,7 +13,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
   const module=new vm.SyntheticModule(['getPreviewEngine','getEngine','setMasterVolume'],function(){
    this.setExport('setMasterVolume',value=>masterVolumes.push(value));
    this.setExport('getPreviewEngine',async()=>({preview:async(pitch,program,isDrum)=>previewCalls.push({pitch,program,...(isDrum?{isDrum:true}:{})})}));
-   this.setExport('getEngine',async()=>({seq,mute:(channel,muted)=>muteCalls.push({channel,muted}),load:async binary=>{songLoads.push(binary);if(loadGate)await loadGate;},restoreNotes:notes=>restoredNotes.push(notes),play:async()=>{},pause(){},stop(){seq.currentHighResolutionTime=0;}}));
+   this.setExport('getEngine',async()=>({seq,gain:()=>{},mute:(channel,muted)=>muteCalls.push({channel,muted}),load:async binary=>{songLoads.push(binary);if(loadGate)await loadGate;},restoreNotes:notes=>restoredNotes.push(notes),play:async()=>{},pause(){},stop(){seq.currentHighResolutionTime=0;}}));
   },{context:sandbox});cache.set(file,module);return module;
  }
  const module=new vm.SourceTextModule(transpile(fs.readFileSync(file,'utf8'),file),{context:sandbox,identifier:file});cache.set(file,module);return module;}

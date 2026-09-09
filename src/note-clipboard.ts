@@ -1,7 +1,7 @@
 import {importMml} from './import/mml.ts';
 import {ensureInstructions,hasInstructions} from './model/instructions.ts';
 import {advancedInstructions} from './advanced-instructions.ts';
-import {state,isMuted} from './state.ts';
+import {state,isMuted,instrumentSelected} from './state.ts';
 import {checkpoint} from './history.ts';
 import {refresh} from './commands.ts';
 import {status} from './dom.ts';
@@ -15,10 +15,10 @@ let position:number|null=null;
 export function setPastePosition(tick:number){position=tick;status('MML text insertion position set. Copied notes paste after the selection, or at their original position.');}
 export function copyNotes(){
  if(state.gesture)return;
- const selected=state.project.notes.filter(n=>n.instrument===state.active&&state.selection.has(n.id));
+ const selected=state.project.notes.filter(n=>instrumentSelected(n.instrument)&&state.selection.has(n.id));
  if(!selected.length){status('Select notes to copy.');return;}
  const start=selected.reduce((min,n)=>Math.min(min,n.start),Infinity);
- const volumes=resolveVolumes(state.project.notes.filter(n=>n.instrument===state.active));
+ const volumes=resolveVolumes(state.project.notes);
  clipboard={notes:selected.map(n=>({...n,start:n.start-start,volume:volumes.get(n.id)!})),instructions:!!state.project.instruments[state.active].isInstructions,start};
  status(`Copied ${selected.length} notes/events. Ctrl+V pastes after the current selection, or at the original copy position when nothing is selected.`);
 }
@@ -28,7 +28,7 @@ export function pasteNotes(){
  if(isMuted(state.active)){status('Unmute this instrument to paste notes.');return;}
  if(clipboard.instructions!==!!state.project.instruments[state.active].isInstructions){status('Paste musical notes into a musical instrument, or silent events into Instructions.');return;}
  let id=state.project.notes.reduce((max,n)=>Math.max(max,n.id),0);
- const selected=state.project.notes.filter(n=>n.instrument===state.active&&state.selection.has(n.id));
+ const selected=state.project.notes.filter(n=>instrumentSelected(n.instrument)&&state.selection.has(n.id));
  const start=selected.length?selected.reduce((end,n)=>Math.max(end,n.start+n.length),0):clipboard.start;
  const added=clipboard.notes.map(n=>({...n,id:++id,instrument:state.active,start:start+n.start}));
  const notes=[...state.project.notes,...added];

@@ -31,6 +31,11 @@ test('offline synth streams real PCM, respects silent volume/mutes and cancels',
  assert.ok(peak(full.data)>.001);assert.equal(peak(full.data.subarray(0,.24*SAMPLE_RATE*2)),0);
  assert.ok(Math.abs(peak(half.data)/peak(full.data)-.5)<.03);
  assert.equal(peak(silent.data),0);assert.equal(peak(zero.data),0);
+ p.instruments[0].volume=50;const instrumentHalf=await render({}),combined=await render({volume:.5});
+ assert.ok(Math.abs(peak(instrumentHalf.data)/peak(full.data)-.5)<.03);
+ assert.ok(Math.abs(peak(combined.data)/peak(full.data)-.25)<.03);
+ p.instruments[0].volume=0;const instrumentZero=await render({});assert.equal(peak(instrumentZero.data),0);
+ delete p.instruments[0].volume;
  assert.ok(full.result.seconds>full.result.musicSeconds,'Release continues after the final note-off');
  await assert.rejects(renderAudio(request(p),bank,async()=>{},()=>{},()=>true),/canceled/);
 });

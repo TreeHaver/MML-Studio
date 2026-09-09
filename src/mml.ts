@@ -42,7 +42,7 @@ export function mmlControls(row:HTMLElement,body:HTMLElement,index:number){
  e.warning.onclick=()=>{
   const target=overlapLocations(state.project,index)[0];
   if(!target){status('No overlapping notes in this instrument in the current view.');return;}
-  state.active=index;state.selection=new Set(target.ids);refreshEditor();
+  state.active=index;state.selectedInstruments.clear();state.selection=new Set(target.ids);refreshEditor();
   view.scrollLeft=Math.max(0,target.start*state.zoom-(state.width-KEY)/3);
   view.scrollTop=Math.max(0,pitchTop(state.topPitch,target.pitch)+pitchHeight(target.pitch)/2-(state.height-HEAD)/2);
   draw();status('Selected the first overlapping notes in this instrument.');

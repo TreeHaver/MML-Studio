@@ -44,6 +44,7 @@ export async function importDroppedFiles(files) {
         checkpoint();
         state.project = result.project;
         state.active = result.instruments[0] ?? state.active;
+        state.selectedInstruments.clear();
         state.selection = new Set(result.added);
         if (imported.some(s => hasInstructions(s.project)))
             advancedInstructions.enabled = true;

@@ -1,5 +1,5 @@
 import {ctx,view} from '../dom.ts';
-import {state,isMuted} from '../state.ts';
+import {state,isMuted,instrumentSelected} from '../state.ts';
 import {KEY,HEAD} from '../constants.ts';
 import {rect,boxIds,musical} from '../geometry.ts';
 import {name,sharp} from '../music/pitch.ts';
@@ -34,7 +34,7 @@ export function drawNotes(){
  const preview=state.gesture?.kind==='box'?new Set(boxIds(state.gesture.music,musical(state.gesture.current),visible)):null;
  for(const n of visible){if(isMuted(n.instrument)||state.project.instruments[n.instrument].isInstructions)continue;const r=rect(n);if(r.x+r.w<=KEY||r.x>=state.width||r.y+r.h<=HEAD||r.y>=state.height)continue;
  const instructions=state.project.instruments[n.instrument].isInstructions;
- ctx.globalAlpha=n.instrument===state.active?1:.4;ctx.fillStyle=instructions?INSTRUCTIONS_COLOR:state.project.instruments[n.instrument].color;ctx.fillRect(r.x,r.y,r.w,r.h);
+ ctx.globalAlpha=instrumentSelected(n.instrument)?1:.4;ctx.fillStyle=instructions?INSTRUCTIONS_COLOR:state.project.instruments[n.instrument].color;ctx.fillRect(r.x,r.y,r.w,r.h);
  if(!instructions&&sharp(n.pitch)){ctx.fillStyle='#00000022';ctx.fillRect(r.x,r.y,r.w,r.h);}
  // An inside-only border darkens the lane color without covering adjacent cells.
  const border=Math.min(2,r.w/2,r.h/2);ctx.strokeStyle='#00000038';ctx.lineWidth=border;

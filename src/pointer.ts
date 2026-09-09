@@ -54,7 +54,7 @@ export function installPointer(){
   edgeFrame=requestAnimationFrame(edgeScroll);
  };
  let keyHighlightTimer:number|undefined;
- const previewKey=(p:any)=>{const instrument=state.project.instruments[state.active],pitch=musical(p).pitch;if(pitch<0||pitch>127)return;state.previewPitch=pitch;draw();if(keyHighlightTimer!==undefined)window.clearTimeout(keyHighlightTimer);keyHighlightTimer=window.setTimeout(()=>{if(state.previewPitch===pitch){state.previewPitch=null;draw();}},500);void previewNote(playbackPitch(instrument,pitch),instrument.midiProgram??0,instrument.isDrum===true||!!instrument.ms2Drum);return pitch;};
+ const previewKey=(p:any)=>{const instrument=state.project.instruments[state.active],pitch=musical(p).pitch;if(pitch<0||pitch>127)return;state.previewPitch=pitch;draw();if(keyHighlightTimer!==undefined)window.clearTimeout(keyHighlightTimer);keyHighlightTimer=window.setTimeout(()=>{if(state.previewPitch===pitch){state.previewPitch=null;draw();}},500);void previewNote(playbackPitch(instrument,pitch),instrument.midiProgram??0,instrument.isDrum===true||!!instrument.ms2Drum,instrument.volume??100);return pitch;};
 canvas.onpointerdown=e=>{
  if(e.button!==0&&e.button!==2)return;const p=point(e);
  if(p.y<HEAD){
@@ -73,7 +73,7 @@ canvas.onpointerdown=e=>{
   if(e.button===0&&p.x>=0&&!isMuted(state.active)){e.preventDefault();canvas.focus();const instrument=state.project.instruments[state.active];if(instrument.isInstructions){status('Instructions are silent. Draw a marker in the roll and edit its tempo, time signature or section.');return;}const pitch=previewKey(p);if(pitch===undefined)return;keyGesture={pointerId:e.pointerId,pitch};}
   return;
  }
- const marker=instructionCaptionHit(p)??(!hit(p)?instructionLineHit(p):undefined);if(e.button===0&&marker&&marker.instrument!==state.active){advancedInstructions.enabled=true;state.active=marker.instrument;state.selection=new Set([marker.id]);refresh();draw();return;}
+ const marker=instructionCaptionHit(p)??(!hit(p)?instructionLineHit(p):undefined);if(e.button===0&&marker&&marker.instrument!==state.active){advancedInstructions.enabled=true;state.active=marker.instrument;state.selectedInstruments.clear();state.selection=new Set([marker.id]);refresh();draw();return;}
  if(isMuted(state.active)){status('Unmute this instrument to edit its notes.');return;}e.preventDefault();canvas.focus();const n=hit(p);
  const add=e.ctrlKey||e.metaKey;const before=JSON.stringify(state.project);const m=musical(p);
  if(e.button===2){state.gesture={kind:'erase',start:p,current:p,last:p,before};canvas.setPointerCapture(e.pointerId);eraseAt(p);info();draw();return;}

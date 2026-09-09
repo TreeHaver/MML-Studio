@@ -4,7 +4,7 @@ import {undo} from './history.ts';
 import {commitNotes} from './commands.ts';
 import {endGesture} from './pointer.ts';
 import {setTool} from './toolbar.ts';
-import {state} from './state.ts';
+import {state,instrumentSelected} from './state.ts';
 import {copyNotes,pasteNotes,pasteMml} from './note-clipboard.ts';
 import {playback} from './playback/transport.ts';
 import {markLoopStart,markLoopEnd,toggleLoop,clearLoopRegion,alignLoopToGrid,loopRegion,loopSpan} from './playback/loop-region.ts';
@@ -20,7 +20,7 @@ document.onkeydown=e=>{if((e.target as HTMLElement).matches('input,select,textar
  if(e.key==='Escape'){endGesture(true);state.selection.clear();info();draw();return;}
  if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();if(state.selection.size){commitNotes(state.project.notes.filter(n=>!state.selection.has(n.id)));state.selection.clear();info();}return;}
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo(e.shiftKey);return;}
- if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a'){e.preventDefault();state.selection=new Set(state.project.notes.filter(n=>n.instrument===state.active).map(n=>n.id));info();draw();return;}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a'){e.preventDefault();state.selection=new Set(state.project.notes.filter(n=>instrumentSelected(n.instrument)).map(n=>n.id));info();draw();return;}
  // The rehearsal loop is trimmed at the playhead with B and N, as a work area is in a
  // video editor, and switched with L. Nothing here is written to the project.
  if(['b','n','l','g'].includes(e.key.toLowerCase())&&!e.ctrlKey&&!e.metaKey&&!e.altKey){

@@ -80,6 +80,7 @@ export function mmlControls(row, body, index) {
             return;
         }
         state.active = index;
+        state.selectedInstruments.clear();
         state.selection = new Set(target.ids);
         refreshEditor();
         view.scrollLeft = Math.max(0, target.start * state.zoom - (state.width - KEY) / 3);

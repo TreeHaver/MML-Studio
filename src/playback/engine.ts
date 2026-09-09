@@ -32,7 +32,7 @@ export function getPreviewEngine():Promise<any>{
    let generation=0;
 
    return {context,
-    async preview(pitch:number,program:number,isDrum=false){
+    async preview(pitch:number,program:number,isDrum=false,volume=100){
      const token=++generation;
      await context.resume();if(token!==generation)return;
      clearTimeout(timer);synth.stopAll(false);
@@ -40,6 +40,7 @@ export function getPreviewEngine():Promise<any>{
      const sample=samplePitch(pitch,program,isDrum),sourcePitch=sample.pitch;
      for(const [cc,value] of tuningControllers())synth.controllerChange(channel,cc,value);
      synth.pitchWheel(channel,tuningWheel(sample.tuning));
+     synth.midiChannels[channel].setSystemParameter('gain',volume/100);
      synth.programChange(channel,isDrum?0:program);synth.noteOn(channel,sourcePitch,100);
      timer=setTimeout(()=>synth.noteOff(channel,sourcePitch),500);
     }
@@ -59,6 +60,7 @@ export function getEngine():Promise<any>{
    return {
     seq,context,
     restoreNotes(notes:{channel:number,pitch:number,velocity:number,tuning?:number}[]){for(const n of notes){for(const [cc,value] of tuningControllers())synth.controllerChange(n.channel,cc,value);synth.pitchWheel(n.channel,tuningWheel(n.tuning??0));synth.noteOn(n.channel,n.pitch,n.velocity);}},
+    gain(channel:number,value:number){synth.midiChannels[channel].setSystemParameter('gain',value);},
     mute(channel:number,muted:boolean){synth.midiChannels[channel].setSystemParameter('isMuted',muted);},
     async load(binary:ArrayBuffer){
      seq.pause();synth.stopAll(true);

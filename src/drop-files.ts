@@ -35,7 +35,7 @@ export async function importDroppedFiles(files:File[]){
   if(!fitsCurrentView(result.project))throw Error('The imported song extends beyond this view. Return to Project to import it.');
   fullProject(result.project); // Validate scoped reconciliation before checkpointing.
   stopPlayback(false);checkpoint();state.project=result.project;
-  state.active=result.instruments[0]??state.active;state.selection=new Set(result.added);
+  state.active=result.instruments[0]??state.active;state.selectedInstruments.clear();state.selection=new Set(result.added);
   if(imported.some(s=>hasInstructions(s.project)))advancedInstructions.enabled=true;
   refresh();
   const warnings=[...imported.flatMap((song,i)=>song.warnings.map(w=>`${files[i].name}: ${w}`)),...result.warnings];

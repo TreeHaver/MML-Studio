@@ -4,7 +4,7 @@ import { undo } from './history.js';
 import { commitNotes } from './commands.js';
 import { endGesture } from './pointer.js';
 import { setTool } from './toolbar.js';
-import { state } from './state.js';
+import { state, instrumentSelected } from './state.js';
 import { copyNotes, pasteNotes, pasteMml } from './note-clipboard.js';
 import { playback } from './playback/transport.js';
 import { markLoopStart, markLoopEnd, toggleLoop, clearLoopRegion, alignLoopToGrid, loopRegion, loopSpan } from './playback/loop-region.js';
@@ -46,7 +46,7 @@ export function installKeyboard() {
         }
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
             e.preventDefault();
-            state.selection = new Set(state.project.notes.filter(n => n.instrument === state.active).map(n => n.id));
+            state.selection = new Set(state.project.notes.filter(n => instrumentSelected(n.instrument)).map(n => n.id));
             info();
             draw();
             return;

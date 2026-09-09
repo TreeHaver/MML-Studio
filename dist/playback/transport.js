@@ -143,8 +143,10 @@ export async function updatePlaybackVoices() {
 }
 export function updatePlaybackMutes(ready = false) { if (phase === 'loading' && !ready)
     return; if (engine && plan)
-    for (const item of plan.channels)
-        engine.mute(item.channel, isMuted(item.instrument)); }
+    for (const item of plan.channels) {
+        engine.mute(item.channel, isMuted(item.instrument));
+        engine.gain(item.channel, (state.project.instruments[item.instrument]?.volume ?? 100) / 100);
+    } }
 const playable = () => state.project.notes.some(n => !state.project.instruments[n.instrument]?.isInstructions && n.pitch >= 0 && n.pitch <= 127 && volumeAt(state.project, n) > 0);
 function restoreHeld() { engine.restoreNotes(heldPlaybackNotes(plan.project, plan.channels, position ?? 0)); }
 function buttons() {

@@ -36,6 +36,7 @@ export async function renderAudio(request, bankBytes, write, progress = () => { 
     synth.reset();
     for (const route of plan.channels) {
         const owner = plan.project.instruments[route.instrument];
+        synth.midiChannels[route.channel].setSystemParameter('gain', (owner.volume ?? 100) / 100);
         synth.midiChannels[route.channel].setDrums(!!(owner.isDrum || owner.ms2Drum));
     }
     for (const channel of plan.mutedChannels)

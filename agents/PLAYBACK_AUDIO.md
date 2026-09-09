@@ -15,6 +15,7 @@ Keyboard click/glide previews last about 500 ms and highlight the requested key.
 | Session setting | Behavior |
 | --- | --- |
 | Speed | 25–400%, default 100%; pointer dragging snaps near 50%/200%. Changes the sequencer rate, not stored T or timing. |
+| Instrument volume | Saved optional instrument percentage, default 100%; linear gain on every owning route and keyboard preview. Zero is silent without muting or hiding notes; audio export uses it too. |
 | Master volume | 0–100%, default 100%; applies to current/future song and preview synths. Does not change note V. |
 | Mute/Solo | Applied to every derived route of each owning instrument; explicit mutes survive Solo on another instrument. Global tempos remain active. |
 

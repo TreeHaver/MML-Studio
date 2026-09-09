@@ -12,7 +12,7 @@ import { refresh } from './commands.js';
 import { $, view } from './dom.js';
 import { pitchTop } from './pitch-viewport.js';
 import { updatePlaybackMutes, updatePlaybackVoices } from './playback/transport.js';
-import { state, instrumentView } from './state.js';
+import { state, instrumentView, instrumentSelected, selectInstrument } from './state.js';
 import { colors } from './model/project.js';
 import { name } from './music/pitch.js';
 export function instruments() {
@@ -37,7 +37,7 @@ export function instruments() {
             return;
         const row = document.createElement('div');
         row.className = 'instrument';
-        row.classList.toggle('selected', index === state.active);
+        row.classList.toggle('selected', instrumentSelected(index));
         const color = colorSwatch(i.color, 'Color for ' + i.name, value => { checkpoint(); i.color = value; draw(); });
         row.dataset.instrument = String(index);
         const collapsed = instrumentView.collapsed.has(index);
@@ -45,29 +45,28 @@ export function instruments() {
         button.textContent = shortName(i.name) + (instrumentView.muted.has(index) ? ' (muted)' : '');
         button.className = 'instrument-name';
         button.classList.toggle('active', index === state.active);
-        button.title = i.name + ' · click again to collapse';
+        button.title = i.name + ' · Ctrl+click to toggle · Shift+click to select a range · click again to collapse';
         button.setAttribute('aria-expanded', String(!collapsed));
-        const select = () => {
-            if (index === state.active)
+        const select = (toggle = false, range = false) => {
+            if (state.gesture)
                 return;
-            state.active = index;
-            state.selection.clear();
-            document.querySelectorAll('.instrument').forEach(el => { const active = el.dataset.instrument === String(index); el.classList.toggle('selected', active); el.querySelector('.instrument-name')?.classList.toggle('active', active); });
+            selectInstrument(index, toggle, range);
+            instruments();
             info();
             draw();
         };
-        button.onclick = () => {
-            const collapse = index === state.active && !instrumentView.collapsed.has(index);
+        button.onclick = e => {
+            const collapse = !e?.ctrlKey && !e?.shiftKey && state.selectedInstruments.size === 0 && index === state.active && !instrumentView.collapsed.has(index);
             if (collapse)
                 instrumentView.collapsed.add(index);
             else
                 instrumentView.collapsed.delete(index);
             row.classList.toggle('collapsed', collapse);
             button.setAttribute('aria-expanded', String(!collapse));
-            select();
+            select(!!e?.ctrlKey, !!e?.shiftKey);
         };
         row.onclick = e => { if (!e.target.closest?.('button,select,input,label,summary'))
-            select(); };
+            select(e.ctrlKey, e.shiftKey); };
         const beginRename = () => { if (row.querySelector('.instrument-rename-field'))
             return; const field = document.createElement('input'); field.type = 'text'; field.className = 'instrument-rename-field'; field.value = i.name; field.setAttribute('aria-label', 'Rename ' + i.name); button.after(field); field.focus({ preventScroll: true }); field.select(); let done = false; const finish = (save) => { if (done)
             return; done = true; if (save && field.value.trim() && i.name !== field.value.trim()) {
@@ -159,6 +158,28 @@ export function instruments() {
             instrumentView.muted.delete(index); changed(); };
         controls.append(mute, solo);
         row.append(controls);
+        const volumeRow = document.createElement('label');
+        volumeRow.className = 'instrument-gain';
+        const volumeText = document.createElement('span');
+        volumeText.textContent = 'Volume';
+        const gain = document.createElement('input');
+        gain.type = 'range';
+        gain.min = '0';
+        gain.max = '100';
+        gain.step = '1';
+        gain.value = String(i.volume ?? 100);
+        gain.setAttribute('aria-label', 'Volume for ' + i.name);
+        const value = document.createElement('output');
+        value.textContent = gain.value + '%';
+        let editing = false;
+        gain.oninput = () => { const percent = Math.max(0, Math.min(100, Number(gain.value) || 0)); if (percent === (i.volume ?? 100))
+            return; if (!editing) {
+            checkpoint();
+            editing = true;
+        } i.volume = percent; value.textContent = percent + '%'; updatePlaybackMutes(); };
+        gain.onchange = () => { editing = false; };
+        volumeRow.append(volumeText, gain, value);
+        row.append(volumeRow);
         row.classList.toggle('collapsed', collapsed);
         const remove = document.createElement('button');
         remove.className = 'instrument-row-delete';
@@ -208,5 +229,5 @@ export function installInstruments() {
         $('collapse-all').setAttribute('aria-pressed', String(anyOpen));
         instruments();
     };
-    $('add').onclick = () => { checkpoint(); const count = state.project.instruments.filter(i => !i.isInstructions).length; state.project.instruments.push({ name: `Instrument ${count + 1}`, color: colors[count % colors.length], midiProgram: 0 }); state.active = state.project.instruments.length - 1; state.selection.clear(); refresh(); };
+    $('add').onclick = () => { checkpoint(); const count = state.project.instruments.filter(i => !i.isInstructions).length; state.project.instruments.push({ name: `Instrument ${count + 1}`, color: colors[count % colors.length], midiProgram: 0 }); state.active = state.project.instruments.length - 1; state.selectedInstruments.clear(); state.selection.clear(); refresh(); };
 }

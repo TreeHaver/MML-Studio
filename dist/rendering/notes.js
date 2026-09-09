@@ -1,5 +1,5 @@
 import { ctx, view } from '../dom.js';
-import { state, isMuted } from '../state.js';
+import { state, isMuted, instrumentSelected } from '../state.js';
 import { KEY, HEAD } from '../constants.js';
 import { rect, boxIds, musical } from '../geometry.js';
 import { name, sharp } from '../music/pitch.js';
@@ -42,7 +42,7 @@ export function drawNotes() {
         if (r.x + r.w <= KEY || r.x >= state.width || r.y + r.h <= HEAD || r.y >= state.height)
             continue;
         const instructions = state.project.instruments[n.instrument].isInstructions;
-        ctx.globalAlpha = n.instrument === state.active ? 1 : .4;
+        ctx.globalAlpha = instrumentSelected(n.instrument) ? 1 : .4;
         ctx.fillStyle = instructions ? INSTRUCTIONS_COLOR : state.project.instruments[n.instrument].color;
         ctx.fillRect(r.x, r.y, r.w, r.h);
         if (!instructions && sharp(n.pitch)) {

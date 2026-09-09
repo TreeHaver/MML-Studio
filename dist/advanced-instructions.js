@@ -34,6 +34,7 @@ export function instructionCard(index = state.project.instruments.findIndex(i =>
         else
             instrumentView.collapsed.delete(lane);
         state.active = lane;
+        state.selectedInstruments.clear();
         state.selection.clear();
         refresh();
     };
@@ -50,6 +51,7 @@ export function installAdvancedInstructions() {
             const musical = state.project.instruments.findIndex(i => !i.isInstructions);
             if (musical >= 0) {
                 state.active = musical;
+                state.selectedInstruments.clear();
                 state.selection.clear();
             }
         }

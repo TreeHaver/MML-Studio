@@ -4,6 +4,9 @@ export function parse(text) {
     const p = JSON.parse(text);
     if (p.format !== 'mml-studio' || p.version !== 2 || ![4, 8, 16, 32, 64, 128].includes(p.grid) || !Array.isArray(p.instruments) || !p.instruments.length || !p.instruments.every((i) => typeof i.name === 'string' && /^#[0-9a-f]{6}$/i.test(i.color)) || !Array.isArray(p.notes))
         throw Error('Expected a version 2 MML Studio project.');
+    for (const i of p.instruments)
+        if (i.volume !== undefined && (!Number.isInteger(i.volume) || i.volume < 0 || i.volume > 100))
+            throw Error('Invalid instrument volume.');
     for (const i of p.instruments) {
         if (i.midiProgram !== undefined && (!Number.isInteger(i.midiProgram) || i.midiProgram < 0 || i.midiProgram > 127))
             throw Error('Invalid General MIDI program.');

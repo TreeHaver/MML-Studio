@@ -9,7 +9,7 @@ The persisted format is `mml-studio`, version `2`. Sources: [types](../src/model
 | Object | Fields and meaning |
 | --- | --- |
 | Project | Required `format`, `version`, `grid`, `instruments`, `notes`; optional string `name`. Grid is one of 4/8/16/32/64/128. At least one instrument is required. |
-| Instrument | Required `name` and six-digit hex `color`; optional `midiProgram` (zero-based 0–127), `isDrum`, `isInstructions`, `ms2Drum` (`snare`, `bass`, `cymbals`). Special roles are mutually exclusive. Missing flags mean melodic; missing program uses GM Piano. |
+| Instrument | Required `name` and six-digit hex `color`; optional `volume` (integer 0–100%, absent means 100%; playback/audio gain independent of note V), `midiProgram` (zero-based 0–127), `isDrum`, `isInstructions`, `ms2Drum` (`snare`, `bass`, `cymbals`). Special roles are mutually exclusive. Missing flags mean melodic; missing program uses GM Piano. |
 | Note/event | Required unique integer `id`, owning instrument index, integer `start >= 0`, integer `length > 0`, integer numeric `pitch`, and `volume` (`null` or integer 0–15). |
 | Optional instructions | `tempo` (absent/null to inherit, otherwise positive integer BPM), `timeSignature`, `section`, `resetMeasures`, `loopEntry`, `loopExit`, `loopTie`, `loopCount`, `speedEntry`, `speedExit`, `speedMultiplier`. See STRUCTURE_VIEWS for validation and activation. |
 

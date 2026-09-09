@@ -101,7 +101,7 @@ export function installPointer() {
         window.clearTimeout(keyHighlightTimer); keyHighlightTimer = window.setTimeout(() => { if (state.previewPitch === pitch) {
         state.previewPitch = null;
         draw();
-    } }, 500); void previewNote(playbackPitch(instrument, pitch), instrument.midiProgram ?? 0, instrument.isDrum === true || !!instrument.ms2Drum); return pitch; };
+    } }, 500); void previewNote(playbackPitch(instrument, pitch), instrument.midiProgram ?? 0, instrument.isDrum === true || !!instrument.ms2Drum, instrument.volume ?? 100); return pitch; };
     canvas.onpointerdown = e => {
         if (e.button !== 0 && e.button !== 2)
             return;
@@ -148,6 +148,7 @@ export function installPointer() {
         if (e.button === 0 && marker && marker.instrument !== state.active) {
             advancedInstructions.enabled = true;
             state.active = marker.instrument;
+            state.selectedInstruments.clear();
             state.selection = new Set([marker.id]);
             refresh();
             draw();

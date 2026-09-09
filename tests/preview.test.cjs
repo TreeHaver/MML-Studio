@@ -17,17 +17,17 @@ test('preview ignores invalid pitches and stale initialization, and reports reco
  await preview(-1,0);assert.match(messages.pop(),/0–127/);
  const first=preview(60,0),second=preview(64,40);
  resolveEngine({preview:async(...args)=>calls.push(args)});await Promise.all([first,second]);
- assert.deepEqual(calls,[[64,40,false]]);
+ assert.deepEqual(calls,[[64,40,false,100]]);
  fail=true;await preview(67,73);assert.match(messages.pop(),/device unavailable/);
- fail=false;await preview(69,73);assert.deepEqual(calls[1],[69,73,false]);
- await preview(36,0,true);assert.deepEqual(calls[2],[36,0,true]);assert.match(messages.pop(),/Drum 36/);
+ fail=false;await preview(69,73);assert.deepEqual(calls[1],[69,73,false,100]);
+ await preview(36,0,true);assert.deepEqual(calls[2],[36,0,true,100]);assert.match(messages.pop(),/Drum 36/);
 });
 
 test('preview releases notes, replaces rapid clicks, and uses a synth separate from transport',async()=>{
  const calls=[],timers=new Map(),gains=[];let nextTimer=0,nextSynth=0,contexts=0;
  class Context{constructor(){contexts++;this.currentTime=0;this.destination={};this.audioWorklet={addModule:async()=>{}};}createGain(){const output={context:this,connect(){},gain:{value:1,setTargetAtTime(value){this.value=value}}};gains.push(output);return output;}async resume(){}async close(){}}
  class Synth{
-  constructor(){this.id=++nextSynth;this.soundBankManager={addSoundBank:async()=>{}};this.isReady=Promise.resolve();}
+  constructor(){this.id=++nextSynth;this.midiChannels=Array.from({length:16},()=>({setSystemParameter(){}}));this.soundBankManager={addSoundBank:async()=>{}};this.isReady=Promise.resolve();}
   connect(){}stopAll(force){calls.push([this.id,'stop',force]);}
   controllerChange(c,cc,v){calls.push([this.id,'cc',c,cc,v]);}
   programChange(c,p){calls.push([this.id,'program',c,p]);}

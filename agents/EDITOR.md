@@ -14,7 +14,7 @@ Choose an active instrument in the left panel. These controls leave text-field e
 | Spray | **A**. Drag through cells/pitches to create a run of grid-length notes. |
 | Select | **S**. Drag empty space for a selection box; **Shift-drag** box-selects in any tool. |
 | Select and move | In Select mode, click-drag a note to select and move it in one gesture. In Draw/Spray mode, its body must already be selected before dragging moves it. Movement starts after four pixels. |
-| Add/remove selection | **Ctrl/Cmd-click** toggles a note; Ctrl/Cmd-drag adds a box selection. **Ctrl/Cmd+A** selects the active instrument's notes/events. |
+| Add/remove selection | **Ctrl/Cmd-click** toggles a note; Ctrl/Cmd-drag adds a box selection. **Ctrl/Cmd+A** selects notes across the selected instruments (or events in Instructions). |
 | Move a group | Drag a selected note. The first selected note anchors grid snapping; relative timing, pitches and durations are preserved. |
 | Resize | Drag a note's right edge. This also selects an unselected note and snaps its length to the current grid. |
 | Delete | **Delete/Backspace**, or right-button click/drag to erase notes along the pointer path. |
@@ -28,10 +28,10 @@ The inspector edits numeric pitch, exact length in 1/128-whole-note units, optio
 
 ## Copy and paste
 
-**Ctrl/Cmd+C** copies selected notes/events in the active instrument. **Ctrl/Cmd+V** pastes the group into a compatible active instrument:
+**Ctrl/Cmd+C** copies selected notes across the selected instruments, or selected Instructions events. **Ctrl/Cmd+V** pastes the group into a compatible active instrument:
 
-- With selected notes in that instrument, the copy starts at the **greatest selected end timestamp**. Each paste becomes selected, so repeated pastes append consecutively.
-- With no selected notes there, paste starts at the copied group's **original earliest timestamp**. Copy/delete/paste restores placement; switching to another instrument can layer the copy at the original times.
+- With selected notes across the selected instruments, the copy starts at the **greatest selected end timestamp**. Each paste becomes selected, so repeated pastes append consecutively.
+- With no selected notes, paste starts at the copied group's **original earliest timestamp**. Copy/delete/paste restores placement; switching to another instrument can layer the copy at the original times.
 - Relative timing, pitch, duration and attached instructions are retained; inherited V is materialized to preserve the copied sound. Instructions copies go into Instructions; musical copies go into musical instruments.
 
 The internal group is held by this app window; the system clipboard carries a custom marker. It is not a cross-window/project-file interchange format. No note clipboard data is serialized in JSON.
@@ -62,6 +62,13 @@ Instrument actions provide:
 | Split Drumkit | On Standard Drum Kit, creates populated Bass Drum, Snare Drum and Cymbals lanes; unclassified percussion stays in the source. |
 
 Merge/split preserve original note velocities and timing. Actions use Undo; instrument-count changes remap/reset session lane state so mutes or collapsed cards cannot attach to the wrong instrument. In a Song/Segment, operations affect only local music and preserve shared lanes/outside notes; see [scoped editing](STRUCTURE_VIEWS.md#editing-without-damaging-the-parent).
+
+
+### Selecting instruments together and instrument volume
+
+Ctrl-click instrument names/cards to toggle musical instruments in the selection stack. Newly selected instruments go on top and become the main instrument (accent text). Removing the main instrument restores the preceding stack entry; removing another instrument leaves the main unchanged. The last selected instrument cannot be Ctrl-deselected. Shift-click adds every musical instrument between the current main and clicked instrument, in that direction, skipping Instructions. Range members already selected are moved to the top in traversal order; selections outside the range remain. The clicked endpoint becomes main. Shift takes precedence when combined with Ctrl. Selected cards and notes remain highlighted; deselecting an instrument removes its notes from the note selection. A plain click returns to one instrument. Instructions stays a separate selection. Drawing, Spray and paste target the main instrument. Hit testing, box selection and Ctrl+A include selected instruments; movement, resizing, deletion and inspector velocity edits apply to the selected note IDs. Copy resolves each source instrument's inherited V, combines all selected musical notes into one relative-time group, and pastes the entire group into the main instrument after the selected end (or at the original copy position with no selection). Source ownership is retained during movement.
+
+Each musical card has a 0–100% Volume slider below Mute/Solo and above Instrument actions. It is undoable and saved as optional version-2 instrument volume; older files default to 100%. Zero volume leaves notes visible and editable and does not enable Mute. Live playback, keyboard preview and audio recording multiply instrument gain with master gain and the note's resolved velocity response. MML/MIDI output and note V are unchanged. A drag is one Undo step. Instrument selection remains session-only and resets on replacement, scope changes and lane reindexing.
 
 ## View and workspace
 

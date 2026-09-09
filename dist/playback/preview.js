@@ -3,7 +3,7 @@ import { status } from '../dom.js';
 import { name } from '../music/pitch.js';
 import { drumName } from './drums.js';
 let generation = 0;
-export async function previewNote(pitch, program, isDrum = false) {
+export async function previewNote(pitch, program, isDrum = false, volume = 100) {
     const token = ++generation;
     if (!Number.isInteger(pitch) || pitch < 0 || pitch > 127) {
         status('Preview supports MIDI pitches 0–127.');
@@ -13,7 +13,7 @@ export async function previewNote(pitch, program, isDrum = false) {
         const engine = await getPreviewEngine();
         if (token !== generation)
             return;
-        await engine.preview(pitch, program, isDrum);
+        await engine.preview(pitch, program, isDrum, volume);
         if (token === generation)
             status(`Preview: ${isDrum ? drumName(pitch) : name(pitch)}.`);
     }

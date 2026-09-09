@@ -26,6 +26,7 @@ export function replaceWithImport(imported, name, sourceName = name) {
     state.project.name = name.replace(/\.[^.]+$/, '') || 'Untitled';
     state.selection.clear();
     state.active = 0;
+    state.selectedInstruments.clear();
     state.history = [];
     state.future = [];
     state.dirty = true;
@@ -112,6 +113,7 @@ export function installFiles() {
         state.project = loaded;
         state.selection.clear();
         state.active = 0;
+        state.selectedInstruments.clear();
         state.history = [];
         state.future = [];
         view.scrollLeft = 0;
@@ -132,6 +134,7 @@ export function installFiles() {
         state.project = fresh();
         state.selection.clear();
         state.active = 0;
+        state.selectedInstruments.clear();
         state.history = [];
         state.future = [];
         view.scrollLeft = 0;

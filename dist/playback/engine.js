@@ -40,7 +40,7 @@ export function getPreviewEngine() {
             let timer;
             let generation = 0;
             return { context,
-                async preview(pitch, program, isDrum = false) {
+                async preview(pitch, program, isDrum = false, volume = 100) {
                     const token = ++generation;
                     await context.resume();
                     if (token !== generation)
@@ -52,6 +52,7 @@ export function getPreviewEngine() {
                     for (const [cc, value] of tuningControllers())
                         synth.controllerChange(channel, cc, value);
                     synth.pitchWheel(channel, tuningWheel(sample.tuning));
+                    synth.midiChannels[channel].setSystemParameter('gain', volume / 100);
                     synth.programChange(channel, isDrum ? 0 : program);
                     synth.noteOn(channel, sourcePitch, 100);
                     timer = setTimeout(() => synth.noteOff(channel, sourcePitch), 500);
@@ -85,6 +86,7 @@ export function getEngine() {
                     synth.pitchWheel(n.channel, tuningWheel(n.tuning ?? 0));
                     synth.noteOn(n.channel, n.pitch, n.velocity);
                 } },
+                gain(channel, value) { synth.midiChannels[channel].setSystemParameter('gain', value); },
                 mute(channel, muted) { synth.midiChannels[channel].setSystemParameter('isMuted', muted); },
                 async load(binary) {
                     seq.pause();

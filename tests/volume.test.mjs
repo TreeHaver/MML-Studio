@@ -68,3 +68,14 @@ test('merging and splitting instruments materialize each original note volume wi
  const split=splitDrumkit(drums,0).project;
  assert.deepEqual(split.notes.map(n=>volumeAt(split,n)),[13,5,9]);
 });
+
+test('optional instrument gain validates and survives version-2 scoped reconciliation',async()=>{
+ const {parse}=await import('../dist/model/serialization.js');
+ const {mergeSegment}=await import('../dist/model/segment-view.js');
+ const p=fresh();p.instruments[0].volume=0;
+ assert.equal(parse(JSON.stringify(p)).instruments[0].volume,0);
+ for(const volume of [-1,101,0.5,null,'50'])assert.throws(()=>parse(JSON.stringify({...p,instruments:[{...p.instruments[0],volume}]})),/instrument volume/);
+ delete p.instruments[0].volume;assert.equal(parse(JSON.stringify(p)).instruments[0].volume,undefined);
+ const projection=projectSegment(p,{kind:'segment',name:'Gain',start:0,end:128});projection.project.instruments[0].volume=37;
+ assert.equal(mergeSegment(p,projection,projection.project,[0]).instruments[0].volume,37);
+});

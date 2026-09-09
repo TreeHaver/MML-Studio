@@ -1,7 +1,7 @@
 import { importMml } from './import/mml.js';
 import { ensureInstructions, hasInstructions } from './model/instructions.js';
 import { advancedInstructions } from './advanced-instructions.js';
-import { state, isMuted } from './state.js';
+import { state, isMuted, instrumentSelected } from './state.js';
 import { checkpoint } from './history.js';
 import { refresh } from './commands.js';
 import { status } from './dom.js';
@@ -14,13 +14,13 @@ export function setPastePosition(tick) { position = tick; status('MML text inser
 export function copyNotes() {
     if (state.gesture)
         return;
-    const selected = state.project.notes.filter(n => n.instrument === state.active && state.selection.has(n.id));
+    const selected = state.project.notes.filter(n => instrumentSelected(n.instrument) && state.selection.has(n.id));
     if (!selected.length) {
         status('Select notes to copy.');
         return;
     }
     const start = selected.reduce((min, n) => Math.min(min, n.start), Infinity);
-    const volumes = resolveVolumes(state.project.notes.filter(n => n.instrument === state.active));
+    const volumes = resolveVolumes(state.project.notes);
     clipboard = { notes: selected.map(n => ({ ...n, start: n.start - start, volume: volumes.get(n.id) })), instructions: !!state.project.instruments[state.active].isInstructions, start };
     status(`Copied ${selected.length} notes/events. Ctrl+V pastes after the current selection, or at the original copy position when nothing is selected.`);
 }
@@ -40,7 +40,7 @@ export function pasteNotes() {
         return;
     }
     let id = state.project.notes.reduce((max, n) => Math.max(max, n.id), 0);
-    const selected = state.project.notes.filter(n => n.instrument === state.active && state.selection.has(n.id));
+    const selected = state.project.notes.filter(n => instrumentSelected(n.instrument) && state.selection.has(n.id));
     const start = selected.length ? selected.reduce((end, n) => Math.max(end, n.start + n.length), 0) : clipboard.start;
     const added = clipboard.notes.map(n => ({ ...n, id: ++id, instrument: state.active, start: start + n.start }));
     const notes = [...state.project.notes, ...added];

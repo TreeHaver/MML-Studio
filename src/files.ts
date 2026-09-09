@@ -21,7 +21,7 @@ export function markSaved(){state.saved=snapshot();state.dirty=false;}
 export function unsaved(){return state.dirty&&snapshot()!==state.saved;}
 /** Shared successful replacement for the menu and drops onto a truly empty project. */
 export function replaceWithImport(imported:ImportedSong,name:string,sourceName=name){
- stopPlayback(false);resetInstrumentView();resetAdvancedInstructions();resetSegment();state.project=imported.project;state.project.name=name.replace(/\.[^.]+$/,'')||'Untitled';state.selection.clear();state.active=0;
+ stopPlayback(false);resetInstrumentView();resetAdvancedInstructions();resetSegment();state.project=imported.project;state.project.name=name.replace(/\.[^.]+$/,'')||'Untitled';state.selection.clear();state.active=0;state.selectedInstruments.clear();
  state.history=[];state.future=[];state.dirty=true;state.saved='';view.scrollLeft=0;
  refresh();view.scrollTop=Math.max(0,pitchTop(state.topPitch,(state.project.notes.find(n=>n.instrument===0)?.pitch??60)+5));draw();
  const count=state.project.instruments.filter(i=>!i.isInstructions).length;
@@ -61,8 +61,8 @@ $('import-midi').onclick=async()=>{
 };
 $('midi-report-close').onclick=()=>($('midi-report') as HTMLDialogElement).close();
 $('save').onclick=()=>saveProject();
-$('open').onclick=async()=>{try{if(unsaved()&&!confirm('Discard unsaved changes and open a project?'))return;const text=await (window as any).files.open();if(text===null)return;const loaded=parse(text);stopPlayback(false);resetInstrumentView();resetAdvancedInstructions();resetSegment();state.project=loaded;state.selection.clear();state.active=0;state.history=[];state.future=[];view.scrollLeft=0;refresh();markSaved();status('Project opened.');}catch(e){status('Open failed: '+e);}};
-$('new').onclick=()=>{if(unsaved()&&!confirm('Discard unsaved changes?'))return;stopPlayback(false);resetInstrumentView();resetAdvancedInstructions();resetSegment();state.project=fresh();state.selection.clear();state.active=0;state.history=[];state.future=[];view.scrollLeft=0;refresh();markSaved();
+$('open').onclick=async()=>{try{if(unsaved()&&!confirm('Discard unsaved changes and open a project?'))return;const text=await (window as any).files.open();if(text===null)return;const loaded=parse(text);stopPlayback(false);resetInstrumentView();resetAdvancedInstructions();resetSegment();state.project=loaded;state.selection.clear();state.active=0;state.selectedInstruments.clear();state.history=[];state.future=[];view.scrollLeft=0;refresh();markSaved();status('Project opened.');}catch(e){status('Open failed: '+e);}};
+$('new').onclick=()=>{if(unsaved()&&!confirm('Discard unsaved changes?'))return;stopPlayback(false);resetInstrumentView();resetAdvancedInstructions();resetSegment();state.project=fresh();state.selection.clear();state.active=0;state.selectedInstruments.clear();state.history=[];state.future=[];view.scrollLeft=0;refresh();markSaved();
  status('New project. Type a name, or start drawing.');
  const name=input('project-name');name.focus({preventScroll:true});name.select();};
 (window as any).editorClose?.onRequest(async()=>{

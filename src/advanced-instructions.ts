@@ -24,7 +24,7 @@ export function instructionCard(index=state.project.instruments.findIndex(i=>i.i
  button.onclick=()=>{
   const lane=ensureInstructions(state.project);
   if(state.active===lane&&!instrumentView.collapsed.has(lane))instrumentView.collapsed.add(lane);else instrumentView.collapsed.delete(lane);
-  state.active=lane;state.selection.clear();refresh();
+  state.active=lane;state.selectedInstruments.clear();state.selection.clear();refresh();
  };
  // Read once and then in the way for good: the lane's manner of working lives in its
  // tooltip, like the drum kit's warning, rather than under every card for ever.
@@ -36,7 +36,7 @@ export function installAdvancedInstructions(){
   advancedInstructions.enabled=!advancedInstructions.enabled;
   if(!advancedInstructions.enabled&&state.project.instruments[state.active]?.isInstructions){
    const musical=state.project.instruments.findIndex(i=>!i.isInstructions);
-   if(musical>=0){state.active=musical;state.selection.clear();}
+   if(musical>=0){state.active=musical;state.selectedInstruments.clear();state.selection.clear();}
   }
   refresh();
  };

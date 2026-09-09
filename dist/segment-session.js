@@ -54,6 +54,7 @@ export function syncSegment() {
     state.segment = { root, projection, sourceIndices: projection.project.instruments.map((_, index) => index < root.instruments.length ? index : -1) };
     state.project = projection.project;
     state.active = Math.max(0, Math.min(active, state.project.instruments.length - 1));
+    state.selectedInstruments.clear();
     const present = new Set(state.project.notes.map(n => n.id));
     state.selection = new Set([...state.selection].map(id => ids.get(id) ?? id).filter(id => present.has(id)));
 }
