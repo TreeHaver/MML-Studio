@@ -1,6 +1,7 @@
 import type {Project} from '../model/types.ts';
 import {ensureInstructions} from '../model/instructions.ts';
 import {tempoMap} from '../music/tempo.ts';
+import {condenseImportInstructions} from './instructions.ts';
 
 const outsideTarget=(bpm:number)=>bpm<32||bpm>255;
 export const hasOutOfRangeTempo=(project:Project)=>project.notes.some(n=>n.tempo!=null&&outsideTarget(n.tempo));
@@ -46,5 +47,5 @@ export function applyImportSpeedMultipliers(project:Project,warnings:string[]=[]
    ...(multiplier!==1?{speedEntry:true,speedMultiplier:multiplier}:{})});
   previous=multiplier;
  }
- return converted;
+ condenseImportInstructions(converted,warnings);return converted;
 }

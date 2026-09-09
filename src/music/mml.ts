@@ -70,6 +70,8 @@ function voice(notes:Note[],tempos:TempoEvent[],volumes:Map<number,number>,speed
   }
  };
  for(const n of notes){span('r',n.start);tempo();const o=n.pitch===11?0:n.pitch===120?8:Math.floor(n.pitch/12)-1,v=volumes.get(n.id)??8;
+  // A silent final carrier preserves editor duration; export its tail as rests.
+  if(n===notes.at(-1)&&v===0&&notes.some(note=>(volumes.get(note.id)??8)>0)){span('r',n.start+n.length);continue;}
   if(o!==octave){parts.push('o'+o);octave=o;}if(v!==volume){parts.push('v'+v);volume=v;}
   span(n.pitch===11?'c-':n.pitch===120?'b+':pitches[((n.pitch%12)+12)%12],n.start+n.length);
  }

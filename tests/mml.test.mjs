@@ -4,6 +4,12 @@ import {generateMml} from '../dist/music/mml.js';
 import {optimizeInstructions} from '../dist/music/mml-optimizer.js';
 const note=(id,start,length,pitch=60,volume=null,instrument=0,tempo=null)=>({id,start,length,pitch,volume,instrument,tempo});
 const project=notes=>({format:'mml-studio',version:2,grid:4,instruments:[{name:'Piano',color:'#fff'},{name:'Instructions',color:'#fff',isInstructions:true}],notes});
+test('silent final carriers export as rests while earlier V0 notes retain their volume semantics',()=>{
+ const p=project([note(1,0,4,60,0),note(2,4,4,62,12),note(3,8,128,60,0)]),before=JSON.stringify(p);
+ const result=generateMml(p,0),decoded=read(result.channels[0]);
+ assert.equal(decoded.tick,136);assert.deepEqual(decoded.notes.map(n=>[n.pitch,n.volume]),[[60,0],[62,12]]);
+ assert.match(result.channels[0],/r\d*\.?$/);assert.equal(JSON.stringify(p),before);
+});
 test('speed zones shorten rests and held notes without multiplying MML tempo',()=>{
  const p=project([note(1,0,128),note(2,64,64,64),{...note(3,32,1,60,0,1),speedEntry:true,speedMultiplier:2},{...note(4,96,1,60,0,1),speedExit:true},note(5,64,1,60,0,1,150)]);
  const before=JSON.stringify(p),result=generateMml(p,0),decoded=result.channels.map(read);

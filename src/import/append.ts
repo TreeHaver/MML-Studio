@@ -1,6 +1,7 @@
 import type {Project} from '../model/types.ts';
 import {ensureInstructions} from '../model/instructions.ts';
 import {valid} from '../model/validation.ts';
+import {condenseImportInstructions} from './instructions.ts';
 
 /** Add independent instrument instances, keeping the single global Instructions lane. */
 export function appendImportedSongs(target:Project,sources:Project[]){
@@ -19,6 +20,7 @@ export function appendImportedSongs(target:Project,sources:Project[]){
   });
   for(const note of source.notes){const next={...note,id:++id,instrument:routes[note.instrument]};project.notes.push(next);added.push(next.id);}
  }
+ const aliases=condenseImportInstructions(project,warnings);
  if(!valid(project.notes))throw Error('The imported song contains invalid timing or conflicting time signature, section or other instructions.');
- return {project,added,instruments,warnings};
+ return {project,added:[...new Set(added.map(id=>aliases.get(id)??id))],instruments,warnings};
 }

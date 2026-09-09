@@ -111,6 +111,14 @@ dialog{max-width:620px;max-height:85vh;overflow:auto;padding:26px;background:var
 @media(max-width:980px){.project-name-label>span{display:none}}
 #file-menu #return-song-project[hidden]{display:none}
 
+#audio-import-options{width:500px;max-width:calc(100vw - 48px)}
+#audio-import-options h2{margin-top:0}
+#audio-import-options label{display:block;margin-top:16px}
+#audio-sample-rate,#audio-voice-count{display:block;width:150px;margin-top:8px}
+#audio-import-source{overflow-wrap:anywhere}
+#audio-sample-help,.audio-estimate-note{color:var(--secondary);font-size:12px}
+#audio-import-estimate{padding:12px;border:1px solid var(--line);border-radius:6px}
+#audio-import-estimate.over-budget{border-color:#cc8b24;background:#cc8b241a}
 /* Export asks how to export, so it is a dialog rather than a list of commands. */
 .menu-button{display:flex;align-items:center;gap:8px;padding:9px 13px;border:1px solid var(--line);border-radius:6px}
 .menu-button svg{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}

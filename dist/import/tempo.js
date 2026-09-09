@@ -1,5 +1,6 @@
 import { ensureInstructions } from '../model/instructions.js';
 import { tempoMap } from '../music/tempo.js';
+import { condenseImportInstructions } from './instructions.js';
 const outsideTarget = (bpm) => bpm < 32 || bpm > 255;
 export const hasOutOfRangeTempo = (project) => project.notes.some(n => n.tempo != null && outsideTarget(n.tempo));
 /** Remove T without removing musical notes or other instruction payloads. */
@@ -53,5 +54,6 @@ export function applyImportSpeedMultipliers(project, warnings = []) {
             ...(multiplier !== 1 ? { speedEntry: true, speedMultiplier: multiplier } : {}) });
         previous = multiplier;
     }
+    condenseImportInstructions(converted, warnings);
     return converted;
 }

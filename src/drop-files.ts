@@ -10,6 +10,9 @@ import {advancedInstructions} from './advanced-instructions.ts';
 import {hasInstructions} from './model/instructions.ts';
 import {status} from './dom.ts';
 import {replaceWithImport} from './files.ts';
+import {isAudioFile,importAudio} from './import/audio.ts';
+import {chooseAudioSampling} from './audio-import-ui.ts';
+import {sheetSettings} from './sheet-settings.ts';
 
 let importing=false;
 export async function importDroppedFiles(files:File[]){
@@ -21,9 +24,22 @@ export async function importDroppedFiles(files:File[]){
   const replaceEmpty=!segment&&state.project.instruments.filter(i=>!i.isInstructions).length===1&&state.project.notes.length===0;
   status('Reading dropped files…');
   for(const file of files){
-   if(!/\.(mid|midi|mml|ms2mml|mne|txt)$/i.test(file.name))throw Error(`Unsupported dropped file: ${file.name}. Drop MIDI, MML or MML text files.`);
+   const audio=isAudioFile(file.name);
+   if(!audio&&!/\.(mid|midi|mml|ms2mml|mne|txt|abc)$/i.test(file.name))throw Error(`Unsupported dropped file: ${file.name}. Drop audio, MIDI, MML, ABC or MML text files.`);
    const bytes=await file.arrayBuffer();
-   const song=importSong(new Uint8Array(bytes),file.name);prepareImportTempos(song,file.name,!replaceEmpty);imported.push(song);
+   let song:ImportedSong;
+   if(audio){
+    const decoder=(window as any).audioImport?.decode;if(!decoder)throw Error('Audio import requires the desktop app with bundled FFmpeg.');
+    status(`Decoding ${file.name} for voice analysis…`);
+    const decoded=await decoder(new Uint8Array(bytes));
+    const samples=new Float32Array(decoded.samples),budget=sheetSettings.limit;
+    const options=await chooseAudioSampling(file.name,samples.length/decoded.sampleRate,budget);
+    if(options===null){status('Audio import cancelled.');return;}
+    status(`Sampling ${file.name}: ${options.voices} voices, ${options.interval} ms…`);
+    song=importAudio(samples,decoded.sampleRate,file.name,options.interval,budget,options.voices);
+    if(!replaceEmpty)song.warnings.push('Audio keeps its T250/×4 instructions to preserve sample timing. The shared clock also affects existing music; existing later tempo instructions can change the imported voice timing.');
+   }else{song=importSong(new Uint8Array(bytes),file.name);prepareImportTempos(song,file.name,!replaceEmpty);}
+   imported.push(song);
   }
   if(state.gesture||segment!==state.segment||before!==historySnapshot())throw Error('The project changed while reading the files. Drop them again to import into the current project.');
   if(replaceEmpty){

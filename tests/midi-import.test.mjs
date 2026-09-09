@@ -44,7 +44,10 @@ test('opt-in import speed conversion preserves the clock, held notes and version
  assert.deepEqual(original,snapshot);
  assert.deepEqual(tempoMap(converted.notes),tempoMap(original.notes));
  for(const tick of [0,32,128,200,256,300,400])assert.equal(secondsAtTick(tempoMap(converted.notes),tick),secondsAtTick(tempoMap(original.notes),tick));
- assert.deepEqual(converted.notes.slice(0,original.notes.length).map(({tempo,...note})=>note),original.notes.map(({tempo,...note})=>note));
+ assert.deepEqual(converted.notes.filter(n=>!converted.instruments[n.instrument].isInstructions).map(({tempo,...note})=>note),original.notes.filter(n=>!original.instruments[n.instrument].isInstructions).map(({tempo,...note})=>note));
+ const instructions=converted.notes.filter(n=>converted.instruments[n.instrument].isInstructions);
+ assert.equal(new Set(instructions.map(n=>n.start)).size,instructions.length);
+ assert.equal(instructions.find(n=>n.start===128).tempo,128);
  const markers=converted.notes.filter(n=>n.speedEntry||n.speedExit);
  assert.equal(markers.length,5);assert.ok(markers.every(n=>n.length===1&&n.volume===0&&converted.instruments[n.instrument].isInstructions));
  assert.equal(new Set(converted.notes.map(n=>n.id)).size,converted.notes.length);

@@ -1,5 +1,6 @@
 import { ensureInstructions } from '../model/instructions.js';
 import { valid } from '../model/validation.js';
+import { condenseImportInstructions } from './instructions.js';
 /** Add independent instrument instances, keeping the single global Instructions lane. */
 export function appendImportedSongs(target, sources) {
     const project = structuredClone(target), added = [], instruments = [], warnings = [];
@@ -30,7 +31,8 @@ export function appendImportedSongs(target, sources) {
             added.push(next.id);
         }
     }
+    const aliases = condenseImportInstructions(project, warnings);
     if (!valid(project.notes))
         throw Error('The imported song contains invalid timing or conflicting time signature, section or other instructions.');
-    return { project, added, instruments, warnings };
+    return { project, added: [...new Set(added.map(id => aliases.get(id) ?? id))], instruments, warnings };
 }

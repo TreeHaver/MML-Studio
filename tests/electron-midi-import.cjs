@@ -108,15 +108,15 @@ app.on('browser-window-created',(_,win)=>{
    const drop=async files=>run(`(async()=>{const transfer=new DataTransfer();for(const f of ${JSON.stringify(files)})transfer.items.add(new File([new Uint8Array(f.bytes)],f.name));const event=new DragEvent('drop',{dataTransfer:transfer,bubbles:true,cancelable:true});const handler=document.ondrop;let work;document.ondrop=e=>{work=handler(e);};try{document.dispatchEvent(event);await work;return event.defaultPrevented;}finally{document.ondrop=handler;}})()`);
    const textFile=(name,text)=>({name,bytes:[...Buffer.from(text)]});
    const empty=await state();
-   assert.equal(await run(`typeof window.audioImport`),'undefined');
+   assert.equal(await run(`typeof window.audioImport.decode`),'function');
    for(const name of ['removed.mp3','removed.wav']){
     await drop([textFile(name,'not audio')]);assert.deepEqual(await state(),empty);
-    assert.match(await run(`document.getElementById('midi-summary').textContent`),/Unsupported dropped file/);
+    assert.match(await run(`document.getElementById('midi-summary').textContent`),/Could not decode audio/);
     await run(`document.getElementById('midi-report-close').click()`);
    }
    await drop([textFile('part.mml','c4'),textFile('removed.mp3','not audio')]);assert.deepEqual(await state(),empty);
    await run(`document.getElementById('midi-report-close').click()`);
-   result.checks.push('Sound-file import bridge is absent; MP3/WAV and mixed sound-file batches reject without changing the empty project');
+   result.checks.push('Malformed MP3/WAV and mixed sound-file batches fail decoding without changing the empty project');
    assert.equal(await drop([textFile('part.txt','v13c4'),{name:'part.mid',bytes:[...midi([[e(0,144,67,100),e(32,128,67,0),end()]])]}]),true);
    let dropped=await state();assert.equal(dropped.project.instruments.filter(i=>!i.isInstructions).length,2);assert.equal(dropped.project.notes.length,2);assert.equal(dropped.project.name,'part');
    assert.equal(dropped.project.notes[0].volume,13);assert.notEqual(dropped.project.notes[0].instrument,dropped.project.notes[1].instrument);
@@ -161,6 +161,46 @@ app.on('browser-window-created',(_,win)=>{
    await run(`document.getElementById('midi-report-close').click()`);
    result.checks.push('Menu imports retain tempos without keep/remove questions; empty-project drops replace the placeholder/name/session like menu imports, including unused Instructions and batches; populated drops alone ask keep/remove and preserve Undo/conflict resolution');
    result.checks.push('Scoped drop rejects oversized music, merges fitting new instruments and supports Undo; edits during asynchronous reads prevent stale commits');
+   await run(`document.getElementById('new').click()`);
+   const abc='X:1\nT:Game part\nZ:Composer name\nL:1/4\nM:4/4\nQ:120\nK:C\nz2 [C2E/2Gz/4] D/4';
+   await drop([textFile('game.abc',abc)]);
+   const abcProject=(await state()).project;
+   assert.equal(abcProject.name,'game');assert.equal(abcProject.instruments.filter(i=>!i.isInstructions).length,1);
+   const instructionRecords=p=>p.notes.filter(n=>p.instruments[n.instrument].isInstructions);
+   assert.equal(instructionRecords(abcProject).length,1);assert.equal(instructionRecords(abcProject)[0].timeSignature,'4/4');assert.equal(instructionRecords(abcProject)[0].tempo,120);
+   assert.deepEqual(abcProject.notes.filter(n=>!abcProject.instruments[n.instrument].isInstructions).map(n=>[n.start,n.length,n.pitch]),[[64,64,60],[64,16,64],[64,32,67],[72,8,62]]);
+   await run(`document.getElementById('midi-report-close').click()`);
+   keepTempos=true;await drop([textFile('second.abc',abc)]);
+   assert.equal((await state()).project.instruments.filter(i=>!i.isInstructions).length,2);
+   assert.equal(instructionRecords((await state()).project).length,1);
+   await run(`document.getElementById('midi-report-close').click();import('./dist/history.js').then(m=>m.undo())`);
+   assert.deepEqual((await state()).project,abcProject);
+   await drop([textFile('valid.abc',abc),textFile('invalid.abc','X:1\nK:C\n%%unsupported')]);
+   assert.deepEqual((await state()).project,abcProject);assert.equal(await run(`document.getElementById('midi-report-title').textContent`),'Import failed');
+   await run(`document.getElementById('midi-report-close').click();document.getElementById('new').click()`);
+   const abcFile=path.join(output,'abc-import.fixture.abc');fs.writeFileSync(abcFile,abc);selection=abcFile;
+   await importClick();assert.deepEqual((await state()).project.notes,abcProject.notes);
+   await run(`document.getElementById('midi-report-close').click();document.getElementById('new').click()`);
+   await drop([textFile('recovered.abc','X:1\nL:1/4\nM:4/4\nQ:300\nK:C\n!trill!C/1000 (3DEF\nG @bad\nA')]);
+   const recovered=(await state()).project;
+   assert.equal(recovered.notes.filter(n=>!recovered.instruments[n.instrument].isInstructions).length,6);
+   assert.equal(instructionRecords(recovered).length,1);
+   const combined=instructionRecords(recovered)[0];assert.equal(combined.timeSignature,'4/4');assert.equal(combined.tempo,150);assert.equal(combined.speedMultiplier,2);
+   assert.match(await run(`document.getElementById('midi-warnings').textContent`),/expanded/);
+   assert.match(await run(`document.getElementById('midi-warnings').textContent`),/unread remainder/);
+   result.checks.push('Recoverable ABC imports retain 6 notes and display omissions/rounding; tempo, meter and speed condense to one record; additive same-tick instructions merge and Undo restores the original');
+   await run(`document.getElementById('midi-report-close').click();document.getElementById('new').click()`);
+   if(process.env.MML_ABC_FIXTURE){
+    const file=process.env.MML_ABC_FIXTURE,source=fs.readFileSync(file,'utf8');
+    const {importAbc}=await import('../dist/import/abc.js');const expected=importAbc(source,path.basename(file,'.abc'));
+    await drop([textFile(path.basename(file),source)]);const actual=(await state()).project;
+    assert.equal(await run(`document.getElementById('midi-report-title').textContent`),'Import complete');
+    assert.deepEqual(actual.notes,expected.project.notes);
+    assert.equal(await run(`import('./dist/model/serialization.js').then(async m=>{const {state}=await import('./dist/state.js');return JSON.stringify(m.parse(JSON.stringify(state.project)))===JSON.stringify(state.project);})`),true);
+    result.checks.push(`User ABC fixture ${path.basename(file)}: ${expected.noteCount} notes imported by native DragEvent and version-2 JSON roundtrip verified`);
+    await run(`document.getElementById('midi-report-close').click()`);
+   }
+   result.checks.push('ABC native DragEvent import preserves independent chord durations/rest clock; populated append and Undo, invalid batch atomicity, and menu file IO pass');
    await run(`import('./dist/state.js').then(({state})=>{state.dirty=false;})`);finish();
   }catch(error){finish(error);}
  });

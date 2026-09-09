@@ -100,6 +100,11 @@ function voice(notes, tempos, volumes, speeds, endTick, compactRests = false, ex
         span('r', n.start);
         tempo();
         const o = n.pitch === 11 ? 0 : n.pitch === 120 ? 8 : Math.floor(n.pitch / 12) - 1, v = volumes.get(n.id) ?? 8;
+        // A silent final carrier preserves editor duration; export its tail as rests.
+        if (n === notes.at(-1) && v === 0 && notes.some(note => (volumes.get(note.id) ?? 8) > 0)) {
+            span('r', n.start + n.length);
+            continue;
+        }
         if (o !== octave) {
             parts.push('o' + o);
             octave = o;

@@ -28,6 +28,7 @@ const exists=async target=>{try{await fs.access(target);return true;}catch{retur
 // A set of files is described the same way whichever way it is delivered.
 const validSet=files=>Array.isArray(files)&&files.length>0&&files.every(file=>file&&typeof file.name==='string'&&(typeof file.text==='string'||file.bytes instanceof Uint8Array));
 let win,closeReady=false,closePending=false,closeAllowed=false,closeRequest=0,pendingUpdate=null,updateHandoff=null;
+require('./audio-import.cjs').installAudioImport({ipcMain,getWindow:()=>win});
 ipcMain.on('editor-close-ready',event=>{if(win&&event.sender===win.webContents)closeReady=true;});
 ipcMain.on('editor-close-response',(event,id,allowed)=>{
  if(!win||win.isDestroyed()||event.sender!==win.webContents||!closePending||id!==closeRequest)return;
@@ -73,7 +74,7 @@ app.whenReady().then(()=>{
 ipcMain.handle('save',async(_,text)=>{if(typeof text!=='string')throw Error('Invalid project');const r=await fileDialog('showSaveDialog',{defaultPath:await startPath(JSON.parse(text).name+'.json'),filters:[{name:'Studio JSON',extensions:['json']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text);rememberFolder(path.dirname(r.filePath));return true;});
 ipcMain.handle('open',async()=>{const r=await fileDialog('showOpenDialog',{defaultPath:await startFolder(),properties:['openFile'],filters:[{name:'Studio JSON',extensions:['json']}]});if(r.canceled)return null;rememberFolder(path.dirname(r.filePaths[0]));return fs.readFile(r.filePaths[0],'utf8');});
 ipcMain.handle('import-midi',async()=>{
- const r=await fileDialog('showOpenDialog',{title:'Import MIDI or MML',defaultPath:await startFolder(),properties:['openFile'],filters:[{name:'MIDI and MML files',extensions:['mid','midi','mml','ms2mml','mne']},{name:'Text files',extensions:['txt','xml']},{name:'All files',extensions:['*']}]});
+ const r=await fileDialog('showOpenDialog',{title:'Import MIDI, MML or ABC',defaultPath:await startFolder(),properties:['openFile'],filters:[{name:'MIDI, MML and ABC files',extensions:['mid','midi','mml','ms2mml','mne','abc']},{name:'Text files',extensions:['txt','xml']},{name:'All files',extensions:['*']}]});
  if(r.canceled)return null;
  const file=r.filePaths[0],bytes=await fs.readFile(file);rememberFolder(path.dirname(file));
  return {name:path.basename(file),bytes:new Uint8Array(bytes)};

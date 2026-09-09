@@ -18,11 +18,11 @@ function condense(source, step, end) {
     const counts = new Map();
     for (const n of source)
         counts.set(n.start, (counts.get(n.start) ?? 0) + 1);
-    const joins = (a, b) => counts.get(a.start) === 1 && counts.get(b.start) === 1 && a.pitch !== b.pitch && b.start >= a.start + a.length && b.start <= a.start + a.length + 1;
+    const joins = (a, b) => counts.get(a.start) === 1 && counts.get(b.start) === 1 && b.start >= a.start + a.length && b.start <= a.start + a.length + 1;
     // A grace note at most L32 long leading directly into a held note.
     for (let i = 0; i + 1 < source.length; i++) {
         const a = source[i], b = source[i + 1];
-        if (a.length <= 4 && b.length > 6 * a.length && joins(a, b) && !instructed(a))
+        if (a.length <= 4 && b.length > 6 * a.length && a.pitch !== b.pitch && joins(a, b) && !instructed(a))
             removed.add(a.id);
     }
     const byEnd = [...source].sort((a, b) => a.start + a.length - b.start - b.length);
@@ -32,13 +32,15 @@ function condense(source, step, end) {
         if (short(source[i]))
             while (j < source.length && short(source[j]) && joins(source[j - 1], source[j]))
                 j++;
-        if (j - i >= 3) {
+        // Rapid repeats and pitch runs both keep the first note in each tile.
+        // Longer notes still use the shared-window coverage rule below.
+        if (j - i >= 2) {
             for (let a = i; a < j;) {
                 const start = Math.floor(source[a].start / step) * step;
                 let b = a + 1;
                 while (b < j && source[b].start < start + step)
                     b++;
-                if (b - a >= 3 && start + step <= end) {
+                if (b - a >= 2 && start + step <= end) {
                     const group = source.slice(a, b), ids = new Set(group.map(n => n.id));
                     const first = { ...group[0], start, length: step };
                     // Do not expand a condensed window into unrelated, previously separate notes.
