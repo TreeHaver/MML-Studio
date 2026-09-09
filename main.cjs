@@ -27,7 +27,7 @@ const startPath=async name=>path.join(await startFolder(),safeFileStem(name));
 const exists=async target=>{try{await fs.access(target);return true;}catch{return false;}};
 // A set of files is described the same way whichever way it is delivered.
 const validSet=files=>Array.isArray(files)&&files.length>0&&files.every(file=>file&&typeof file.name==='string'&&(typeof file.text==='string'||file.bytes instanceof Uint8Array));
-let win,closeReady=false,closePending=false,closeAllowed=false,closeRequest=0,pendingUpdate=null;
+let win,closeReady=false,closePending=false,closeAllowed=false,closeRequest=0,pendingUpdate=null,updateHandoff=null;
 ipcMain.on('editor-close-ready',event=>{if(win&&event.sender===win.webContents)closeReady=true;});
 ipcMain.on('editor-close-response',(event,id,allowed)=>{
  if(!win||win.isDestroyed()||event.sender!==win.webContents||!closePending||id!==closeRequest)return;
@@ -59,7 +59,7 @@ app.whenReady().then(()=>{
  });
  // Stay hidden until the module script has run, so the empty skeleton is never shown.
  win.webContents.once('did-finish-load',()=>win.show());
- win.setMenuBarVisibility(false);win.setClosable(true);win.loadFile(path.join(__dirname,'index.html'));win.on('closed',()=>{if(mmlWindow&&!mmlWindow.isDestroyed())mmlWindow.close();mmlWindow=null;mmlData=null;const update=pendingUpdate;pendingUpdate=null;if(update)launchPortableUpdate(update);});
+ win.setMenuBarVisibility(false);win.setClosable(true);win.loadFile(path.join(__dirname,'index.html'));win.on('closed',()=>{if(mmlWindow&&!mmlWindow.isDestroyed())mmlWindow.close();mmlWindow=null;mmlData=null;const update=pendingUpdate;pendingUpdate=null;if(update)updateHandoff=launchPortableUpdate(update).catch(error=>dialog.showMessageBox({type:'error',title:'Update failed',message:'Could not start the update installer.',detail:String(error),buttons:['OK']}));});
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  win.webContents.on('will-navigate',e=>e.preventDefault());
  createPortableUpdater({app,dialog,getWindow:()=>win,onReady:update=>{pendingUpdate=update;if(win&&!win.isDestroyed())win.close();}}).start();
@@ -100,7 +100,7 @@ ipcMain.handle('export-zip',async(_,archiveName,files)=>{
  return r.filePath;
 });
 require('./audio-export.cjs')({ipcMain,getWindow:()=>win,fileDialog,safeFileStem});
-app.on('window-all-closed',()=>app.quit());
+app.on('window-all-closed',async()=>{if(updateHandoff)await updateHandoff;app.quit();});
 ipcMain.handle('sound-bank',async()=>new Uint8Array(await fs.readFile(path.join(__dirname,'assets','TimGM6mb.sf2'))));
 
 let mmlWindow,mmlData;

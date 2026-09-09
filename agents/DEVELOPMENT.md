@@ -65,6 +65,8 @@ Every user-facing update must bump the semantic version in `package.json` before
 
 Packaged Windows builds check the public `TreeHaver/MML-Studio` latest release four seconds after startup. Release assets must include exactly one Windows portable archive named `MML Music Studio-win32-x64.zip` or `MML.Music.Studio-win32-x64.zip`, with GitHub's `sha256:` digest populated. The updater never runs from a development checkout. It prompts before downloading, streams at most 512 MiB into the user profile, verifies exact size and SHA-256, then uses an external hidden PowerShell handoff after the normal Save/Discard/Cancel close flow. Keep `updater.cjs` in the release runtime list. A release without the expected ZIP or digest is not installable automatically.
 
+The handoff now waits for a hidden PowerShell launcher to run `Start-Process -WindowStyle Hidden` before Electron quits; do not use Node's `detached:true` directly for Windows PowerShell. The previous launcher could exit without running the installer. `updates/update-launch.log` captures bootstrap output, and `updates/update-error.log` records launch/install errors under app userData. `node tests/electron-updater.cjs` separately verifies real native Electron shutdown, PowerShell extraction/replacement and restart of a tiny disposable executable under `.validation/`. It neither downloads the public release nor modifies a user's installation. Existing published copies with the broken launcher require a one-time manual installation of a release containing this fix.
+
 After `npm ci` and [encoder setup](PLAYBACK_AUDIO.md#encoder-setup), close any running copy of the packaged app and run:
 
 ```powershell

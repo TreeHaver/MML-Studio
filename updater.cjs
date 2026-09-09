@@ -26,7 +26,22 @@ function portableScript({archive,installDirectory,executable,pid,version}){
  return `$ErrorActionPreference='Stop'\n$archive=${ps(archive)}\n$install=${ps(installDirectory)}\n$targetExe=${ps(executable)}\n$stage=${ps(stage)}\n$log=${ps(path.join(updateDirectory,'update-error.log'))}\ntry {\n  for($i=0;$i -lt 120;$i++){if(-not (Get-Process -Id ${Number(pid)} -ErrorAction SilentlyContinue)){break};Start-Sleep -Milliseconds 250}\n  if(Get-Process -Id ${Number(pid)} -ErrorAction SilentlyContinue){throw 'MML Studio did not close in time.'}\n  if(-not (Test-Path -LiteralPath $targetExe -PathType Leaf)){throw 'The installed executable was not found.'}\n  if(Test-Path -LiteralPath $stage){Remove-Item -LiteralPath $stage -Recurse -Force}\n  Expand-Archive -LiteralPath $archive -DestinationPath $stage -Force\n  $executables=@(Get-ChildItem -LiteralPath $stage -Filter 'MML Music Studio.exe' -Recurse -File)\n  if($executables.Count -ne 1){throw 'The update archive does not contain exactly one MML Music Studio.exe.'}\n  $source=$executables[0].Directory.FullName\n  if(-not (Test-Path -LiteralPath (Join-Path $source 'resources\\app\\package.json') -PathType Leaf)){throw 'The update archive has no packaged application payload.'}\n  Get-ChildItem -LiteralPath $source -Force | Where-Object {$_.Name -ne 'Example Project'} | Copy-Item -Destination $install -Recurse -Force\n  $sourceExample=Join-Path $source 'Example Project';$targetExample=Join-Path $install 'Example Project'\n  if((Test-Path -LiteralPath $sourceExample) -and -not (Test-Path -LiteralPath $targetExample)){Copy-Item -LiteralPath $sourceExample -Destination $targetExample -Recurse}\n  Start-Process -FilePath $targetExe -WorkingDirectory $install\n  Remove-Item -LiteralPath $stage -Recurse -Force\n  Remove-Item -LiteralPath $archive -Force\n  Remove-Item -LiteralPath $PSCommandPath -Force\n} catch {\n  $_ | Out-File -LiteralPath $log -Encoding utf8\n  if(Test-Path -LiteralPath $targetExe){Start-Process -FilePath $targetExe -WorkingDirectory $install}\n}\n`;
 }
 
-function launchPortableUpdate(update){const directory=path.dirname(update.archive),script=path.join(directory,'apply-update-'+update.version.replace(/[^0-9A-Za-z.-]/g,'_')+'.ps1');fs.writeFileSync(script,portableScript({...update,pid:process.pid}),'utf8');const child=spawn('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',script],{detached:true,stdio:'ignore',windowsHide:true});child.unref();}
+async function launchPortableUpdate(update){
+ const directory=path.dirname(update.archive),script=path.join(directory,'apply-update-'+update.version.replace(/[^0-9A-Za-z.-]/g,'_')+'.ps1');
+ fs.writeFileSync(script,portableScript({...update,pid:process.pid}),'utf8');
+ // Windows PowerShell may not execute under DETACHED_PROCESS. A short-lived
+ // hidden launcher starts the independent helper with Start-Process instead.
+ // Electron must await this launcher before quitting; the helper waits for us.
+ const log=path.join(directory,'update-launch.log'),output=fs.openSync(log,'w');
+ let child;
+ const executable=path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
+ const argumentsText='-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+script+'"';
+ const command=`$ErrorActionPreference='Stop'; Start-Process -FilePath ${ps(executable)} -ArgumentList ${ps(argumentsText)} -WindowStyle Hidden`;
+ try{child=spawn(executable,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-Command',command],{stdio:['ignore',output,output],windowsHide:true});}
+ finally{fs.closeSync(output);}
+ try{await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(Error('Update launcher exited with code '+code+'. See '+log)));});}
+ catch(error){fs.writeFileSync(path.join(directory,'update-error.log'),'Unable to start update helper: '+String(error),'utf8');throw error;}
+}
 
 function createPortableUpdater({app,dialog,getWindow,onReady,fetchImpl=globalThis.fetch,platform=process.platform,schedule=setTimeout}){
  let checking=false;
