@@ -66,11 +66,12 @@ See [MS2 notation rules](MUSIC_MODEL.md#ms2-notation-and-compatibility) for L64 
 
 ## Export choices
 
-Export is one dialog with four formats and selected/all-instrument scope. These read the active project projection, independent of stale manual MML snapshots.
+Export is one dialog with five choices and selected/all-instrument scope. These read the active project projection, independent of stale manual MML snapshots.
 
 | Format | Output | Settings used |
 | --- | --- | --- |
 | MS2MML sheet | One XML file per musical instrument; melody followed by indexed chord elements. | Character-limit single/parts choice; optional section separation at root. |
+| Lazy Ensemble (MS2MML) | Repack exported notes for one sound into simultaneously started player files. | At most 10 players, 10 channels each, and the current Character limit per file; no section separation. |
 | MML text | Same raw channel strings in `.txt`, blank lines between channels and a final newline. | Same sheet limits and section choices. |
 | MIDI file | Format-1 performance from `compilePlayback`, 32 PPQ, conductor/global-tempo track and derived voice tracks. All instruments share a file per chosen section/scope. | Expands loops; no character limit. Uses stored notes/velocities/presets, not session speed/master volume/Mute/Solo. |
 | Audio | One mixed WAV/MP3/OGG/FLAC/M4A/Opus file for the current view. | Snapshots speed/master volume/Mute/Solo; no sheet limits or section splitting. See PLAYBACK_AUDIO. |
@@ -80,6 +81,18 @@ At the root, **Export sections as separate song sheets** splits MS2MML/text/MIDI
 In Song/Segment View, exports use the local projection and view name; additional section splitting is disabled. JSON Save always saves the full parent instead. MML text files with blank-line channel separation are for reading/sharing; the importer expects comma-separated channels and does not promise direct multi-channel `.txt` round-trip fidelity.
 
 ## Character limits and synchronized parts
+
+**Experimental Extreme Compression** is an unchecked export-dialog option for MS2MML, Lazy Ensemble and MML text. It substitutes exact note/rest lengths under temporary T32–T255 tempos when the encoding, including tempo restoration, is shorter. Held continuations retain ties across tempo and speed boundaries. Whole-channel L optimization is checked again; a channel that does not shrink retains its ordinary encoding. This bounded candidate search is experimental, not a globally shortest encoding search.
+
+Extreme Compression also removes tempo commands superseded before the next note or rest: `t120o4t32c` becomes `o4t32c`. Octave, volume, default-length commands and tie prefixes consume no time. A tempo governing any note/rest duration remains, as does an unsuperseded final restoration.
+
+Compression happens only while preparing exported files. Piano-roll notes, tempo markers, playback, raw MML windows, displayed character counts and sheet-limit overlays stay ordinary. The export dialog explains that these editor counts do not describe compressed files. Internal export planning still counts actual saved channel strings, including all tempo instructions, to verify the selected sheet limit or Lazy Ensemble's player/channel limits and selected character limit. Sequential parts, section exports and loops use the same option. JSON saving and MIDI/audio exports do not use it. Like Lazy Ensemble rest clocks, this output is difficult to read and not a lossless importer round trip; automated timing checks do not establish in-game compatibility.
+
+**Lazy Ensemble** is separate from sequential sheet parts. It combines the selected scope into one sound, materializes each original instrument's resolved V, expands loops and retains pitches, note onsets and full held durations. Every channel starts at timestamp zero and pads through the common performance end (including a scoped view's explicit end). Load the files on the same instrument sound and start all players together. Original instruments, project notes and version-2 JSON remain untouched. Drum source pitches also become pitches of the chosen single sound.
+
+The pure planner in `src/music/lazy-ensemble.ts` tries chronological and voice-first packing, then re-encodes fitting unions to reuse channels. It chooses the smaller verified plan; this heuristic does not guarantee a mathematically minimum player count. Each file is verified against 10 channels and the current Character limit before any save begins. The preference is used directly: 5,000 means 5,000 per player, and 50,000 means 50,000 per player. A plan above 10 players fails before opening a destination or writing files; more than 100 overlapping voices fails immediately. Both packing orders and fitting merges are tried before rejecting a character-constrained plan. A full note whose encoding and synchronized silence cannot fit causes an error, without clipping, restarting or dropping it. Folder/ZIP delivery and selected scope work as for ordinary exports; the saved character preference applies to every player, while the section-splitting checkbox does not apply.
+
+Lazy Ensemble alone may shorten rests with local T32 and exact rational durations, restoring the musical BPM before sound resumes. Each tempo/speed boundary is accounted for, so elapsed time remains aligned even when encoded musical tick counts differ. Very fine denominators retain the target-support warning. These independent channel clocks are verified by decoding elapsed time in tests, not by in-game playback; the ordinary importer's global-tempo/integer-resolution model is not a lossless round-trip for this output.
 
 The **Character limit** field beside the roll is a saved application preference, default 10,000, accepting positive safe integers. It never limits JSON save, import, editing or raw generation. The active musical instrument's red timeline line indicates its first planned boundary at/over the limit. A limit too small for the next notes/controllers marks the beginning. The overlay uses current music even when manual MML updates are paused.
 

@@ -71,7 +71,7 @@ After `npm ci` and [encoder setup](PLAYBACK_AUDIO.md#encoder-setup), close any r
 .\build.bat
 ```
 
-The batch file works from any current directory and stops on build/packaging errors. It calls `package-release.ps1`, which validates and replaces only its generated staging and target release paths.
+The batch file works from any current directory and stops on build/packaging errors. Failures pause so double-clicked windows keep the error visible; automated callers can pass `--no-pause`. It calls `package-release.ps1`, which validates and replaces only its generated staging and target release paths. Packaging refuses to replace a release copy that is still running, before clearing staging or release files; close that copy and its error dialogs first.
 
 | Output | Purpose |
 | --- | --- |
@@ -81,7 +81,7 @@ The batch file works from any current directory and stops on build/packaging err
 
 The helper checks the installed Electron version and Windows x64 architecture, retains Electron DLLs/locales/notices, embeds `assets/logo.ico` and project version metadata using `build-icon.cs`, and omits development documentation, source, tests, npm dependencies and old archives. This is an unsigned portable release, not an installer. Distribute the entire folder/ZIP.
 
-For staging only, build first and run `powershell -NoProfile -ExecutionPolicy Bypass -File package-release.ps1 -StageOnly`. This does not rebuild the release folder or ZIP. Add new runtime assets to the helper's explicit file lists; compiled module paths are derived from current `src` files to exclude obsolete outputs.
+For staging only, build first and run `powershell -NoProfile -ExecutionPolicy Bypass -File package-release.ps1 -StageOnly`. This does not rebuild the release folder or ZIP. Add new runtime assets to the helper's explicit file lists, including local native dependencies such as `zip.cjs` (export archives) and `updater.cjs`; compiled module paths are derived from current `src` files to exclude obsolete outputs. Release tests check that literal relative CommonJS imports resolve within the packaged payload.
 
 After a full release build, run `node --test tests/release.test.cjs` for payload/example byte comparisons and embedded icons, and `node node_modules/electron/cli.js tests/electron-release.cjs` for packaged startup, title and synth initialization. These are separate from the normal test runner.
 

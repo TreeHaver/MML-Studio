@@ -7,19 +7,19 @@ import {resolveVolumes} from './volume.ts';
 
 export type MmlPart=MmlResult&{start:number,end:number};
 /** One shared clock for every channel; all emitted channels fill the part. */
-export function createSheetPlanner(project:Project,index:number,limit:number){
+export function createSheetPlanner(project:Project,index:number,limit:number,extremeCompression=false){
  const expanded=expandLoops(project),looped=expanded.project!==project;project=expanded.project;
  if(!Number.isSafeInteger(limit)||limit<1)throw Error('Character limit must be a positive whole number.');
  const source=project.notes.filter(n=>n.instrument===index).sort((a,b)=>a.start-b.start||a.id-b.id);
  const end=source.reduce((end,n)=>Math.max(end,n.start+n.length),looped?expanded.end:0),tempos=tempoMap(project.notes,false),speeds=speedMap(project.notes);
  const volumes=resolveVolumes(source);
- const whole=generateMml(project,index,source,tempos,looped?{endTick:end}:{});
+ const whole=generateMml(project,index,source,tempos,{endTick:looped?end:undefined,extremeCompression});
  whole.warnings.push(...expanded.warnings);
  const render=(start:number,stop:number):MmlPart=>{
   const notes:Note[]=source.filter(n=>n.start<stop&&n.start+n.length>start).map(n=>({...n,start:Math.max(n.start,start)-start,length:Math.min(n.start+n.length,stop)-Math.max(n.start,start),tempo:null}));
   let bpm=120;for(const t of tempos){if(t.tick>start)break;bpm=t.bpm;}
   const clock=[{tick:0,bpm},...tempos.filter(t=>t.tick>start&&t.tick<stop).map(t=>({...t,tick:t.tick-start}))];
-  return {...generateMml(project,index,notes,clock,{endTick:stop-start,volumes,skipWarnings:true,speeds:[{tick:0,multiplier:speedAt(speeds,start)},...speeds.filter(s=>s.tick>start&&s.tick<stop).map(s=>({...s,tick:s.tick-start}))]}),start,end:stop};
+  return {...generateMml(project,index,notes,clock,{endTick:stop-start,extremeCompression,volumes,skipWarnings:true,speeds:[{tick:0,multiplier:speedAt(speeds,start)},...speeds.filter(s=>s.tick>start&&s.tick<stop).map(s=>({...s,tick:s.tick-start}))]}),start,end:stop};
  };
  const next=(start:number):MmlPart=>{
   if(start<0||start>=end||!Number.isSafeInteger(start))throw Error('Invalid part start.');

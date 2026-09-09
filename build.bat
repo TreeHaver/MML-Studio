@@ -25,4 +25,5 @@ exit /b 0
 echo.
 echo Build failed. See the error above; no further steps were run.
 popd
+if /I not "%~1"=="--no-pause" pause
 exit /b 1

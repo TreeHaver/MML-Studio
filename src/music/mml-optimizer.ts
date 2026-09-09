@@ -43,3 +43,18 @@ export function optimizeInstructions(text:string):string {
  }
  return result.join('');
 }
+
+/** Export compression only: O/V/L and tie prefixes consume no time. A tempo
+ * replaced before the next note/rest never governs a duration. */
+export function removeSupersededTempos(text:string):string {
+ const tokens=text.match(/[tov]-?\d+|l\d+\.?|&|[a-gr][+-]?\d*\.?/g)??[];
+ if(tokens.join('')!==text)throw Error('Unexpected compiler MML syntax.');
+ let pending=-1;
+ for(let i=0;i<tokens.length;i++){
+  if(tokens[i][0]==='t'){
+   if(pending>=0)tokens[pending]='';
+   pending=i;
+  }else if(/^[a-gr]/.test(tokens[i]))pending=-1;
+ }
+ return tokens.join('');
+}

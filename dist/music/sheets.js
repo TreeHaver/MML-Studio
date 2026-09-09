@@ -4,7 +4,7 @@ import { tempoMap } from './tempo.js';
 import { expandLoops } from './loops.js';
 import { resolveVolumes } from './volume.js';
 /** One shared clock for every channel; all emitted channels fill the part. */
-export function createSheetPlanner(project, index, limit) {
+export function createSheetPlanner(project, index, limit, extremeCompression = false) {
     const expanded = expandLoops(project), looped = expanded.project !== project;
     project = expanded.project;
     if (!Number.isSafeInteger(limit) || limit < 1)
@@ -12,7 +12,7 @@ export function createSheetPlanner(project, index, limit) {
     const source = project.notes.filter(n => n.instrument === index).sort((a, b) => a.start - b.start || a.id - b.id);
     const end = source.reduce((end, n) => Math.max(end, n.start + n.length), looped ? expanded.end : 0), tempos = tempoMap(project.notes, false), speeds = speedMap(project.notes);
     const volumes = resolveVolumes(source);
-    const whole = generateMml(project, index, source, tempos, looped ? { endTick: end } : {});
+    const whole = generateMml(project, index, source, tempos, { endTick: looped ? end : undefined, extremeCompression });
     whole.warnings.push(...expanded.warnings);
     const render = (start, stop) => {
         const notes = source.filter(n => n.start < stop && n.start + n.length > start).map(n => ({ ...n, start: Math.max(n.start, start) - start, length: Math.min(n.start + n.length, stop) - Math.max(n.start, start), tempo: null }));
@@ -23,7 +23,7 @@ export function createSheetPlanner(project, index, limit) {
             bpm = t.bpm;
         }
         const clock = [{ tick: 0, bpm }, ...tempos.filter(t => t.tick > start && t.tick < stop).map(t => ({ ...t, tick: t.tick - start }))];
-        return { ...generateMml(project, index, notes, clock, { endTick: stop - start, volumes, skipWarnings: true, speeds: [{ tick: 0, multiplier: speedAt(speeds, start) }, ...speeds.filter(s => s.tick > start && s.tick < stop).map(s => ({ ...s, tick: s.tick - start }))] }), start, end: stop };
+        return { ...generateMml(project, index, notes, clock, { endTick: stop - start, extremeCompression, volumes, skipWarnings: true, speeds: [{ tick: 0, multiplier: speedAt(speeds, start) }, ...speeds.filter(s => s.tick > start && s.tick < stop).map(s => ({ ...s, tick: s.tick - start }))] }), start, end: stop };
     };
     const next = (start) => {
         if (start < 0 || start >= end || !Number.isSafeInteger(start))

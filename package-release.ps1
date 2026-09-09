@@ -34,7 +34,7 @@ function Reset-Output([string]$Target) {
 }
 try {
     $manifest = Get-Content -LiteralPath (Join-Path $projectRoot 'package.json') -Raw | ConvertFrom-Json
-    $runtimeFiles = @('audio-export.cjs', 'updater.cjs', 'main.cjs', 'preload.cjs', 'index.html', 'mml.html', 'studio.css', 'themes.css', 'style.css')
+    $runtimeFiles = @('audio-export.cjs', 'updater.cjs', 'zip.cjs', 'main.cjs', 'preload.cjs', 'index.html', 'mml.html', 'studio.css', 'themes.css', 'style.css')
     $assetFiles = @('logo.ico', 'logo.png', 'logo.svg', 'TimGM6mb.sf2', 'TimGM6mb-LICENSE.txt', 'GPL-2.txt')
     $vendorFiles = @('audio-worker.cjs', 'ffmpeg.exe', 'FFmpeg-LICENSE.txt', 'FFmpeg-README.txt', 'synth.js', 'spessasynth_processor.min.js', 'SpessaSynth-LICENSE.txt', 'SpessaSynth-Core-LICENSE.txt')
     # Derive module paths from current source to exclude stale compiled files.
@@ -49,6 +49,10 @@ try {
         if (-not (Test-Path -LiteralPath (Join-Path $projectRoot $file) -PathType Leaf)) { throw "Missing runtime file: $file. Run build.bat after npm ci." }
     }
     if (-not $StageOnly) {
+        # Fail before clearing generated files if this portable copy is still open.
+        $releaseExecutable = Join-Path $releasePath 'MML Music Studio.exe'
+        $runningRelease = @(Get-Process -Name 'MML Music Studio' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $releaseExecutable })
+        if ($runningRelease.Count -gt 0) { throw "Close MML Music Studio (including any error dialog) running from '$releasePath', then run build.bat again. The release folder has not been changed." }
         if (-not (Test-Path -LiteralPath (Join-Path $electronPath 'electron.exe') -PathType Leaf)) { throw 'Electron runtime missing. Run npm ci.' }
         $electronVersion = (Get-Content -LiteralPath (Join-Path $electronPath 'version') -Raw).Trim()
         if ($electronVersion -ne $manifest.devDependencies.electron) { throw "Installed Electron $electronVersion differs from package.json. Run npm ci." }

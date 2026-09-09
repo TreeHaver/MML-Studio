@@ -2,6 +2,17 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..'),stage=path.join(root,'staging/app'),release=path.join(root,'releases/MML Music Studio-win32-x64');
 function files(dir,prefix=''){return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?files(path.join(dir,e.name),prefix+e.name+'/'):[prefix+e.name]);}
+test('packaged native modules include their local CommonJS dependencies',()=>{
+ const {createRequire}=require('node:module');
+ for(const app of [stage,path.join(release,'resources/app')]){
+  for(const file of files(app).filter(file=>file.endsWith('.cjs'))){
+   const filename=path.join(app,file),resolve=createRequire(filename).resolve;
+   for(const match of fs.readFileSync(filename,'utf8').matchAll(/\brequire\(\s*['"](\.[^'"]+)['"]\s*\)/g)){
+    assert.doesNotThrow(()=>resolve(match[1]),`${file} requires missing runtime dependency ${match[1]}`);
+   }
+  }
+ }
+});
 test('release app exactly matches clean staging and includes runtime code/assets/licenses only',()=>{
  const staged=files(stage).sort(),app=path.join(release,'resources/app');
  assert.deepEqual(files(app).sort(),staged);

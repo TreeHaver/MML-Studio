@@ -5,7 +5,7 @@ import { resolveVolumes } from './volume.js';
 import { expandLoops } from './loops.js';
 import { DRUM_KIT_NAME, DRUM_MS2_WARNING } from '../playback/drums.js';
 import { tempoMap } from './tempo.js';
-import { optimizeInstructions } from './mml-optimizer.js';
+import { optimizeInstructions, removeSupersededTempos } from './mml-optimizer.js';
 const pitches = ['c', 'c+', 'd', 'd+', 'e', 'f', 'f+', 'g', 'g+', 'a', 'a+', 'b'];
 // Every stored integer duration is exact. Ties are duration decomposition,
 // not snapping to the editor grid. The optimizer may use dotted L defaults.
@@ -13,9 +13,9 @@ const lengths = Array.from({ length: 8 }, (_, i) => 2 ** i).flatMap(d => [
     { units: 128 / d, text: String(d) }, ...(d < 128 ? [{ units: 192 / d, text: d + '.' }] : [])
 ]).sort((a, b) => b.units - a.units);
 /** Rational arithmetic keeps odd ticks and decimal multipliers exact in MML. */
-function scaledDuration(symbol, units, multiplier) {
+function scaledDuration(symbol, units, multiplier, tempoRatio = 1, restTempo = 1) {
     const [decimal, exponent = '0'] = String(multiplier).toLowerCase().split('e'), digits = decimal.replace('.', ''), places = (decimal.split('.')[1]?.length ?? 0) - Number(exponent);
-    let numerator = BigInt(units) * 10n ** BigInt(Math.max(0, places)), denominator = 128n * BigInt(digits) * 10n ** BigInt(Math.max(0, -places));
+    let numerator = BigInt(units) * 10n ** BigInt(Math.max(0, places)) * BigInt(restTempo), denominator = 128n * BigInt(digits) * 10n ** BigInt(Math.max(0, -places)) * BigInt(tempoRatio);
     const parts = [], gcd = (a, b) => b ? gcd(b, a % b) : a;
     const subtract = (n, d) => { numerator = numerator * d - n * denominator; denominator *= d; const g = gcd(numerator, denominator); numerator /= g; denominator /= g; };
     const single = () => { if (numerator > 0n && denominator % numerator === 0n) {
@@ -52,20 +52,46 @@ function duration(symbol, units, multiplier = 1) {
         }
     return parts.join(symbol === 'r' ? '' : '&');
 }
-function voice(notes, tempos, volumes, speeds, endTick) {
+/** Export-only local clock search. Every candidate uses the exact duration
+ * ratio, and includes both tempo commands and the held continuation prefix. */
+function extremeSpan(symbol, units, multiplier, bpm, tied, regular) {
+    const prefix = tied ? '&' : '', baseline = prefix + regular;
+    let best = baseline, cost = optimizeInstructions(baseline).length;
+    // Single conventional lengths suggest useful integer tempos. T32 also
+    // shortens very long tied notes that cannot fit in a single length.
+    const candidates = new Set([32, ...lengths.map(l => bpm * multiplier * l.units / units).filter(t => Number.isInteger(t) && t >= 32 && t <= 255)]);
+    for (const tempo of candidates) {
+        if (tempo === bpm)
+            continue;
+        const candidate = 't' + tempo + prefix + scaledDuration(symbol, units, multiplier, bpm, tempo) + 't' + bpm;
+        const size = optimizeInstructions(candidate).length;
+        if (size < cost) {
+            best = candidate;
+            cost = size;
+        }
+    }
+    return best;
+}
+function voice(notes, tempos, volumes, speeds, endTick, compactRests = false, extremeCompression = false) {
     const parts = [];
-    let tick = 0, event = 0, octave = -99, volume = -1;
-    const tempo = () => { while (event < tempos.length && tempos[event].tick === tick)
-        parts.push('t' + tempos[event++].bpm); };
+    let tick = 0, event = 0, octave = -99, volume = -1, bpm = 120;
+    const tempo = () => { while (event < tempos.length && tempos[event].tick === tick) {
+        bpm = tempos[event++].bpm;
+        parts.push('t' + bpm);
+    } };
     const span = (symbol, end) => {
         let continuation = false;
         while (tick < end) {
             tempo();
             const stop = Math.min(end, tempos[event]?.tick ?? Infinity, speeds.find(s => s.tick > tick)?.tick ?? Infinity);
             // & prefixes the continued note, after any tempo instruction at this tick.
-            if (continuation && symbol !== 'r')
-                parts.push('&');
-            parts.push(duration(symbol, stop - tick, speedAt(speeds, tick)));
+            const tied = continuation && symbol !== 'r';
+            const multiplier = speedAt(speeds, tick), regular = duration(symbol, stop - tick, multiplier);
+            // Local rest clocks are opt-in for ensemble files. Restore the musical
+            // tempo before any sounding note; integer ratios preserve exact elapsed time.
+            const compressed = compactRests && symbol === 'r' && bpm > 32 ? 't32' + scaledDuration('r', stop - tick, multiplier, bpm, 32) + 't' + bpm : regular;
+            const ordinary = compressed.length < regular.length ? compressed : regular;
+            parts.push(extremeCompression ? extremeSpan(symbol, stop - tick, multiplier, bpm, tied, ordinary) : (tied ? '&' : '') + ordinary);
             tick = stop;
             continuation = true;
         }
@@ -86,13 +112,20 @@ function voice(notes, tempos, volumes, speeds, endTick) {
     }
     if (endTick !== undefined)
         span('r', endTick);
-    return optimizeInstructions(parts.join(''));
+    let result = optimizeInstructions(parts.join(''));
+    if (!extremeCompression)
+        return result;
+    result = removeSupersededTempos(result);
+    // L defaults are optimized over a whole channel, so a locally shorter span
+    // is accepted only when the final channel is shorter too.
+    const ordinary = voice(notes, tempos, volumes, speeds, endTick, compactRests, false);
+    return result.length < ordinary.length ? result : ordinary;
 }
 export function generateMml(project, index, source = project.notes.filter(n => n.instrument === index), tempos = tempoMap(project.notes, false), options = {}) {
     if (project.notes.some(n => project.instruments[n.instrument]?.isInstructions && (n.loopEntry || n.loopExit))) {
         const expanded = expandLoops(project);
         if (expanded.project !== project) {
-            const result = generateMml(expanded.project, index, undefined, undefined, { endTick: expanded.end });
+            const result = generateMml(expanded.project, index, undefined, undefined, { endTick: expanded.end, compactRests: options.compactRests, extremeCompression: options.extremeCompression });
             result.warnings.push(...expanded.warnings);
             return result;
         }
@@ -117,7 +150,7 @@ export function generateMml(project, index, source = project.notes.filter(n => n
     const lanes = partitionChannels(notes);
     if (!lanes.length && options.endTick)
         lanes.push([]);
-    const channels = lanes.map(lane => voice(lane, tempos, volumes, options.speeds ?? speedMap(project.notes), options.endTick));
+    const channels = lanes.map(lane => voice(lane, tempos, volumes, options.speeds ?? speedMap(project.notes), options.endTick, options.compactRests, options.extremeCompression));
     if (channels.some(c => [...c.matchAll(/[a-gr][+-]?(\d+)/g)].some(m => Number(m[1]) > 128)))
         warnings.push('Speed simulation requires lengths finer than 1/128. Exact denominators are retained; verify support in the target player.');
     if (overlap)

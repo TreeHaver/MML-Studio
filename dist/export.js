@@ -3,6 +3,7 @@ import { exportSegments } from './music/structure.js';
 import { playbackSettings } from './playback/transport.js';
 import { state, isMuted } from './state.js';
 import { createSheetPlanner, ms2Xml } from './music/sheets.js';
+import { createLazyEnsemble } from './music/lazy-ensemble.js';
 import { compilePlayback } from './playback/midi.js';
 import { $, status } from './dom.js';
 import { sheetSettings, setCharacterLimit } from './sheet-settings.js';
@@ -48,7 +49,7 @@ export function installExport() {
         ms2mml: { ext: '.ms2mml', render: channels => ms2Xml(channels) },
         text: { ext: '.txt', render: channels => channels.join(SEPARATOR) + '\n' }
     };
-    const FORMATS = ['ms2mml', 'text', 'midi', 'audio'];
+    const FORMATS = ['ms2mml', 'lazy', 'text', 'midi', 'audio'];
     // Loose files are ready to load in game; an archive is one attachment to send. Neither is
     // right for everyone, so the choice is offered once and kept.
     const zipKey = 'mml-studio-export-zip';
@@ -67,7 +68,10 @@ export function installExport() {
         const format = chosenFormat(), audio = format === 'audio', performance = audio || format === 'midi';
         // Unticked means the whole project, so the hint says what that means for this format.
         $('export-scope-hint').textContent = audio ? 'Left unticked, every instrument is rendered into one recording, with loops, playback speed, volume, mute and solo as you have them.' : performance ? 'Left unticked, all instruments share one MIDI performance.' : 'Left unticked, each instrument is written as its own sheet: a band loads one file per player.';
-        $('export-section-options').hidden = audio;
+        if (format === 'lazy')
+            $('export-scope-hint').textContent = `Combine the exported notes into one sound. Up to 10 players start at zero on the same timeline, with at most 10 channels and ${sheetSettings.limit.toLocaleString()} characters per player.`;
+        $('export-compression-options').hidden = performance;
+        $('export-section-options').hidden = audio || format === 'lazy';
         $('export-zip-options').hidden = audio;
     };
     for (const format of FORMATS)
@@ -87,7 +91,7 @@ export function installExport() {
         action.disabled = true;
         dialog.close();
         try {
-            const format = chosenFormat();
+            const format = chosenFormat(), extremeCompression = !!$('export-extreme').checked;
             const project = structuredClone(state.project), limit = sheetSettings.limit;
             if (format === 'audio') {
                 const active = state.active, range = state.segment?.projection.range;
@@ -111,11 +115,12 @@ export function installExport() {
                 return;
             }
             const indexes = projectExport ? project.instruments.map((_, i) => i) : [state.active];
-            const separate = !state.segment && $('export-sections').checked;
+            const separate = format !== 'lazy' && !state.segment && $('export-sections').checked;
             const segments = exportSegments(separate ? expandLoops(project).project : project, separate);
             const prefixed = (segmentName, stem) => { const prefix = state.segment?.projection.range.name ?? segmentName; return (prefix ? prefix + '-' : '') + stem; };
             // Every file is worked out first: how they are delivered depends on how many there are.
             const files = [];
+            let exportWarnings = '';
             // MIDI is a performance rather than a sheet: one file per scope, and no character limit.
             if (format === 'midi') {
                 for (const segment of segments) {
@@ -132,13 +137,24 @@ export function installExport() {
                     return;
                 }
             }
+            else if (format === 'lazy') {
+                const range = state.segment?.projection.range;
+                const ensemble = createLazyEnsemble(project, indexes, range ? range.end - range.start : 0, extremeCompression, limit);
+                const name = prefixed('', projectExport ? (project.name?.trim() || 'Project') : project.instruments[state.active].name);
+                ensemble.parts.forEach((part, i) => files.push({ name: `${name}-Lazy-Ensemble-${String(i + 1).padStart(2, '0')}.ms2mml`, text: ms2Xml(part.channels) }));
+                if (!files.length) {
+                    status('No musical MML to export.');
+                    return;
+                }
+                exportWarnings = ensemble.warnings.length ? ' ' + ensemble.warnings.join(' ') : '';
+            }
             else {
                 const { ext, render } = sheetFormats[format] ?? sheetFormats.ms2mml;
                 for (const segment of segments)
                     for (const index of indexes) {
                         if (segment.project.instruments[index].isInstructions || !segment.project.notes.some(n => n.instrument === index))
                             continue;
-                        const plan = createSheetPlanner(segment.project, index, limit), name = prefixed(segment.name, project.instruments[index].name);
+                        const plan = createSheetPlanner(segment.project, index, limit, extremeCompression), name = prefixed(segment.name, project.instruments[index].name);
                         if (!plan.whole.channels.length)
                             continue;
                         const choice = plan.whole.bytes > limit ? await choose(name, plan.whole.bytes, limit) : 'single';
@@ -164,12 +180,12 @@ export function installExport() {
             if (files.length === 1) {
                 const only = files[0];
                 const save = only.bytes ? window.files.exportMidi : format === 'text' ? window.files.exportText : window.files.exportMml;
-                status(await save(only.name, only.bytes ?? only.text) ? `Exported ${only.name}.` : 'Export canceled.');
+                status(await save(only.name, only.bytes ?? only.text) ? `Exported ${only.name}.${exportWarnings}` : 'Export canceled.');
                 return;
             }
             const bundle = projectExport ? (project.name?.trim() || 'Project') : (project.instruments[state.active]?.name || 'Instrument');
             const target = asZip() ? await window.files.exportZip(bundle, files) : await window.files.exportFolder(bundle, files);
-            status(target ? `Exported ${files.length} files to ${target}.` : 'Export canceled.');
+            status(target ? `Exported ${files.length} files to ${target}.${exportWarnings}` : 'Export canceled.');
         }
         catch (error) {
             status('Export failed: ' + error);

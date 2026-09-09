@@ -4,11 +4,11 @@ const {app,dialog}=require('electron'),fs=require('node:fs'),path=require('node:
 fs.mkdirSync('.validation',{recursive:true});
 const root=fs.mkdtempSync(path.resolve('.validation/export-formats-'));
 app.setPath('userData',path.join(root,'profile'));app.disableHardwareAcceleration();
-let started=false,stage='startup';const written=[],checks=[];
+let started=false,stage='startup',destinationCalls=0;const written=[],checks=[];
 const timer=setTimeout(()=>finish(Error('Timed out: '+stage)),40000);
 function finish(error){clearTimeout(timer);fs.writeFileSync('.validation/electron-export-formats.json',JSON.stringify({passed:!error,error:error?.stack,stage,checks},null,2));app.exit(error?1:0);}
-dialog.showSaveDialog=async(_,options)=>{const filePath=path.join(root,path.basename(options.defaultPath));written.push(filePath);return {canceled:false,filePath};};
-dialog.showOpenDialog=async()=>({canceled:false,filePaths:[root]});
+dialog.showSaveDialog=async(_,options)=>{destinationCalls++;const filePath=path.join(root,path.basename(options.defaultPath));written.push(filePath);return {canceled:false,filePath};};
+dialog.showOpenDialog=async()=>{destinationCalls++;return {canceled:false,filePaths:[root]};};
 app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.webContents.once('did-finish-load',async()=>{try{
  const evaluate=code=>{stage=code;return win.webContents.executeJavaScript(code,true);};
  const settle=()=>evaluate(`new Promise(r=>{const done=()=>r(1);requestAnimationFrame(()=>requestAnimationFrame(done));setTimeout(done,150);})`);
@@ -24,7 +24,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  assert.equal(await evaluate(`document.getElementById('export-dialog').open`),true,'Export opens a dialog');
  assert.equal(await evaluate(`document.getElementById('export-run').textContent`),'Export','One action, so it is obvious which button exports');
  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.export-format input')].map(i=>i.id)`),
-  ['format-ms2mml','format-text','format-midi','format-audio']);
+  ['format-ms2mml','format-lazy','format-text','format-midi','format-audio']);
  assert.equal(await evaluate(`document.getElementById('format-ms2mml').checked`),true,'MS2MML is the default format');
  await evaluate(`document.getElementById('export-cancel').click()`);await settle();
  assert.equal(await evaluate(`document.getElementById('export-dialog').open`),false,'Cancel closes the dialog');
@@ -45,6 +45,43 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  assert.match(files[1].bytes.toString('utf8'),/^t120/,'The text file holds the instrument MML');
  assert.equal(files[2].bytes.slice(0,4).toString('ascii'),'MThd','MIDI export writes a standard MIDI header');
  checks.push({files:files.map(f=>({name:f.name,size:f.bytes.length}))});
+
+ await evaluate(`window.originalNotes=structuredClone(s.project.notes);s.project.notes=Array.from({length:11},(_,i)=>({id:i+1,instrument:0,start:64,length:32,pitch:60+i,volume:9}));
+ document.getElementById('character-limit').value='5000';document.getElementById('character-limit').dispatchEvent(new Event('change'));
+ document.getElementById('export-sections').checked=true;document.getElementById('format-lazy').checked=true;document.getElementById('format-lazy').dispatchEvent(new Event('change'));`);
+ assert.equal(await evaluate(`document.getElementById('export-section-options').hidden`),true);
+ assert.match(await evaluate(`document.getElementById('export-scope-hint').textContent`),/5.?000 characters/);
+ assert.match(await exportWith('format-lazy',true),/Exported 2 files/);
+ const lazyFiles=fs.readdirSync(root,{recursive:true}).filter(f=>String(f).includes('Lazy-Ensemble')&&String(f).endsWith('.ms2mml'));
+ assert.equal(lazyFiles.length,2);
+ let lazyChannels=0;
+ for(const file of lazyFiles){const xml=fs.readFileSync(path.join(root,file),'utf8'),channels=[...xml.matchAll(/<!\[CDATA\[([^]*?)\]\]>/g)].map(m=>m[1]);assert.ok(channels.length<=10);assert.ok(channels.join('').length<=10000);assert.ok(channels.every(c=>/^t120r/.test(c)),'every file preserves its leading silence');lazyChannels+=channels.length;}
+ assert.equal(lazyChannels,11);
+ assert.equal(await evaluate(`s.project.notes.length`),11,'export leaves notes intact');
+ checks.push({lazyFiles,lazyChannels});
+ const destinationsBefore=destinationCalls;
+ await evaluate(`s.project.notes=Array.from({length:101},(_,i)=>({id:i+1,instrument:0,start:0,length:32,pitch:60+i%12,volume:9}));`);
+ assert.match(await exportWith('format-lazy',true),/could not fit the music on 10 players/);
+ assert.equal(destinationCalls,destinationsBefore,'failed packing never opens a destination or starts saving');
+ assert.equal(await evaluate(`document.getElementById('export-run').disabled`),false);
+ checks.push({lazyLimit:5000,playerLimitRejected:true,noSaveOnFailure:true});
+ await evaluate(`s.project.notes=window.originalNotes;commands.refresh();`);
+
+ assert.equal(await evaluate(`document.getElementById('export-extreme').checked`),false,'extreme compression is opt-in');
+ await evaluate(`s.project.notes=[{id:1,instrument:0,start:0,length:24000,pitch:60,volume:9}];commands.refresh();
+ document.getElementById('export-sections').checked=false;document.getElementById('export-extreme').checked=true;
+ document.getElementById('format-ms2mml').checked=true;document.getElementById('format-ms2mml').dispatchEvent(new Event('change'));`);
+ assert.equal(await evaluate(`document.getElementById('export-compression-options').hidden`),false);
+ const originalMml=await evaluate(`import('./dist/music/mml.js').then(m=>m.generateMml(s.project,0).channels.join(''))`);
+ assert.match(await exportWith('format-ms2mml',false),/Exported Piano\.ms2mml/);
+ const extremeXml=fs.readFileSync(path.join(root,'Piano.ms2mml'),'utf8'),extreme=[...extremeXml.matchAll(/<!\[CDATA\[([^]*?)\]\]>/g)].map(m=>m[1]).join('');
+ assert.ok(extreme.length<originalMml.length);assert.match(extreme,/t32/);
+ assert.equal(await evaluate(`import('./dist/music/mml.js').then(m=>m.generateMml(s.project,0).channels.join(''))`),originalMml,'editor MML and its count remain ordinary');
+ assert.equal(await evaluate(`s.project.notes[0].length`),24000);
+ await evaluate(`document.getElementById('format-midi').checked=true;document.getElementById('format-midi').dispatchEvent(new Event('change'));`);
+ assert.equal(await evaluate(`document.getElementById('export-compression-options').hidden`),true);
+ checks.push({extremeCompression:{ordinary:originalMml.length,saved:extreme.length}});
+ await evaluate(`s.project.notes=window.originalNotes;document.getElementById('export-extreme').checked=false;commands.refresh();`);
 
  // Chromium's colour dialog is an OS window; the swatch opens our own picker instead,
  // which must still reach every colour, not only the presets.
