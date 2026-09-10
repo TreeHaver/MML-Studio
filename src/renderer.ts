@@ -1,3 +1,4 @@
+import {installHorizontalScroll} from './horizontal-scroll.ts';
 import {installPlayback} from './playback/transport.ts';
 import {installSegmentView} from './segment-view.ts';
 import {installChrome} from './chrome.ts';
@@ -23,6 +24,7 @@ import {installExport} from './export.ts';
 // Composition root: wire modules once, then initialize the editor.
 
 installPointer();
+installHorizontalScroll();
 installChrome();
 installTools();
 installToolbar();

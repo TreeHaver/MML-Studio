@@ -1,3 +1,5 @@
+import {refreshHorizontalScroll} from './horizontal-scroll.ts';
+import {refreshScrollMarkers} from './scroll-markers.ts';
 import {drawCrowdedRegions,drawCrowdedMarkers,drawOverlapMarkers} from './rendering/note-density.ts';
 import {refreshSignature} from './toolbar.ts';
 import {refreshSegmentControls,drawSegmentBoundary} from './segment-view.ts';
@@ -16,9 +18,9 @@ import {drawKeyboard} from './rendering/keyboard.ts';
 import {drawInstructionLines,drawLoopRegions,drawTempoMarkers} from './rendering/tempo.ts';
 
 export function draw(){
- syncPlaybackControls();
- refreshSignature();
- refreshSegmentControls();
+ refreshHorizontalScroll();
+ const moving=!!state.gesture?.movePreview;
+ if(!moving){syncPlaybackControls();refreshSignature();refreshSegmentControls();refreshScrollMarkers();}
  const {width,height}=state;
  ctx.clearRect(0,0,width,height);
  ctx.fillStyle=palette.background;
@@ -29,19 +31,19 @@ export function draw(){
  ctx.clip();
  drawGrid();
  drawLoopSpan();
- drawLoopRegions();
+ if(!moving)drawLoopRegions();
  drawInstructionLines();
- drawCrowdedRegions();
+ if(!moving)drawCrowdedRegions();
  drawNotes();
- drawOverlapMarkers();
+ if(!moving)drawOverlapMarkers();
  ctx.restore();
  drawRuler();
  drawLoopBar();
- drawCrowdedMarkers();
+ if(!moving)drawCrowdedMarkers();
  drawKeyboard();
- drawTempoMarkers();
+ if(!moving)drawTempoMarkers();
  drawSegmentBoundary();
- drawSheetLimit();
+ if(!moving)drawSheetLimit();
  if(playback.tick!==null){
   const x=KEY+playback.tick*state.zoom-view.scrollLeft;
   ctx.save();ctx.beginPath();ctx.rect(KEY,HEAD,width-KEY,height-HEAD);ctx.clip();

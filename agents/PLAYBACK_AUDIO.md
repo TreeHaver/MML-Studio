@@ -2,6 +2,8 @@
 
 Preview and recording use the bundled **TimGM6mb.sf2** bank and pinned SpessaSynth core. The desktop loads local assets through main/preload IPC; no MIDI device or runtime network is needed. [PROJECT_MAP.md](PROJECT_MAP.md) links each audio owner and its tests.
 
+The time beside BPM shows elapsed / total (for example, 0:01 / 2:10), including before playback. It uses the current Project, Song or Segment performance, including tempo changes, Speed Multipliers, saved loop repeats and silence through the view endpoint. Playback speed scales both times. A rehearsal loop retains the finite performance duration rather than displaying an infinite repeat total. Times use whole seconds, with hours when needed.
+
 ## Live playback and key preview
 
 Play/Pause/Resume uses a compiled snapshot of the active project or scoped view. Musical edits refresh that snapshot during playback and while paused, including newly drawn notes, moves, resizes, deletion, volume/tempo/multiplier edits and ordinary note Undo/Redo. Leading rests, loop expansion, global tempos, explicit/inherited V and each original note lifetime are retained. Playback follows horizontally at 75% of the visible roll, preserves vertical scroll, suspends following on Pause and leaves the viewport in place on Stop.

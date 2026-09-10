@@ -52,11 +52,11 @@ function condense(source:Note[],step:number,end:number){
 }
 
 /** Explicit, undoable timing conversion; never part of import or MML optimization. */
-export function simplifyTiming(project:Project,index:number,denominator:number,end=Infinity){
+export function simplifyTiming(project:Project,index:number,denominator:number,end=Infinity,ids?:ReadonlySet<number>){
  if(![4,8,16,32,64].includes(denominator))throw Error('Choose L4, L8, L16, L32 or L64.');
  if(project.instruments[index]?.isInstructions)return {notes:project.notes,changed:0,skipped:0};
  const step=128/denominator,down=(tick:number)=>Math.floor(tick/step)*step;
- const original=project.notes.filter(n=>n.instrument===index).sort((a,b)=>a.start-b.start||a.id-b.id);
+ const original=project.notes.filter(n=>n.instrument===index&&(!ids||ids.has(n.id))).sort((a,b)=>a.start-b.start||a.id-b.id);
  const condensed=condense(original,step,end);
  // Extend into an edge window only when its actual coverage exceeds 40%.
  const roundedStart=(n:Note)=>n.start===down(n.start)||5*Math.min(n.length,down(n.start)+step-n.start)>2*step?down(n.start):down(n.start)+step;

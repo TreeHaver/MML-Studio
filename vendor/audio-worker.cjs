@@ -16824,10 +16824,11 @@ function resolveVolumes(notes) {
 
 // src/model/instructions.ts
 var INSTRUCTIONS_NAME = "Instructions";
-var INSTRUCTIONS_COLOR = "#f4d35e";
+var INSTRUCTIONS_COLOR = "#579dff";
 function consolidateInstructions(project) {
   const first = project.instruments.findIndex((i) => i.isInstructions);
   if (first < 0) return;
+  project.instruments[first].color = INSTRUCTIONS_COLOR;
   const routes = [];
   const instruments = [];
   project.instruments.forEach((instrument, index) => {

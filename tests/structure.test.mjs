@@ -5,7 +5,7 @@ import {parse} from '../dist/model/serialization.js';
 import {measureLines,sections,exportSegments,signatureChangeTick} from '../dist/music/structure.js';
 import {generateMml} from '../dist/music/mml.js';
 import {createSheetPlanner} from '../dist/music/sheets.js';
-const fixture=()=>({...fresh(),name:'Song of Storms',instruments:[{name:'Piano',color:'#abcdef'},{name:'Flute',color:'#abcdef'},{name:'Instructions',color:'#f4d35e',isInstructions:true}],notes:[]});
+const fixture=()=>({...fresh(),name:'Song of Storms',instruments:[{name:'Piano',color:'#abcdef'},{name:'Flute',color:'#abcdef'},{name:'Instructions',color:'#579dff',isInstructions:true}],notes:[]});
 const marker=(id,start,extra={})=>({id,start,instrument:2,length:1,pitch:60,volume:0,...extra});
 const note=(id,start,length,extra={})=>({id,start,length,instrument:0,pitch:60,volume:null,...extra});
 

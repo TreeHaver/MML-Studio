@@ -1,3 +1,4 @@
+import {fitExportChannels} from '../dist/music/export-fit.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createSheetPlanner,ms2Xml} from '../dist/music/sheets.js';
@@ -156,4 +157,27 @@ test('Lazy Ensemble honors custom character limits and refuses more than ten pla
  chord.notes.push(note(100,0,32));assert.throws(()=>createLazyEnsemble(chord),/10 players/);
  assert.throws(()=>createLazyEnsemble(p,undefined,0,false,500),/10 players/,'character pressure alone can exceed the player limit');
  for(const bad of [0,-1,1.5,Infinity,NaN])assert.throws(()=>createLazyEnsemble(p,undefined,0,false,bad),/positive whole number/);
+});
+
+test('export fitting tries held notes first, then complexity two, and never edits source',()=>{
+ const p=project([...Array.from({length:10},(_,i)=>note(i+1,0,i===0?128:64,60+i,8)),note(20,32,8,60,8)]),before=JSON.stringify(p);
+ const fitted=fitExportChannels(p,0);assert.equal(fitted.shortened,1);assert.equal(fitted.removed,0);
+ assert.equal(fitted.project.notes.find(n=>n.id===1).length,32);assert.equal(JSON.stringify(p),before);
+ const plan=createSheetPlanner(fitted.project,0,10000,false,createSheetPlanner(p,0,10000).end);
+ assert.equal(plan.whole.channels.length,10);assert.ok(plan.whole.channels.map(read).every(c=>c.tick===128));
+ const chord=project(Array.from({length:11},(_,i)=>note(i+1,0,32,60+i,8)));
+ const simpler=fitExportChannels(chord,0);assert.equal(simpler.shortened,0);assert.equal(simpler.removed,9);
+ assert.deepEqual(simpler.project.notes.map(n=>n.pitch),[60,70]);
+ assert.equal(fitExportChannels(simpler.project,0).project,simpler.project);
+});
+test('export fitting rejects irreducible unequal-duration fresh notes without changing input',()=>{
+ const p=project(Array.from({length:11},(_,i)=>note(i+1,0,32+i,60+i,8))),before=JSON.stringify(p);
+ assert.throws(()=>fitExportChannels(p,0),/still requires 11 channels.*complexity 2/);assert.equal(JSON.stringify(p),before);
+});
+test('export fitting expands loops before verifying final channel counts and padding',()=>{
+ const p=project([...Array.from({length:11},(_,i)=>note(i+1,0,32,60+i,8)),{...note(30,0,1,60,0,null,1),loopEntry:true},{...note(31,32,1,60,0,null,1),loopExit:true,loopCount:2}]);
+ const before=JSON.stringify(p),original=createSheetPlanner(p,0,10000),fitted=fitExportChannels(p,0);
+ const plan=createSheetPlanner(fitted.project,0,10000,false,original.end);
+ assert.ok(plan.whole.channels.length<=10);assert.ok(plan.whole.channels.map(read).every(c=>c.tick===original.end));assert.equal(JSON.stringify(p),before);
+ for(const part of createSheetPlanner(fitted.project,0,30,false,original.end).split())assert.ok(part.channels.length<=10);
 });

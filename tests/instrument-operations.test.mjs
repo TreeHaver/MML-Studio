@@ -52,7 +52,7 @@ test('MS2 drums persist, play fixed percussion keys and export only C4 without c
  p.instruments[0].ms2Drum='bass';p.instruments[0].isDrum=true;assert.throws(()=>parse(JSON.stringify(p)),/MS2 drum/);
 });
 test('Instructions cannot be deleted or merged; deleting the last musical lane retains its events',()=>{
- const p=fixture();p.instruments=p.instruments.slice(0,2);p.instruments[1].isInstructions=true;
+ const p=fixture();p.instruments=p.instruments.slice(0,2);p.instruments[1].isInstructions=true;p.instruments[1].color="#579dff";
  p.notes=p.notes.filter(n=>n.instrument<2);p.notes[1].tempo=90;
  assert.throws(()=>deleteInstrument(p,1),/permanent lane/);
  assert.throws(()=>mergeInstruments(p,0,1),/silent Instructions/);
@@ -122,7 +122,7 @@ test('nothing leaves the V0 to V15 range, however far it is pushed',()=>{
     {id:1,instrument:0,start:0,length:8,pitch:60,volume:2},
     {id:2,instrument:0,start:8,length:8,pitch:62,volume:14}]}));
   const up={...project,notes:shiftInstrumentVolumes(project,0,99)};
-  assert.deepEqual(up.notes.map(n=>n.volume),[15,15],'clamped, and the difference is lost - which is why the interface refuses this step');
+  assert.deepEqual(up.notes.map(n=>n.volume),[15,15],'clamped, and the difference is lost - the interface warns but permits this step');
   const down={...project,notes:shiftInstrumentVolumes(project,0,-99)};
   assert.deepEqual(down.notes.map(n=>n.volume),[0,0]);
   assert.equal(shiftInstrumentVolumes(project,0,0),project.notes,'no amount, no work');
@@ -160,4 +160,10 @@ test('the silent Instructions lane is left out of the reading and the move',()=>
   assert.equal(projectVolumes(project).min,6,'the V0 marker is not the quietest note, it is an instruction');
   const raised={...project,notes:shiftProjectVolumes(project,2)};
   assert.deepEqual(raised.notes.map(n=>n.volume),[8,0],'the instruction keeps its V0');
+});
+
+test('instrument volume shifts inherited default notes before later explicit carriers',()=>{
+ const project={...fixture(),notes:[{id:1,instrument:0,start:0,length:8,pitch:60,volume:null},{id:2,instrument:0,start:8,length:8,pitch:62,volume:14}]};
+ const raised={...project,notes:shiftInstrumentVolumes(project,0,5)};
+ assert.deepEqual(raised.notes.map(n=>volumeAt(raised,n)),[13,15]);
 });

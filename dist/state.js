@@ -6,6 +6,17 @@ export function isMuted(index) { return !state.project.instruments[index]?.isIns
 export function resetInstrumentView() { state.selectedInstruments.clear(); instrumentView.mmlEpoch++; instrumentView.muted.clear(); instrumentView.collapsed.clear(); instrumentView.solo = null; }
 // The active instrument always participates; additional lanes are session selection only.
 export function instrumentSelected(index) { return index === state.active || (!state.project.instruments[state.active]?.isInstructions && state.selectedInstruments.has(index) && !state.project.instruments[index]?.isInstructions); }
+/** Promote an existing selection member without removing any selected notes/lanes. */
+export function promoteInstrument(index) {
+    if (state.gesture || !instrumentSelected(index) || state.project.instruments[index]?.isInstructions)
+        return;
+    const group = new Set(state.selectedInstruments);
+    group.add(state.active);
+    group.delete(index);
+    group.add(index);
+    state.active = index;
+    state.selectedInstruments = group.size > 1 ? group : new Set();
+}
 /** Set insertion order is the selection stack; its last entry is the main lane.
  * An empty set is the existing single-active-lane reset convention. */
 export function selectInstrument(index, toggle = false, range = false) {

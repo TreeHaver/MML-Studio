@@ -87,7 +87,11 @@ export function shiftInstrumentVolumes(project:Project,index:number,delta:number
   const first=mine.reduce((a,b)=>a.start<b.start||(a.start===b.start&&a.id<b.id)?a:b);
   return project.notes.map(n=>n.id===first.id?{...n,volume:clampVolume(volumeAt(project,n)+delta)}:n);
  }
- return project.notes.map(n=>n.instrument===index&&n.volume!==null?{...n,volume:clampVolume(n.volume+delta)}:n);
+ let notes=project.notes.map(n=>n.instrument===index&&n.volume!==null?{...n,volume:clampVolume(n.volume+delta)}:n);
+ const before=resolveVolumes(project.notes),after=resolveVolumes(notes);
+ // Notes before the first explicit carrier still need their default V shifted.
+ notes=notes.map(n=>n.instrument===index&&n.volume===null&&after.get(n.id)!==clampVolume(before.get(n.id)!+delta)?{...n,volume:clampVolume(before.get(n.id)!+delta)}:n);
+ return notes;
 }
 
 /** The musical instruments, which is everything except the silent Instructions lane. */

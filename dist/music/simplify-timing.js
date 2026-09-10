@@ -61,13 +61,13 @@ function condense(source, step, end) {
     return { source: source.filter(n => !removed.has(n.id)).map(n => replacements.get(n.id) ?? n).sort((a, b) => a.start - b.start || a.id - b.id), removed };
 }
 /** Explicit, undoable timing conversion; never part of import or MML optimization. */
-export function simplifyTiming(project, index, denominator, end = Infinity) {
+export function simplifyTiming(project, index, denominator, end = Infinity, ids) {
     if (![4, 8, 16, 32, 64].includes(denominator))
         throw Error('Choose L4, L8, L16, L32 or L64.');
     if (project.instruments[index]?.isInstructions)
         return { notes: project.notes, changed: 0, skipped: 0 };
     const step = 128 / denominator, down = (tick) => Math.floor(tick / step) * step;
-    const original = project.notes.filter(n => n.instrument === index).sort((a, b) => a.start - b.start || a.id - b.id);
+    const original = project.notes.filter(n => n.instrument === index && (!ids || ids.has(n.id))).sort((a, b) => a.start - b.start || a.id - b.id);
     const condensed = condense(original, step, end);
     // Extend into an edge window only when its actual coverage exceeds 40%.
     const roundedStart = (n) => n.start === down(n.start) || 5 * Math.min(n.length, down(n.start) + step - n.start) > 2 * step ? down(n.start) : down(n.start) + step;

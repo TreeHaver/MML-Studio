@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {hasOverlappingNotes,crowdedRegions,overlapLocations} from '../dist/music/note-density.js';
+import {hasOverlappingNotes,crowdedRegions,crowdedRegionCounts,overlapLocations,sustainedOverlapSpans} from '../dist/music/note-density.js';
 import {generateMml} from '../dist/music/mml.js';
 import {projectSegment,mergeSegment} from '../dist/model/segment-view.js';
 import {parse} from '../dist/model/serialization.js';
@@ -19,7 +19,7 @@ test('clipped and loop-restarted same-pitch notes warn without correcting or rej
  assert.deepEqual(parse(JSON.stringify(scoped)),scoped);assert.doesNotThrow(()=>compilePlayback(scoped));
  assert.deepEqual(mergeSegment(p,projection,scoped,scoped.instruments.map((_,i)=>i<p.instruments.length?i:-1)).notes,p.notes);
  assert.deepEqual(p,before);
- p.instruments.push({name:'Instructions',color:'#f4d35e',isInstructions:true});
+ p.instruments.push({name:'Instructions',color:'#579dff',isInstructions:true});
  p.notes.push({...note(3,32,1,60,1),loopEntry:true,loopCount:2},{...note(4,64,1,60,1),loopExit:true});
  const loopBefore=structuredClone(p),loopMml=generateMml(p,0);
  assert.match(loopMml.warnings.join(' '),/Overlapping notes/);assert.equal(loopMml.channels.length,2);
@@ -51,4 +51,27 @@ test('yellow regions identify strictly more than ten sounding notes, with exact 
  assert.deepEqual(crowdedRegions([...base,note(11,20,10),note(12,30,10),note(13,70,20)]),[{start:20,end:40},{start:70,end:90}]);
  assert.deepEqual(crowdedRegions([...base,note(11,100,10)]),[]);
  assert.deepEqual(crowdedRegions([...base,note(11,20,50),note(12,30,20)]),[{start:20,end:70}]);
+});
+
+test('crowded area count reports the peak and resets between half-open areas',()=>{
+ const base=Array.from({length:11},(_,i)=>note(i+1,0,20,60+i));
+ const notes=[...base,note(12,4,4),note(13,8,2),...base.map(n=>({...n,id:n.id+20,start:30}))];
+ assert.deepEqual(crowdedRegionCounts(notes),[{start:0,end:20,peak:12},{start:30,end:50,peak:11}]);
+});
+
+test('sustained rails identify shared lifetimes without confusing duplicates, chords or owners',()=>{
+ const notes=[note(1,0,100),note(2,20,10),note(3,40,30),note(4,50,40),note(5,100,10),note(6,0,100,64),note(7,0,100,60,1)];
+ const before=structuredClone(notes);
+ assert.deepEqual(sustainedOverlapSpans(notes),[{instrument:0,pitch:60,start:20,end:30},{instrument:0,pitch:60,start:40,end:90}]);
+ assert.deepEqual(notes,before);
+ assert.deepEqual(sustainedOverlapSpans([note(1,0,100),note(2,0,30)]),[]);
+ assert.deepEqual(sustainedOverlapSpans([note(1,0,100),note(2,0,30),note(3,50,100)]),[{instrument:0,pitch:60,start:50,end:100}]);
+});
+test('sustained spans match independent per-tick distinct-onset coverage',()=>{
+ const notes=Array.from({length:180},(_,i)=>note(i,(i*37)%200,1+(i*19)%50,60+i%3,i%2));
+ const spans=sustainedOverlapSpans(notes);
+ for(let instrument=0;instrument<2;instrument++)for(let pitch=60;pitch<63;pitch++)for(let tick=0;tick<250;tick++){
+  const starts=new Set(notes.filter(n=>n.instrument===instrument&&n.pitch===pitch&&n.start<=tick&&tick<n.start+n.length).map(n=>n.start));
+  assert.equal(spans.some(s=>s.instrument===instrument&&s.pitch===pitch&&s.start<=tick&&tick<s.end),starts.size>1);
+ }
 });

@@ -1,3 +1,4 @@
+import { installHorizontalScroll } from './horizontal-scroll.js';
 import { installPlayback } from './playback/transport.js';
 import { installSegmentView } from './segment-view.js';
 import { installChrome } from './chrome.js';
@@ -22,6 +23,7 @@ import { installFileDrop } from './drop-files.js';
 import { installExport } from './export.js';
 // Composition root: wire modules once, then initialize the editor.
 installPointer();
+installHorizontalScroll();
 installChrome();
 installTools();
 installToolbar();

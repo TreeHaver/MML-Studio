@@ -31,5 +31,25 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  assert.ok(fs.statSync(archive).size>100,'The archive holds the parts');
  assert.equal(fs.readFileSync(archive).subarray(0,2).toString('ascii'),'PK','It is a zip container');
  assert.match(await evaluate(`document.getElementById('status').textContent`),/^Exported/);
+ // Channel overflow choices use a native HTML dialog and the real export IPC.
+ await evaluate(`document.getElementById('export-zip').checked=false;const limit=document.getElementById('character-limit');limit.value='10000';limit.dispatchEvent(new Event('change'));s.project.notes=Array.from({length:11},(_,i)=>({id:i+1,instrument:0,start:0,length:32,pitch:60+i,volume:8}));s.selection=new Set([1]);refresh();`);
+ const sourceBefore=await evaluate('JSON.stringify([s.project,s.history,s.dirty])'),writeCount=written.length;
+ await evaluate(`document.getElementById('export-run').click()`);
+ assert.equal(await evaluate(`document.getElementById('export-channel-dialog').open`),true);
+ assert.match(await evaluate(`document.getElementById('export-channel-message').textContent`),/11 channels/);
+ await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
+ fs.writeFileSync('.validation/electron-export-channels.png',(await win.webContents.capturePage()).toPNG());
+ await evaluate(`document.getElementById('export-channel-cancel').click();new Promise(r=>setTimeout(r,50))`);assert.equal(written.length,writeCount);
+ await evaluate(`document.getElementById('export-run').click();document.getElementById('export-channel-dialog').dispatchEvent(new Event('cancel',{cancelable:true}));new Promise(r=>setTimeout(r,50))`);assert.equal(written.length,writeCount);
+ await evaluate(`document.getElementById('export-run').click();document.getElementById('export-channel-continue').click();new Promise(r=>setTimeout(r,100))`);
+ assert.equal(written.length,writeCount+1);assert.equal((fs.readFileSync(written.at(-1),'utf8').match(/CDATA/g)||[]).length,11);
+ await evaluate(`document.getElementById('export-run').click();document.getElementById('export-channel-fit').click();new Promise(r=>setTimeout(r,100))`);
+ assert.equal(written.length,writeCount+2);assert.equal((fs.readFileSync(written.at(-1),'utf8').match(/CDATA/g)||[]).length,2);
+ assert.equal(await evaluate('JSON.stringify([s.project,s.history,s.dirty])'),sourceBefore);
+ await evaluate(`document.getElementById('format-text').checked=true;document.getElementById('export-run').click();document.getElementById('export-channel-fit').click();new Promise(r=>setTimeout(r,100))`);
+ assert.equal(written.length,writeCount+3);assert.match(written.at(-1),/\.txt$/);assert.equal(fs.readFileSync(written.at(-1),'utf8').trim().split('\n\n').length,2);
+ await evaluate(`s.project.notes=s.project.notes.map((n,i)=>({...n,length:32+i}));document.getElementById('export-run').click();document.getElementById('export-channel-fit').click();new Promise(r=>setTimeout(r,100))`);
+ assert.equal(written.length,writeCount+3);assert.match(await evaluate(`document.getElementById('status').textContent`),/Export failed:.*still requires 11 channels/);
+ assert.equal(await evaluate(`document.getElementById('export-run').disabled`),false);
  stage='completed native canvas, setting persistence, dialog choices and IPC file writes (save picker stubbed)';finish();
  }catch(error){finish(error);}});});require('../main.cjs');

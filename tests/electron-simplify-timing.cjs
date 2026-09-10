@@ -32,6 +32,14 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
   assert.equal(await evaluate(`testState.project.version`),2);
   evidence.cases.push({name:fixture.name,actual,undoRedo:changed});
  }
+
+ await evaluate(`testState.project.instruments=[{name:'A',color:'#abcdef'},{name:'B',color:'#77baff'},{name:'Outside',color:'#ff9c33'}];testState.project.notes=[0,1,2].flatMap(instrument=>[{id:instrument*2+1,instrument,start:0,length:4,pitch:60,volume:8},{id:instrument*2+2,instrument,start:4,length:4,pitch:62,volume:8}]);testState.active=0;testState.selectedInstruments=new Set([1,0]);testState.selection.clear();testState.history=[];testState.future=[];testRefresh();`);
+ assert.deepEqual(await evaluate(`import('./dist/tools.js').then(({toolTargets})=>toolTargets().map(n=>n.instrument))`),[0,0,1,1]);
+ await evaluate(`document.getElementById('simplify-length').value='16';document.getElementById('simplify-timing').click();`);
+ assert.deepEqual(await evaluate(`testState.project.notes.map(n=>[n.instrument,n.start,n.length])`),[[0,0,8],[1,0,8],[2,0,4],[2,4,4]]);
+ assert.deepEqual(await evaluate(`[testState.history.length,testState.active,[...testState.selectedInstruments]]`),[1,0,[1,0]]);
+ await evaluate(`document.getElementById('undo').click();`);assert.equal(await evaluate(`testState.project.notes.length`),6);
+ evidence.cases.push({name:'Selected instrument stack: both selected lanes simplified, outside lane preserved, one Undo',passed:true});
  finish();
  }catch(error){finish(error);}});});
 require('../main.cjs');

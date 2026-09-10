@@ -1,16 +1,18 @@
+import { createEdgeScroll } from './edge-scroll.js';
 import { instructionCaptionHit, instructionLineHit } from './rendering/tempo.js';
 import { playbackPitch } from './playback/drums.js';
-import { anchor, point, musical, hit, edge, boxIds } from './geometry.js';
-import { layout } from './viewport.js';
+import { anchor, point, musical, hit, hits, musicalNoteHit, edge, boxIds } from './geometry.js';
+import { layout, extendDragExtent } from './viewport.js';
 import { draw } from './painting.js';
 import { info } from './inspector.js';
-import { refresh } from './commands.js';
+import { refresh, commitNotes } from './commands.js';
 import { historySnapshot, fitsCurrentView } from './segment-session.js';
 import { canvas, status, view } from './dom.js';
-import { state, isMuted } from './state.js';
+import { state, isMuted, selectInstrument, instrumentSelected, promoteInstrument } from './state.js';
+import { instruments } from './instruments.js';
 import { KEY, HEAD, threshold } from './constants.js';
 import { pitchTop, pitchAtY, pitchHeight } from './pitch-viewport.js';
-import { cellStart } from './music/timing.js';
+import { cellStart, snap } from './music/timing.js';
 import { valid } from './model/validation.js';
 import { move, resize, stretchBack } from './music/note-operations.js';
 import { previewNote } from './playback/preview.js';
@@ -20,7 +22,7 @@ import { setPastePosition } from './note-clipboard.js';
 import { advancedInstructions } from './advanced-instructions.js';
 let stopEdgeScroll = () => { };
 export function endGesture(cancel = false) { stopEdgeScroll(); if (!state.gesture)
-    return; if (cancel && state.gesture.before)
+    return; if (cancel && state.gesture.before && state.gesture.kind !== 'move')
     state.project = JSON.parse(state.gesture.before); state.gesture = null; canvas.style.cursor = 'default'; if (state.segment)
     refresh();
 else {
@@ -53,44 +55,46 @@ export function installPointer() {
     let keyGesture = null;
     let scrubbing = false, loopDrag = null;
     // Box selection scrolls both axes; moving notes scrolls horizontally near the roll edges.
-    const EDGE = 52, EDGE_SPEED = 20;
+    const edgeMotion = createEdgeScroll();
     let edgeFrame = 0, edgePoint = null;
     stopEdgeScroll = () => { if (edgeFrame)
-        cancelAnimationFrame(edgeFrame); edgeFrame = 0; edgePoint = null; };
+        cancelAnimationFrame(edgeFrame); edgeFrame = 0; edgePoint = null; edgeMotion.reset(); };
     const moveSelection = () => {
         const g = state.gesture;
         const dx = g.current.x - g.start.x + view.scrollLeft - g.scrollLeft;
         const dy = g.current.y - g.start.y + view.scrollTop - g.scrollTop;
-        const note = g.base.find((n) => n.id === g.anchor);
+        const note = g.anchorNote;
         const pitch = pitchAtY(state.topPitch, pitchTop(state.topPitch, note.pitch) + pitchHeight(note.pitch) / 2 + dy);
-        state.project.notes = move(g.base, state.selection, g.anchor, dx / state.zoom, state.project.instruments[state.active].isInstructions ? 0 : pitch - note.pitch, state.project.grid);
+        g.movePreview = { dt: snap(note.start + dx / state.zoom, state.project.grid) - note.start, dp: state.project.instruments[state.active].isInstructions ? 0 : pitch - note.pitch };
+        extendDragExtent(g.maxEnd + g.movePreview.dt);
     };
-    const edgeScroll = () => {
+    const resizeSelection = () => {
+        const g = state.gesture, dx = g.current.x - g.start.x + view.scrollLeft - g.scrollLeft, tick = musical(g.current).tick;
+        if (g.cell !== undefined && tick < g.cell)
+            state.project.notes = stretchBack(g.base, g.nid, cellStart(Math.max(0, tick), state.project.grid), g.cell + 128 / state.project.grid);
+        else
+            state.project.notes = resize(g.base, g.nid, g.length + dx / state.zoom, state.project.grid);
+        const note = state.project.notes.find(n => n.id === g.nid);
+        if (note)
+            extendDragExtent(note.start + note.length);
+    };
+    const edgeScroll = (time) => {
         const gesture = state.gesture, p = edgePoint;
-        if (!gesture || !['box', 'move'].includes(gesture.kind) || !p) {
-            edgeFrame = 0;
+        if (!gesture || !['box', 'move', 'resize'].includes(gesture.kind) || !p) {
+            stopEdgeScroll();
             return;
         }
-        const speed = (gap) => Math.round(EDGE_SPEED * Math.min(1, Math.max(0, EDGE - gap) / EDGE));
-        let dx = 0, dy = 0;
-        if (p.x < KEY + EDGE)
-            dx = -speed(p.x - KEY);
-        else if (p.x > state.width - EDGE)
-            dx = speed(state.width - p.x);
-        if (gesture.kind === 'box') {
-            if (p.y < HEAD + EDGE)
-                dy = -speed(p.y - HEAD);
-            else if (p.y > state.height - EDGE)
-                dy = speed(state.height - p.y);
-        }
+        const { dx, dy } = edgeMotion.step(p, { left: KEY, top: HEAD, right: state.width, bottom: state.height }, gesture.kind === 'box', time);
         if (dx || dy) {
             view.scrollLeft = Math.max(0, view.scrollLeft + dx);
             view.scrollTop = Math.max(0, view.scrollTop + dy);
-            if (gesture.kind === 'move') {
+            if (gesture.kind === 'move')
                 moveSelection();
-                layout();
+            else {
+                if (gesture.kind === 'resize')
+                    resizeSelection();
+                info();
             }
-            info();
             draw();
         }
         edgeFrame = requestAnimationFrame(edgeScroll);
@@ -144,7 +148,53 @@ export function installPointer() {
             }
             return;
         }
-        const marker = instructionCaptionHit(p) ?? (!hit(p) ? instructionLineHit(p) : undefined);
+        if (e.button === 0 && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+            e.preventDefault();
+            canvas.focus();
+            if (state.gesture)
+                return;
+            if (isMuted(state.active)) {
+                status('Unmute this instrument to move its notes.');
+                return;
+            }
+            const notes = state.project.notes, first = notes.filter(n => state.selection.has(n.id)).sort((a, b) => a.start - b.start || a.id - b.id)[0];
+            if (!first) {
+                status('Select notes, then Alt-click to move them to that time.');
+                return;
+            }
+            const target = cellStart(musical(p).tick, state.project.grid);
+            if (target === first.start)
+                return;
+            const moved = move(notes, state.selection, first.id, target - first.start, 0, state.project.grid);
+            if (moved === notes) {
+                status('Cannot move the selection there because its instructions would conflict.');
+                return;
+            }
+            commitNotes(moved);
+            draw();
+            return;
+        }
+        const caption = instructionCaptionHit(p);
+        let stackNote;
+        if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !caption && (state.tool === 'select' || state.project.instruments[state.active]?.isInstructions || state.selectedInstruments.size > 1)) {
+            const note = musicalNoteHit(p);
+            if (note && instrumentSelected(note.instrument) && state.selectedInstruments.size > 1) {
+                stackNote = note;
+                promoteInstrument(note.instrument);
+                state.selection.add(note.id);
+                instruments();
+            }
+            else if (note && note.instrument !== state.active && (state.tool === 'select' || state.project.instruments[state.active]?.isInstructions)) {
+                e.preventDefault();
+                canvas.focus();
+                selectInstrument(note.instrument);
+                state.selection = new Set([note.id]);
+                refresh();
+                draw();
+                return;
+            }
+        }
+        const marker = caption ?? (!hit(p) ? instructionLineHit(p) : undefined);
         if (e.button === 0 && marker && marker.instrument !== state.active) {
             advancedInstructions.enabled = true;
             state.active = marker.instrument;
@@ -160,7 +210,12 @@ export function installPointer() {
         }
         e.preventDefault();
         canvas.focus();
-        const n = hit(p);
+        const candidates = hits(p), plain = e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+        const selected = plain ? candidates.find(n => state.selection.has(n.id)) : undefined;
+        const n = stackNote ?? selected ?? candidates[0];
+        // Resolve a repeated click on release, so dragging still moves/resizes the selected note.
+        const cycle = !stackNote && plain && selected && state.selection.size === 1 && candidates.length > 1 && !state.project.instruments[selected.instrument]?.isInstructions
+            ? candidates[(candidates.indexOf(selected) + 1) % candidates.length].id : undefined;
         const add = e.ctrlKey || e.metaKey;
         const before = JSON.stringify(state.project);
         const m = musical(p);
@@ -225,9 +280,16 @@ export function installPointer() {
             state.gesture = { kind: instructions ? 'instruction-create' : spray ? 'paint' : 'resize', start: p, current: p, music: m, nid: newNote.id, before,
                 ...(spray ? { painted: new Set([`${start}:${m.pitch}`]) } : { base: structuredClone(state.project.notes), length: newNote.length, cell: start }) };
         }
-        if (state.gesture?.kind === 'move') {
+        if (state.gesture)
+            state.gesture.cycle = cycle;
+        if (state.gesture?.kind === 'resize')
             state.gesture.scrollLeft = view.scrollLeft;
-            state.gesture.scrollTop = view.scrollTop;
+        if (state.gesture?.kind === 'move') {
+            const g = state.gesture;
+            g.scrollLeft = view.scrollLeft;
+            g.scrollTop = view.scrollTop;
+            g.anchorNote = g.base.find((n) => n.id === g.anchor);
+            g.maxEnd = g.base.reduce((end, n) => state.selection.has(n.id) ? Math.max(end, n.start + n.length) : end, 0);
         }
         canvas.setPointerCapture(e.pointerId);
         info();
@@ -279,7 +341,7 @@ export function installPointer() {
             return;
         }
         state.gesture.moved = true;
-        if (state.gesture.kind === 'box' || state.gesture.kind === 'move') {
+        if (['box', 'move', 'resize'].includes(state.gesture.kind)) {
             edgePoint = p;
             if (!edgeFrame)
                 edgeFrame = requestAnimationFrame(edgeScroll);
@@ -290,15 +352,10 @@ export function installPointer() {
         }
         if (state.gesture.kind === 'move')
             moveSelection();
-        if (state.gesture.kind === 'resize') {
-            const g = state.gesture, step = 128 / state.project.grid, tick = musical(p).tick;
-            // Only a note being drawn carries a cell: dragging left of it grows the note backwards.
-            if (g.cell !== undefined && tick < g.cell)
-                state.project.notes = stretchBack(g.base, g.nid, cellStart(Math.max(0, tick), state.project.grid), g.cell + step);
-            else
-                state.project.notes = resize(g.base, g.nid, g.length + dx / state.zoom, state.project.grid);
-        }
-        info();
+        if (state.gesture.kind === 'resize')
+            resizeSelection();
+        if (state.gesture.kind !== 'move')
+            info();
         draw();
     };
     canvas.onpointerup = e => {
@@ -325,6 +382,14 @@ export function installPointer() {
         }
         if (!state.gesture)
             return;
+        if (state.gesture.kind === 'move' && state.gesture.moved) {
+            const g = state.gesture;
+            g.current = point(e);
+            moveSelection();
+            state.project.notes = move(g.base, state.selection, g.anchor, g.movePreview.dt, g.movePreview.dp, state.project.grid);
+        }
+        if (!state.gesture.moved && state.gesture.cycle !== undefined)
+            state.selection = new Set([state.gesture.cycle]);
         if (state.gesture.kind === 'box') {
             const ids = boxIds(state.gesture.music, musical(state.gesture.current));
             state.selection = state.gesture.add ? new Set([...state.selection, ...ids]) : new Set(ids);

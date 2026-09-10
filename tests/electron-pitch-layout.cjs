@@ -74,11 +74,37 @@ app.on('browser-window-created',(_,win)=>win.webContents.once('did-finish-load',
   const start=await evaluate(`import('./dist/geometry.js').then(({rect})=>{const n=rect(s.project.notes[0]),r=document.getElementById('canvas').getBoundingClientRect();return {x:Math.round(r.x+n.x+3),y:Math.round(r.y+n.y+5)};})`);
   const dest={x:await evaluate(`(()=>{const r=document.getElementById('canvas').getBoundingClientRect();return Math.round(${direction}<0?r.x+63:r.right-2)})()`),y:start.y};
   win.webContents.sendInputEvent({type:'mouseDown',...start,button:'left',clickCount:1});win.webContents.sendInputEvent({type:'mouseMove',...dest,button:'left',modifiers:['leftButtonDown']});await settle();
-  const before=await evaluate(`[document.getElementById('view').scrollLeft,s.project.notes[0].start]`);
+  const before=await evaluate(`[document.getElementById('view').scrollLeft,s.gesture.movePreview.dt]`);
   await evaluate('new Promise(resolve=>{let frames=0;const next=()=>++frames===8?resolve():requestAnimationFrame(next);requestAnimationFrame(next)})');
-  const after=await evaluate(`[document.getElementById('view').scrollLeft,s.project.notes[0].start,s.project.notes[1].start-s.project.notes[0].start,s.project.notes.map(n=>[n.pitch,n.length,n.volume])]`);
-  assert.ok((after[0]-before[0])*direction>0,'Viewport scrolls in drag direction');assert.ok((after[1]-before[1])*direction>0,'Notes follow stationary edge pointer');assert.equal(after[2],9);assert.deepEqual(after[3],[[70,7,8],[69,5,0]]);
-  win.webContents.sendInputEvent({type:'mouseUp',...dest,button:'left',clickCount:1});await settle();const released=await evaluate('document.getElementById("view").scrollLeft');await settle();assert.equal(await evaluate('document.getElementById("view").scrollLeft'),released);
+  const after=await evaluate(`[document.getElementById('view').scrollLeft,s.gesture.movePreview.dt,s.project.notes[1].start-s.project.notes[0].start,s.project.notes.map(n=>[n.pitch,n.length,n.volume])]`);
+  assert.ok((after[0]-before[0])*direction>0,'Viewport scrolls in drag direction');assert.ok((after[1]-before[1])*direction>0,'Preview follows stationary edge pointer');assert.equal(after[2],9);assert.deepEqual(after[3],[[70,7,8],[69,5,0]]);
+  assert.equal(await evaluate('s.project.notes[0].start'),200);
+  win.webContents.sendInputEvent({type:'mouseUp',...dest,button:'left',clickCount:1});await settle();assert.equal(await evaluate('s.project.notes[0].start'),200+after[1]);const released=await evaluate('document.getElementById("view").scrollLeft');await settle();assert.equal(await evaluate('document.getElementById("view").scrollLeft'),released);
+ }
+
+ // A stationary native drag ramps over time, without committing the note data.
+ await evaluate(`s.zoom=3;s.project.grid=128;s.project.notes=[{id:1,instrument:0,start:200,length:32,pitch:70,volume:8}];s.selection=new Set([1]);s.active=0;import('./dist/commands.js').then(({refresh})=>refresh());`);await settle();
+ await evaluate(`document.getElementById('view').scrollLeft=500`);await settle();
+ const hold=await evaluate(`import('./dist/geometry.js').then(({rect})=>{const n=rect(s.project.notes[0]),c=document.getElementById('canvas').getBoundingClientRect();return {x:Math.round(c.left+n.x+10),y:Math.round(c.top+n.y+5),edge:Math.round(c.right-2)}})`);
+ win.webContents.sendInputEvent({type:'mouseDown',x:hold.x,y:hold.y,button:'left',clickCount:1});win.webContents.sendInputEvent({type:'mouseMove',x:hold.edge,y:hold.y,button:'left',modifiers:['leftButtonDown']});
+ const acceleration=await evaluate(`new Promise(resolve=>{const v=document.getElementById('view'),start=performance.now(),left=v.scrollLeft;let early=0,late=0,lateTime=0;const frame=now=>{const elapsed=now-start;if(!early&&elapsed>=200)early=(v.scrollLeft-left)/elapsed;if(!lateTime&&elapsed>=3400){late=v.scrollLeft;lateTime=now;}if(elapsed>=3700)resolve({early,late:(v.scrollLeft-late)/(now-lateTime),unchanged:s.project.notes[0].start===200});else requestAnimationFrame(frame);};requestAnimationFrame(frame);})`);
+ assert.ok(acceleration.late>acceleration.early*2,JSON.stringify(acceleration));assert.ok(acceleration.unchanged);
+ win.webContents.sendInputEvent({type:'mouseUp',x:hold.edge,y:hold.y,button:'left',clickCount:1});await settle();
+ fs.writeFileSync('.validation/electron-edge-acceleration.json',JSON.stringify(acceleration,null,2));
+
+ // Drawing and extending continue past the old scroll extent at the far-right edge.
+ for(const mode of ['draw','resize']){
+  await evaluate(`s.zoom=3;s.project.grid=128;s.project.notes=[];s.selection.clear();s.active=0;document.getElementById('draw').click();import('./dist/commands.js').then(({refresh})=>refresh());`);await settle();
+  await evaluate(`(()=>{const v=document.getElementById('view');v.scrollLeft=v.scrollWidth;})()`);await settle();
+  if(mode==='resize'){
+   await evaluate(`(()=>{const v=document.getElementById('view');s.project.notes=[{id:1,instrument:0,start:Math.floor((v.scrollLeft+v.clientWidth-200)/s.zoom),length:16,pitch:70,volume:8}];s.selection=new Set([1]);})()`);
+  }
+  const startPoint=await evaluate(`import('./dist/geometry.js').then(({rect})=>{const c=document.getElementById('canvas').getBoundingClientRect(),v=document.getElementById('view'),r=s.project.notes.length?rect(s.project.notes[0]):null;return {x:Math.round(r?c.left+r.x+r.w-1:c.right-140),y:Math.round(r?c.top+r.y+5:c.top+140),edge:Math.round(c.right-2),oldMax:v.scrollWidth-v.clientWidth};})`);
+  win.webContents.sendInputEvent({type:'mouseDown',x:startPoint.x,y:startPoint.y,button:'left',clickCount:1});win.webContents.sendInputEvent({type:'mouseMove',x:startPoint.edge,y:startPoint.y,button:'left',modifiers:['leftButtonDown']});
+  await evaluate(`new Promise(r=>setTimeout(r,220))`);
+  assert.ok(await evaluate(`document.getElementById('view').scrollLeft`)>startPoint.oldMax,mode+' scrolls beyond old extent');
+  assert.ok(await evaluate(`s.project.notes[0].length`)>16);
+  win.webContents.sendInputEvent({type:'mouseUp',x:startPoint.edge,y:startPoint.y,button:'left',clickCount:1});await settle();
  }
  fs.writeFileSync('.validation/electron-pitch-layout-piano.png',(await win.webContents.capturePage()).toPNG());
  fs.writeFileSync('.validation/electron-pitch-layout.png',(await win.webContents.capturePage()).toPNG());finish();

@@ -4,10 +4,26 @@ import { playbackSettings } from './playback/transport.js';
 import { state, isMuted } from './state.js';
 import { createSheetPlanner, ms2Xml } from './music/sheets.js';
 import { createLazyEnsemble } from './music/lazy-ensemble.js';
+import { fitExportChannels } from './music/export-fit.js';
 import { compilePlayback } from './playback/midi.js';
 import { $, status } from './dom.js';
 import { sheetSettings, setCharacterLimit } from './sheet-settings.js';
 import { draw } from './painting.js';
+function chooseChannels(name, channels) {
+    const dialog = $('export-channel-dialog');
+    $('export-channel-message').textContent = `${name} requires ${channels} channels, exceeding the 10-channel limit for one MS2 sheet. In-game playback may be incomplete or incorrect.`;
+    return new Promise(resolve => {
+        let done = false, chosen = 'cancel';
+        const finish = (choice) => { if (done)
+            return; done = true; chosen = choice; dialog.close(); };
+        $('export-channel-cancel').onclick = () => finish('cancel');
+        $('export-channel-continue').onclick = () => finish('continue');
+        $('export-channel-fit').onclick = () => finish('fit');
+        dialog.oncancel = e => { e.preventDefault(); finish('cancel'); };
+        dialog.onclose = () => { dialog.onclose = null; resolve(chosen); };
+        dialog.showModal();
+    });
+}
 function choose(name, bytes, limit) {
     const dialog = $('export-limit-dialog');
     $('export-limit-message').textContent = `${name} uses ${bytes.toLocaleString()} characters, exceeding your ${limit.toLocaleString()} character limit. Do you still wish to export?`;
@@ -154,9 +170,25 @@ export function installExport() {
                     for (const index of indexes) {
                         if (segment.project.instruments[index].isInstructions || !segment.project.notes.some(n => n.instrument === index))
                             continue;
-                        const plan = createSheetPlanner(segment.project, index, limit, extremeCompression), name = prefixed(segment.name, project.instruments[index].name);
+                        let plan = createSheetPlanner(segment.project, index, limit, extremeCompression);
+                        const name = prefixed(segment.name, project.instruments[index].name);
                         if (!plan.whole.channels.length)
                             continue;
+                        if (plan.whole.channels.length > 10) {
+                            const channelChoice = await chooseChannels(name, plan.whole.channels.length);
+                            if (channelChoice === 'cancel') {
+                                status('Export canceled.');
+                                return;
+                            }
+                            if (channelChoice === 'fit') {
+                                const fitted = fitExportChannels(segment.project, index);
+                                // Keep the original performance end after loop expansion or trimming.
+                                plan = createSheetPlanner(fitted.project, index, limit, extremeCompression, plan.end);
+                                if (plan.whole.channels.length > 10)
+                                    throw Error(`${name} still exceeds 10 channels. Export canceled; no files were saved.`);
+                                exportWarnings += ` ${name}: ${fitted.shortened} held notes shortened, ${fitted.removed} chord notes removed in the export copy.`;
+                            }
+                        }
                         const choice = plan.whole.bytes > limit ? await choose(name, plan.whole.bytes, limit) : 'single';
                         if (choice === 'cancel') {
                             status('Export canceled.');

@@ -1,3 +1,4 @@
+import { INSTRUCTIONS_COLOR } from '../model/instructions.js';
 import { generateMml } from '../music/mml.js';
 import { partitionChannels } from '../music/channels.js';
 export const isAudioFile = (name) => /\.(wav|wave|mp3|flac|ogg|oga|opus|m4a|aac|aif|aiff|wma|mp4|webm)$/i.test(name);
@@ -91,7 +92,7 @@ export function importAudio(samples, sampleRate, name, intervalMs = 30, budget =
     if (maxRms < 1e-7 || reference < 1e-10)
         throw Error('No audible voice-range content was found in this audio.');
     const project = { format: 'mml-studio', version: 2, name: name.replace(/\.[^.]+$/, ''), grid: 128,
-        instruments: [{ name: 'Voice approximation', color: '#35C0E8', midiProgram: 73 }, { name: 'Instructions', color: '#E6D24A', isInstructions: true }], notes: [] };
+        instruments: [{ name: 'Voice approximation', color: '#35C0E8', midiProgram: 73 }, { name: 'Instructions', color: INSTRUCTIONS_COLOR, isInstructions: true }], notes: [] };
     // T250 ×4: 1 model unit = 1.875 ms; 16 units = exactly 30 ms.
     let id = 1;
     const endTick = LEAD_IN + Math.max(1, Math.round(samples.length / RATE / 0.001875));

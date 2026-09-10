@@ -1,4 +1,4 @@
-export const INSTRUCTIONS_NAME = 'Instructions', INSTRUCTIONS_COLOR = '#f4d35e';
+export const INSTRUCTIONS_NAME = 'Instructions', INSTRUCTIONS_COLOR = '#579dff';
 export function hasInstructions(project) {
     return project.notes.some(n => project.instruments[n.instrument]?.isInstructions || n.tempo != null || n.timeSignature || n.section || n.resetMeasures || n.loopEntry || n.loopExit || n.loopTie || n.loopCount != null || n.speedEntry || n.speedExit || n.speedMultiplier != null);
 }
@@ -8,6 +8,8 @@ export function consolidateInstructions(project) {
     const first = project.instruments.findIndex(i => i.isInstructions);
     if (first < 0)
         return;
+    // Instructions has no color control: normalize old saved colors on load too.
+    project.instruments[first].color = INSTRUCTIONS_COLOR;
     const routes = [];
     const instruments = [];
     project.instruments.forEach((instrument, index) => {

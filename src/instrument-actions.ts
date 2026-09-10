@@ -43,24 +43,14 @@ export function mergeInstrument(source:number,target:number){
   apply(result.project,source,target>source?target-1:target);status(`Merged “${from.name}” into “${to.name}”. Undo to restore both.`);
  }catch(error){status(String(error));}
 }
-/**
- * Raising a part by hand meant selecting its notes and editing them together, which is why
- * it was being done instrument by instrument. This moves them all by the same amount, so the
- * loud notes stay louder than the quiet ones, and it refuses a step that would push the
- * loudest note past V15: past the cap the difference is not raised, it is lost.
- */
+/** Explicit volume changes may clamp; the controls warn before Apply. */
 export function shiftVolume(index:number,delta:number){
  const range=instrumentVolumes(state.project,index);
  if(!range){status('This instrument has no notes to change.');return;}
- if(delta>0&&range.headroom<=0){status(`The loudest note is already V${MAX_VOLUME}. Raising it further would flatten the difference between the notes.`);return;}
- if(delta<0&&range.min<=0){status('The quietest note is already V0. Lowering it further would flatten the difference between the notes.');return;}
- if(!delta){status('Type how much to move the volume by. Negative numbers lower it.');return;}
- const step=delta>0?Math.min(delta,range.headroom):Math.max(delta,-range.min);
- const trimmed=step!==delta;
- checkpoint();state.project={...state.project,notes:shiftInstrumentVolumes(state.project,index,step)};
- refresh();
- const after=instrumentVolumes(state.project,index)!;
- status(`${state.project.instruments[index].name}: volumes moved by ${step>0?'+':''}${step}${trimmed?` instead of ${delta>0?'+':''}${delta}, which would have pushed past the ends and flattened the difference`:''}. Now V${after.min} to V${after.max}.`);
+ if(!delta){status('Type a nonzero volume change.');return;}
+ const clamped=range.min+delta<0||range.max+delta>MAX_VOLUME;
+ checkpoint();state.project={...state.project,notes:shiftInstrumentVolumes(state.project,index,delta)};refresh();
+ status(state.project.instruments[index].name+': volumes moved by '+(delta>0?'+':'')+delta+'.'+(clamped?' Warning: volumes clamped to V0–V15; velocity differences may be flattened.':''));
 }
 export function instrumentActions(row:HTMLElement,index:number):HTMLElement{
  const box=document.createElement('details');box.className='instrument-actions';
@@ -91,7 +81,9 @@ export function instrumentActions(row:HTMLElement,index:number):HTMLElement{
  amount.setAttribute('aria-label','Volume change for '+state.project.instruments[index].name);
  amount.title='How much to move every note by. Negative lowers.';
  const apply=document.createElement('button');apply.type='button';apply.textContent='Apply';
- apply.title='Move every note of this instrument by this much, keeping the differences between them';
+ apply.title='Move every note of this instrument by this much; values outside V0–V15 are clamped.';
+ const warn=()=>{const delta=Math.round(Number(amount.value)||0);reading.textContent=range?'V'+range.min+' to V'+range.max+(range.min+delta<0||range.max+delta>MAX_VOLUME?' — Warning: Apply will clamp to V0–V15 and may flatten velocity differences.':''):'No notes yet';};
+ amount.oninput=warn;warn();
  apply.onclick=()=>shiftVolume(index,Math.round(Number(amount.value)||0));
  const toCap=document.createElement('button');toCap.type='button';toCap.textContent='Max';
  toCap.title='Raise every note until the loudest reaches V'+MAX_VOLUME;

@@ -1,10 +1,10 @@
 import { ctx, view } from '../dom.js';
 import { state } from '../state.js';
 import { KEY, HEAD } from '../constants.js';
-import { crowdedRegions, overlapLocations } from '../music/note-density.js';
+import { crowdedRegionCounts, overlapLocations } from '../music/note-density.js';
 let overlapNotes, overlapCount = -1, overlapActive = -1, overlapInstruments, overlaps = [];
-/** Red onset lines use the same current-view/performance definition as MML. */
-export function drawOverlapMarkers() {
+/** Orange onset lines use the same current-view/performance definition as MML. */
+function currentOverlaps() {
     if (overlapNotes !== state.project.notes || overlapCount !== state.project.notes.length || overlapInstruments !== state.project.instruments || overlapActive !== state.active) {
         overlapNotes = state.project.notes;
         overlapCount = overlapNotes.length;
@@ -12,11 +12,15 @@ export function drawOverlapMarkers() {
         overlapActive = state.active;
         overlaps = overlapLocations(state.project, state.active);
     }
+    return overlaps;
+}
+export function drawOverlapMarkers() {
+    const overlaps = currentOverlaps();
     ctx.save();
     ctx.beginPath();
     ctx.rect(KEY, HEAD, state.width - KEY, state.height - HEAD);
     ctx.clip();
-    ctx.fillStyle = '#e5484d';
+    ctx.fillStyle = '#e58a24';
     for (const start of new Set(overlaps.map(o => o.start))) {
         const x = KEY + start * state.zoom - view.scrollLeft;
         if (x >= KEY && x < state.width)
@@ -32,7 +36,7 @@ function current() {
         previous = state.project.notes;
         count = previous.length;
         active = state.active;
-        regions = crowdedRegions(previous.filter(n => n.instrument === active));
+        regions = crowdedRegionCounts(previous.filter(n => n.instrument === active));
     }
     return regions;
 }
@@ -70,4 +74,10 @@ export function drawCrowdedMarkers() {
         ctx.fillRect(from, HEAD - 3, to - from, 3);
     }
     ctx.restore();
+}
+/** Warning captions use the same data as the timeline lines and shaded areas. */
+export function warningCaptions() {
+    const onset = [...new Set(currentOverlaps().map(o => o.start))].map(start => ({ start, text: 'Multiple notes start at once', color: '#e58a24', wrap: true }));
+    const density = current().filter(r => span(r).right > KEY && span(r).left < state.width).map(r => ({ start: Math.max(r.start, view.scrollLeft / state.zoom), text: `This area has ${r.peak} notes overlapping! The maximum is 10. Simplify chords or shorten held notes!`, color: '#e0a800', wrap: true }));
+    return [...onset, ...density];
 }

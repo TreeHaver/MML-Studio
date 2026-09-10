@@ -20,6 +20,8 @@ Instructions use existing note-shaped records, marked by the owner's `isInstruct
 On import, condense silent Instructions events at the same timestamp into one record containing all payloads, including tempo/signature/Speed Multiplier. Reuse its surviving ID for selection. Last-encountered conflicting import payload values win with a notice. Musical note-bound settings remain on their notes; existing version-2 JSON loading is unchanged. This import rule was explicitly clarified by the user on 2026-09-09.
 
 
+Instructions uses the fixed blue color #579dff; loading version-2 files normalizes older Instructions colors without changing musical instrument colors or events.
+
 Instructions is a permanent, dedicated UI lane, hidden by default behind Enable Advanced Instructions and automatically revealed for project/import instructions. It is excluded from musical instrument counts, preset choices, Mute/Solo and instrument actions. Its events always apply even while the card is hidden or a musical instrument is soloed. The unused card is virtual until selected or needed by an edit/import, so simply toggling visibility does not add project data. Selection materializes the existing version-2 `isInstructions` record; no new JSON fields are introduced. Loading older files with multiple Instructions lanes consolidates them into the first, retaining every event/ID and remapping instrument ownership.
 
 Selection, viewport/zoom, tools, playback settings, Mute/Solo, collapse state, generated MML and Song/Segment session metadata are not project fields. Theme, panel geometry, piano-key style and character limit are local application preferences. Grid is stored in the project even though it only controls editing resolution.
@@ -53,6 +55,8 @@ The user is responsible for velocities in ambiguous chords. Do not add conflict 
 
 Song/Segment views copy the last explicit V before the boundary per instrument, including a carrier that has ended. Explicit crossing notes keep their own V; inherited crossing notes use the copied boundary value. Explicit changes inside the view govern later inheritance. Automatic context must not become a parent edit merely by opening, saving, returning or editing an unrelated property; clearing an explicit V restores inheritance. The projection tracks a baseline to make this distinction.
 
+Explicit Tools commands target selected musical notes, otherwise the active instrument, within the current view. Volume offsets warn before clamping but permit it (user decision 2026-09-10); unselected effective velocities remain unchanged. Held Note Simplifier trims only eligible earlier sounding notes above ten voices, prioritizing exact-pitch retriggers, lowest onset V, then oldest onset. Chord Simplifier retains outer notes and limits exact-onset/exact-length groups to the chosen complexity, using spacing and an optional estimated-scale preference. Tools edits are explicit and undoable, never automatic warning repair. Ordinary MML export may separately offer an explicit export-copy fitting choice above ten channels: held-note simplification followed, only if needed, by chord complexity 2; fail before saving if still over ten. This does not edit the project. See [tool details](EDITOR.md#explicit-cleanup-tools).
+
 ## Global tempo
 
 Default tempo is **120 BPM**. Stored T instructions are positive integers; no editing/import clamp to MS2 T32–T255 is permitted. Fractional MIDI tempos round to the nearest whole BPM with a conversion notice. Conflicting simultaneous explicit tempos are invalid; matching values are allowed.
@@ -61,7 +65,7 @@ Only additive drag/drop imports into populated projects offer retaining or remov
 
 File import may explicitly offer the user a Speed Multiplier conversion for out-of-range tempos, as described in IMPORT_EXPORT. Automatic conversion uses only ×2/×4 with at most 2 BPM error, or exact ÷2/÷4 for slowdown. Report approximations; tempos that cannot fit remain unchanged with a notice. Declining retains original tempos. This is not an implicit parser clamp or a restriction on manually edited/stored Speed Multiplier values.
 
-Note-bound and unbound tempos share one global clock. Unbound supported tempos belong to Instructions, including changes in rests or inside held notes. Muting an instrument must not remove its tempo from live playback, audio rendering or musical MML channels. Yellow timeline indicators use the same clock and omit redundant changes/implicit default 120.
+Note-bound and unbound tempos share one global clock. Unbound supported tempos belong to Instructions, including changes in rests or inside held notes. Muting an instrument must not remove its tempo from live playback, audio rendering or musical MML channels. Blue default timeline indicators use the same clock and omit redundant changes/implicit default 120.
 
 Generated musical channels must carry global tempo changes through their last note. Split rests and held notes at tempo boundaries; tie held continuations. MS2 ties prefix the continued note: emit `c4t150&c4`, never `c4&t150c4`. The selected-instrument MIDI file exporter currently has a separate [tempo-filtering limitation](IMPORT_EXPORT.md#known-export-limitations); it is not an exception to intended global-tempo semantics.
 
@@ -113,4 +117,4 @@ Save and history must use the reconciled full project, even while a Song/Segment
 
 Unsaved-close behavior is an Electron main/preload/renderer handshake. Offer Save / Discard / Cancel; cancelled/failed saves, Cancel, or intervening edits keep the editor open. Save records the contents actually written. Coalesce repeated close requests and never replace this with cancelling `beforeunload`.
 
-Return to Project floats below the measure ruler, right-aligned under Time signature, **only in Segment View**. Song View uses File > Return to Project. The full project shows neither return control.
+Return to Project floats below the measure ruler, right-aligned under Time signature, **in both Song and Segment Views**. Neither scoped view uses File > Return to Project. The full project shows neither return control.

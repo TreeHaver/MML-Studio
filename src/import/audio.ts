@@ -1,3 +1,4 @@
+import {INSTRUCTIONS_COLOR} from '../model/instructions.ts';
 import type {Note,Project} from '../model/types.ts';
 import type {ImportedSong} from './source.ts';
 import {generateMml} from '../music/mml.ts';
@@ -75,7 +76,7 @@ export function importAudio(samples:Float32Array,sampleRate:number,name:string,i
  }
  if(maxRms<1e-7||reference<1e-10)throw Error('No audible voice-range content was found in this audio.');
  const project:Project={format:'mml-studio',version:2,name:name.replace(/\.[^.]+$/,''),grid:128,
-  instruments:[{name:'Voice approximation',color:'#35C0E8',midiProgram:73},{name:'Instructions',color:'#E6D24A',isInstructions:true}],notes:[]};
+  instruments:[{name:'Voice approximation',color:'#35C0E8',midiProgram:73},{name:'Instructions',color:INSTRUCTIONS_COLOR,isInstructions:true}],notes:[]};
  // T250 ×4: 1 model unit = 1.875 ms; 16 units = exactly 30 ms.
  let id=1;const endTick=LEAD_IN+Math.max(1,Math.round(samples.length/RATE/0.001875));
  project.notes.push({id:id++,instrument:1,start:0,length:1,pitch:60,volume:0,tempo:240});

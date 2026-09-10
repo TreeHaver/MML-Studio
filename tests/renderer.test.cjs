@@ -110,7 +110,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  const previewsBefore=previewCalls.length;click(20,240);await new Promise(setImmediate);assert.equal(previewCalls.length,previewsBefore);
  run('state.active=0');fills.length=0;(await load('src/painting.ts')).namespace.draw();
  const {KEY,HEAD}=(await load('src/constants.ts')).namespace;
- assert.ok(fills.some(f=>f.color==='#f4d35e'&&f.x===KEY+moved.start*3-doc.getElementById('view').scrollLeft&&f.y===HEAD&&f.h===600-HEAD));
+ assert.ok(fills.some(f=>f.color==='#579dff'&&f.x===KEY+moved.start*3-doc.getElementById('view').scrollLeft&&f.y===HEAD&&f.h===600-HEAD));
  doc.onkeydown({key:'Delete',target:new El(),preventDefault(){}});assert.equal(run('project.notes.some(n=>n.id==='+moved.id+')'),false);
  (await load('src/history.ts')).namespace.undo();assert.equal(run('project.notes.some(n=>n.id==='+moved.id+')'),true);
  // Actual transport animation invokes follow and freezes scrolling on pause.
@@ -150,10 +150,10 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  const dragRect=geometry.rect(run('project.notes[0]')),dragY=dragRect.y+4,dragX=dragRect.x+3;
  const dragOriginal=run('JSON.stringify(project)'),dragHistory=run('state.history.length');
  c.onpointerdown(event(dragX,dragY));c.onpointermove(event(dragX+2,dragY));assert.equal(run('state.gesture.moved'),undefined);
- c.onpointermove(event(899,dragY));const beforeEdge=run('project.notes[0].start');
- frame();frame();frame();assert.ok(view.scrollLeft>500);assert.ok(run('project.notes[0].start')>beforeEdge);
+ c.onpointermove(event(899,dragY));const beforeEdge=run('state.gesture.movePreview.dt');
+ frame();frame();frame();assert.ok(view.scrollLeft>500);assert.ok(run('state.gesture.movePreview.dt')>beforeEdge);assert.equal(run('JSON.stringify(project)'),dragOriginal);
  assert.equal(run('project.notes[1].start-project.notes[0].start'),9);assert.equal(run('project.notes[0].pitch'),60);assert.equal(run('project.notes[1].length'),5);
- const scrolledStart=run('project.notes[0].start');c.onpointermove(event(899,dragY));assert.equal(run('project.notes[0].start'),scrolledStart,'pointer movement must not discard scroll displacement');
+ const scrolledStart=run('state.gesture.movePreview.dt');c.onpointermove(event(899,dragY));assert.equal(run('state.gesture.movePreview.dt'),scrolledStart,'pointer movement must not discard scroll displacement');
  c.onpointerup(event(899,dragY));assert.equal(frame,null);assert.equal(run('state.history.length'),dragHistory+1);
  (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project)'),dragOriginal);
  run('selection=new Set([1,2])');view.scrollLeft=500;
@@ -257,6 +257,26 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.equal(run('JSON.stringify(project)'),unchanged);
  saves.length=0;pending=exportButton.onclick();dialog.oncancel({preventDefault(){}});await pending;assert.equal(saves.length,0);
  limitInput.value='10000';limitInput.onchange();await exportButton.onclick();assert.equal(saves.length,1);
+
+ // Channel overflow is an explicit choice, before any destination or file write.
+ const channelDialog=doc.getElementById('export-channel-dialog');channelDialog.showModal=()=>{channelDialog.open=true};channelDialog.close=()=>{channelDialog.open=false;channelDialog.onclose?.()};
+ run('project.notes=Array.from({length:11},(_,i)=>({id:i+1,instrument:0,start:0,length:32,pitch:60+i,volume:8}));selection=new Set([1])');
+ const channelBefore=run('JSON.stringify([project,state.history,state.dirty])');saves.length=0;
+ pending=exportButton.onclick();assert.equal(channelDialog.open,true);assert.match(doc.getElementById('export-channel-message').textContent,/11 channels/);
+ doc.getElementById('export-channel-cancel').onclick();await pending;assert.equal(saves.length,0);
+ pending=exportButton.onclick();channelDialog.oncancel({preventDefault(){}});await pending;assert.equal(saves.length,0);
+ pending=exportButton.onclick();doc.getElementById('export-channel-continue').onclick();await pending;assert.equal(saves.length,1);assert.equal((saves[0].text.match(/CDATA/g)||[]).length,11);
+ saves.length=0;pending=exportButton.onclick();doc.getElementById('export-channel-fit').onclick();await pending;
+ assert.equal(saves.length,1);assert.equal((saves[0].text.match(/CDATA/g)||[]).length,2);assert.match(doc.getElementById('status').textContent,/9 chord notes removed/);
+ assert.equal(run('JSON.stringify([project,state.history,state.dirty])'),channelBefore);
+ run('project.notes=project.notes.map((n,i)=>({...n,length:32+i}))');saves.length=0;
+ pending=exportButton.onclick();doc.getElementById('export-channel-fit').onclick();await pending;assert.equal(saves.length,0);assert.match(doc.getElementById('status').textContent,/Export failed:.*still requires 11 channels/);assert.equal(exportButton.disabled,false);
+
+ // A later failing sheet aborts even when an earlier file has been prepared.
+ run('project.notes=project.notes.map(n=>({...n,instrument:1}));project.notes.push({id:100,instrument:0,start:0,length:8,pitch:60,volume:8})');
+ doc.getElementById('scope-selected').checked=false;saves.length=0;
+ pending=exportButton.onclick();doc.getElementById('export-channel-fit').onclick();await pending;assert.equal(saves.length,0);
+ doc.getElementById('scope-selected').checked=true;
 
  // Yellow crowding boxes follow the selected instrument and edits.
  run('project.notes=Array.from({length:10},(_,i)=>({id:i,instrument:0,start:0,length:100,pitch:60+i,volume:8}));project.notes.push({id:11,instrument:0,start:20,length:10,pitch:75,volume:8});state.active=0;state.zoom=1');
@@ -387,7 +407,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  const originalAlbum=run('JSON.stringify(project)'),openSong=doc.getElementById('open-song'),openSegment=doc.getElementById('open-segment'),returnProject=doc.getElementById('return-project');
  assert.equal(openSong.hidden,false);assert.equal(openSegment.hidden,false);openSong.onclick();
  assert.equal(run('state.segment.projection.range.end'),256);assert.equal(doc.getElementById('section-control').hidden,false);assert.equal(openSong.hidden,true);
- assert.equal(doc.getElementById('segment-view-label').textContent,'Song: First song');assert.equal(projectName.value,'Album');
+ assert.equal(returnProject.hidden,false);assert.equal(doc.getElementById('return-song-project').hidden,true);assert.equal(doc.getElementById('segment-view-label').textContent,'Song: First song');assert.equal(projectName.value,'Album');
  transport.seekToTick(120);openSegment.onclick();
  assert.equal(run('state.segment.projection.range.start'),96);assert.equal(run('state.segment.projection.range.end'),160);assert.equal(transport.playback.tick,0);
  assert.equal(doc.getElementById('section-control').hidden,true);assert.equal(doc.getElementById('export-sections').disabled,true);
@@ -456,6 +476,25 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  const duplicateHistory=run('state.history.length');doc.getElementById('remove-overlap').onclick();assert.equal(run('state.history.length'),duplicateHistory);
  (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeDuplicates);
 
+
+ // New tools respect group scope, preserve inheritance, and undo once.
+ run('project.notes=[{id:1,instrument:0,start:0,length:32,pitch:60,volume:14},{id:2,instrument:0,start:0,length:32,pitch:64,volume:8},{id:3,instrument:0,start:0,length:32,pitch:67,volume:10},{id:4,instrument:0,start:32,length:8,pitch:65,volume:null}];selection=new Set([1,2,3])');commands.refresh();
+ const beforeChord=run('JSON.stringify(project.notes)');
+ doc.getElementById('simplify-chords').onclick();assert.deepEqual(plain('project.notes.map(n=>n.id)'),[1,3,4]);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeChord);
+ run('selection=new Set([1,2])');doc.getElementById('volume-amount').value='5';doc.getElementById('volume-amount').oninput();
+ assert.match(doc.getElementById('volume-reading').textContent,/Warning: Apply will clamp/);
+ doc.getElementById('volume-apply').onclick();assert.deepEqual(plain('project.notes.map(n=>n.volume)'),[15,13,10,null]);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeChord);
+ run('selection=new Set([3])');doc.getElementById('volume-amount').value='-15';doc.getElementById('volume-apply').onclick();
+ assert.deepEqual(plain('project.notes.map(n=>n.volume)'),[14,8,0,10]);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeChord);
+ run('project.notes=Array.from({length:10},(_,i)=>({id:i+1,instrument:0,start:0,length:64,pitch:60+i,volume:8})).concat([{id:11,instrument:0,start:32,length:8,pitch:60,volume:8}]);selection=new Set([2])');commands.refresh();
+ const beforeHeld=run('JSON.stringify(project.notes)');doc.getElementById('simplify-held-notes').onclick();
+ assert.equal(run('project.notes.find(n=>n.id===2).length'),32);assert.equal(run('project.notes.find(n=>n.id===1).length'),64);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeHeld);
+ run('selection.clear()');doc.getElementById('simplify-held-notes').onclick();assert.equal(run('project.notes.find(n=>n.id===1).length'),32);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeHeld);
  run('project.notes=[{id:1,instrument:0,start:0,length:512,pitch:60,volume:11}]');commands.refresh();transport.seekToTick(170);
  currentSignature.onfocus();currentSignature.value='6/8';currentSignature.onchange();
  assert.deepEqual(plain('project.notes.filter(n=>n.timeSignature).map(n=>[n.start,n.timeSignature])'),[[0,'6/8']]);
@@ -574,10 +613,178 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  // Active-lane markers are visible before jumping and remain while scrolling.
  run('project.instruments=[{name:"Piano",color:"#abcdef"},{name:"Other",color:"#abcdef"}];project.notes=[{id:1,instrument:0,start:600,length:32,pitch:20,volume:8},{id:2,instrument:0,start:600,length:16,pitch:20,volume:8},{id:3,instrument:1,start:700,length:16,pitch:72,volume:8},{id:4,instrument:1,start:700,length:32,pitch:72,volume:8}];state.active=1;selection.clear();state.zoom=1');commands.refresh();
  prefs.instrumentView.muted.add(0);view.scrollLeft=500;fills.length=0;paint.draw();
- assert.ok(fills.some(f=>f.color==='#e5484d'&&f.x===KEY+700-500&&f.y===HEAD&&f.h===600-HEAD));
- assert.ok(!fills.some(f=>f.color==='#e5484d'&&f.x===KEY+600-500));
+ assert.ok(fills.some(f=>f.color==='#e58a24'&&f.x===KEY+700-500&&f.y===HEAD&&f.h===600-HEAD));
+ assert.ok(!fills.some(f=>f.color==='#e58a24'&&f.x===KEY+600-500));
  const overlapBefore=run('JSON.stringify([project,state.history,state.dirty])');
  flag().onclick();assert.equal(run('state.active'),0);assert.deepEqual(plain('[...selection]'),[1,2]);
  assert.ok(view.scrollLeft>0);assert.ok(view.scrollTop>0);assert.equal(run('JSON.stringify([project,state.history,state.dirty])'),overlapBefore);
  prefs.resetInstrumentView();
+
+ // Repeated body clicks cycle through all three notes; a drag keeps its selected target.
+ run('state.segment=null;state.active=0;state.zoom=3;state.tool="select";project.instruments=[{name:"Piano",color:"#abcdef"}];project.notes=[1,2,3].map(id=>({id,instrument:0,start:32,length:64,pitch:60,volume:8}));selection.clear()');commands.refresh();view.scrollLeft=0;view.scrollTop=pitchLayout.pitchTop(run('state.topPitch'),72);
+ const stackRect=geometry.rect(run('project.notes[0]')),stackX=stackRect.x+20,stackY=stackRect.y+5;
+ const stackBefore=run('JSON.stringify([project,state.history,state.dirty])');
+ for(const id of [3,2,1,3]){click(stackX,stackY);assert.deepEqual(plain('[...selection]'),[id]);}
+ assert.equal(run('JSON.stringify([project,state.history,state.dirty])'),stackBefore);
+ click(stackX,stackY);assert.deepEqual(plain('[...selection]'),[2]);drag(stackX,stackY,stackX+96,stackY);
+ assert.deepEqual(plain('project.notes.map(n=>n.start)'),[32,64,32]);assert.deepEqual(plain('[...selection]'),[2]);
+ (await load('src/history.ts')).namespace.undo();run('selection=new Set([1])');
+ c.onpointerdown(event(stackX,stackY));c.onpointercancel();assert.deepEqual(plain('[...selection]'),[1]);
+ c.onpointerdown({...event(stackX,stackY),ctrlKey:true});c.onpointerup({...event(stackX,stackY),ctrlKey:true});assert.deepEqual(plain('[...selection]'),[1,3]);
+ // Warning text uses the peak count and shares the event-caption collision layout.
+ run('project.notes=Array.from({length:12},(_,i)=>({id:i+1,instrument:0,start:32,length:64,pitch:60,volume:8}));selection.clear()');commands.refresh();
+ const warningApi=(await load('src/rendering/note-density.ts')).namespace,captionApi=(await load('src/rendering/captions.ts')).namespace;
+ const warnings=warningApi.warningCaptions();assert.equal(warnings.length,2);
+ assert.equal(warnings[1].text,'This area has 12 notes overlapping! The maximum is 10. Simplify chords or shorten held notes!');
+ const placed=captionApi.layoutCaptions([{start:32,text:'Event',color:'#579dff'},...warnings]);
+ assert.equal(placed[0].y,HEAD+4);
+ for(let i=0;i<placed.length;i++)for(let j=i+1;j<placed.length;j++){const a=placed[i],b=placed[j];assert.ok(a.x+a.w<=b.x||b.x+b.w<=a.x||a.y+a.h<=b.y||b.y+b.h<=a.y);}
+ assert.equal(placed[2].lines.join(' '),warnings[1].text);texts.length=0;paint.draw();assert.ok(texts.some(t=>t.text==='Multiple notes start at once'));
+ view.scrollLeft=150;assert.equal(warningApi.warningCaptions().find(w=>w.color==='#e0a800').start,50);
+
+ // Complementary hue preserves HSV saturation/value and outlines only the shared span.
+ assert.equal(noteRendering.overlapOutlineColor('#FF9C33'),'#3396FF');
+ const colorMath=(await load('src/color-picker.ts')).namespace;
+ for(const source of ['#A02080','#43BDB1','#F1CB64','#808080','#000000']){
+  const a=colorMath.hexToHsv(source),b=colorMath.hexToHsv(noteRendering.overlapOutlineColor(source));
+  assert.ok(Math.abs(a.s-b.s)<1e-12);assert.ok(Math.abs(a.v-b.v)<1e-12);
+  if(a.s)assert.ok(Math.abs((b.h-a.h+360)%360-180)<1e-9);
+ }
+ run('project.instruments=[{name:"Amber",color:"#FF9C33"},{name:"Instructions",color:"#FF9C33",isInstructions:true}];project.notes=[{id:1,instrument:0,start:0,length:128,pitch:60,volume:8},{id:2,instrument:0,start:32,length:32,pitch:60,volume:8},{id:3,instrument:1,start:32,length:1,pitch:60,volume:0}];state.active=0;selection.clear()');commands.refresh();view.scrollLeft=0;
+ const railRect=geometry.rect(run('project.notes[1]')),rails=()=>fills.filter(f=>f.color==='#3396FF');
+ const railBefore=run('JSON.stringify([project,state.history,state.dirty])');fills.length=0;noteRendering.drawNotes();
+ assert.deepEqual(rails().map(f=>[f.x,f.y,f.w,f.h]),[[railRect.x,railRect.y-3,railRect.w,2],[railRect.x,railRect.y+railRect.h+1,railRect.w,2]]);
+ assert.equal(run('JSON.stringify([project,state.history,state.dirty])'),railBefore);
+ view.scrollLeft=120;fills.length=0;noteRendering.drawNotes();assert.equal(rails().length,2);assert.equal(rails()[0].x,railRect.x-120);
+ run('project.notes=project.notes.map(n=>n.id===2?{...n,start:128}:n)');fills.length=0;noteRendering.drawNotes();assert.equal(rails().length,0);
+
+ // Single selection paints last, while group/no selection retain project paint order.
+ run('project.notes=[{id:1,instrument:0,start:0,length:64,pitch:60,volume:8},{id:2,instrument:0,start:0,length:128,pitch:60,volume:8}];selection=new Set([1])');view.scrollLeft=0;
+ const paintOrderBefore=run('JSON.stringify(project.notes)');
+ const noteWidths=()=>fills.filter(f=>f.color==='#FF9C33'&&f.h===railRect.h).map(f=>f.w);
+ fills.length=0;noteRendering.drawNotes();assert.deepEqual(noteWidths(),[383,191]);assert.equal(run('JSON.stringify(project.notes)'),paintOrderBefore);
+ run('selection=new Set([1,2])');fills.length=0;noteRendering.drawNotes();assert.deepEqual(noteWidths(),[191,383]);
+ run('selection.clear()');fills.length=0;noteRendering.drawNotes();assert.deepEqual(noteWidths(),[191,383]);
+
+ // Exterior rails stay above adjacent note bodies, with a one-pixel gap.
+ run('project.notes=[{id:1,instrument:0,start:0,length:128,pitch:60,volume:8},{id:2,instrument:0,start:32,length:32,pitch:60,volume:8},{id:3,instrument:0,start:0,length:128,pitch:61,volume:8},{id:4,instrument:0,start:0,length:128,pitch:59,volume:8}];selection=new Set([3])');
+ fills.length=0;noteRendering.drawNotes();assert.equal(rails().length,2);
+ assert.ok(fills.indexOf(rails()[0])>fills.findLastIndex(f=>f.color==='#FF9C33'));
+ const exterior=geometry.rect(run('project.notes[1]'));
+ assert.equal(rails()[0].y+rails()[0].h,exterior.y-1);assert.equal(rails()[1].y,exterior.y+exterior.h+1);
+
+ // Plain direct clicks switch owners in Select, or from Instructions in any tool.
+ prefs.resetInstrumentView();run('project.instruments=[{name:"Piano",color:"#FF9C33"},{name:"Flute",color:"#77baff"},{name:"Instructions",color:"#579dff",isInstructions:true}];project.notes=[{id:1,instrument:0,start:32,length:64,pitch:60,volume:8},{id:2,instrument:1,start:128,length:32,pitch:64,volume:8}];state.active=0;state.tool="select";selection.clear()');commands.refresh();view.scrollLeft=0;
+ const otherRect=geometry.rect(run('project.notes[1]')),ownerBefore=run('JSON.stringify([project,state.history,state.dirty])');
+ click(otherRect.x+10,otherRect.y+5);assert.equal(run('state.active'),1);assert.deepEqual(plain('[...selection]'),[2]);
+ assert.equal(run('JSON.stringify([project,state.history,state.dirty])'),ownerBefore);
+ for(const tool of ['draw','spray','select']){
+  run('state.active=2;state.tool='+JSON.stringify(tool)+';selection.clear()');
+  click(otherRect.x+10,otherRect.y+5);assert.equal(run('state.active'),1);assert.deepEqual(plain('[...selection]'),[2]);
+  assert.equal(run('JSON.stringify([project,state.history,state.dirty])'),ownerBefore);
+ }
+ run('state.active=2;state.tool="draw";selection.clear()');click(otherRect.x+150,otherRect.y+5);
+ assert.equal(run('state.active'),2);assert.equal(run('project.notes.length'),3);assert.equal(run('project.notes.at(-1).instrument'),2);
+
+ // Elapsed/total uses the performance clock and the current scope, including silence.
+ transport.stopPlayback(false);prefs.resetInstrumentView();run('state.segment=null;project.instruments=[{name:"Piano",color:"#abcdef"}];project.notes=[{id:1,instrument:0,start:0,length:8320,pitch:60,volume:8}];state.active=0;selection.clear()');
+ transport.playbackSettings.speed=1;commands.refresh();const timeLabel=doc.getElementById('playback-time');
+ assert.equal(timeLabel.textContent,'0:00 / 2:10 · ');transport.seekToTick(64);assert.equal(timeLabel.textContent,'0:01 / 2:10 · ');
+ const clockRoot=run('structuredClone(project)'),scopeClock=(await load('src/segment-session.ts')).namespace;
+ transport.stopPlayback(false);scopeClock.enterSegment(clockRoot,{kind:'song',name:'Song',start:0,end:4160});commands.refresh();assert.equal(timeLabel.textContent,'0:00 / 1:05 · ');
+ scopeClock.enterSegment(clockRoot,{kind:'segment',name:'Segment',start:64,end:192});commands.refresh();assert.equal(timeLabel.textContent,'0:00 / 0:02 · ');
+ transport.seekToTick(64);assert.equal(timeLabel.textContent,'0:01 / 0:02 · ');
+ transport.playbackSettings.speed=2;transport.syncPlaybackControls();assert.equal(timeLabel.textContent,'0:00 / 0:01 · ');
+ transport.playbackSettings.speed=1;scopeClock.resetSegment();run('project.notes=[{id:1,instrument:0,start:0,length:64,pitch:60,volume:8,tempo:120},{id:2,instrument:0,start:64,length:64,pitch:62,volume:8,tempo:60}]');transport.stopPlayback(false);commands.refresh();assert.equal(timeLabel.textContent,'0:00 / 0:03 · ');
+ run('project.instruments.push({name:"Instructions",color:"#579dff",isInstructions:true});project.notes=[{id:1,instrument:0,start:0,length:64,pitch:60,volume:8},{id:2,instrument:1,start:0,length:1,pitch:60,volume:0,loopEntry:true,loopCount:3},{id:3,instrument:1,start:64,length:1,pitch:60,volume:0,loopExit:true}]');commands.refresh();assert.equal(timeLabel.textContent,'0:00 / 0:03 · ');
+ await transport.play();seq.currentHighResolutionTime=2.2;frame();assert.equal(timeLabel.textContent,'0:02 / 0:03 · ');transport.stopPlayback(false);
+ run('project.notes=[]');commands.refresh();assert.equal(timeLabel.textContent,'0:00 / 0:00 · ');
+ scopeClock.enterSegment(run('project'),{kind:'segment',name:'Silent',start:0,end:192});commands.refresh();assert.equal(timeLabel.textContent,'0:00 / 0:03 · ');scopeClock.resetSegment();
+
+ // Clicking any selected lane promotes its owner and retains the complete selection.
+ transport.stopPlayback(false);prefs.resetInstrumentView();run('state.segment=null;state.tool="select";state.zoom=3;project.instruments=[{name:"A",color:"#abcdef"},{name:"B",color:"#ff9c33"},{name:"C",color:"#77baff"}];project.notes=[{id:1,instrument:0,start:32,length:64,pitch:60,volume:8},{id:2,instrument:1,start:32,length:64,pitch:64,volume:8},{id:3,instrument:2,start:32,length:64,pitch:67,volume:8}];state.active=2;state.selectedInstruments=new Set([0,1,2]);selection=new Set([1,2])');commands.refresh();view.scrollLeft=0;view.scrollTop=pitchLayout.pitchTop(run('state.topPitch'),72);
+ const memberRect=geometry.rect(run('project.notes[0]')),memberX=memberRect.x+20,memberY=memberRect.y+5,memberData=run('JSON.stringify([project,state.history,state.dirty])');
+ click(memberX,memberY);assert.equal(run('state.active'),0);assert.deepEqual(plain('[...state.selectedInstruments]'),[1,2,0]);assert.deepEqual(plain('[...selection]'),[1,2]);assert.equal(run('JSON.stringify([project,state.history,state.dirty])'),memberData);
+ const bRect=geometry.rect(run('project.notes[1]'));drag(bRect.x+20,bRect.y+5,bRect.x+116,bRect.y+5);
+ assert.equal(run('state.active'),1);assert.deepEqual(plain('[...state.selectedInstruments]'),[2,0,1]);assert.deepEqual(plain('[...selection]'),[1,2]);assert.deepEqual(plain('project.notes.map(n=>[n.instrument,n.start])'),[[0,64],[1,64],[2,32]]);
+ const thirdRect=geometry.rect(run('project.notes[2]'));click(thirdRect.x+20,thirdRect.y+5);assert.deepEqual(plain('[...selection]'),[1,2,3]);assert.deepEqual(plain('[...state.selectedInstruments]'),[0,1,2]);
+ // Scoped edit reconciliation must retain the promoted instrument stack too.
+ scopeClock.enterSegment(run('structuredClone(project)'),{kind:'segment',name:'Group',start:0,end:256});commands.refresh();
+ const scopedMember=geometry.rect(run('project.notes[0]'));drag(scopedMember.x+20,scopedMember.y+5,scopedMember.x+116,scopedMember.y+5);
+ assert.equal(run('state.active'),0);assert.deepEqual(plain('[...state.selectedInstruments]'),[1,2,0]);assert.equal(run('selection.size'),3);
+ scopeClock.resetSegment();
+
+ // Large selections keep their original array/data/MML throughout preview, then commit once.
+ prefs.resetInstrumentView();run('state.segment=null;state.active=0;state.tool="select";state.zoom=3;project.grid=4;project.instruments=[{name:"Piano",color:"#abcdef"}];project.notes=Array.from({length:2000},(_,i)=>({id:i+1,instrument:0,start:32+i*32,length:32,pitch:60+i%10,volume:8}));selection=new Set(project.notes.map(n=>n.id))');commands.refresh();view.scrollLeft=0;view.scrollTop=pitchLayout.pitchTop(run('state.topPitch'),72);
+ const largeNotes=run('project.notes'),largeData=run('JSON.stringify([project,state.history,state.dirty])'),largeHistory=run('state.history.length'),largeRect=geometry.rect(largeNotes[0]),largeX=largeRect.x+20,largeY=largeRect.y+5,largeMml=mmlBox().children[0].textContent;
+ c.onpointerdown(event(largeX,largeY));for(let i=1;i<=8;i++)c.onpointermove(event(largeX+i*12,largeY));
+ assert.equal(run('project.notes'),largeNotes);assert.equal(run('JSON.stringify([project,state.history,state.dirty])'),largeData);assert.equal(mmlBox().children[0].textContent,largeMml);
+ fills.length=0;noteRendering.drawNotes();assert.ok(fills.some(f=>f.color==='#abcdef'&&f.x===largeRect.x+96&&f.y===largeRect.y));
+ c.onpointerup(event(largeX+96,largeY));assert.equal(run('project.notes[0].start'),64);assert.equal(run('project.notes[1999].start'),64032);assert.equal(run('state.history.length'),largeHistory+1);
+ (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),JSON.stringify(largeNotes));
+ run('selection=new Set(project.notes.map(n=>n.id))');const cancelNotes=run('project.notes');c.onpointerdown(event(largeX,largeY));c.onpointermove(event(largeX+96,largeY));c.onpointercancel();assert.equal(run('project.notes'),cancelNotes);
+
+ {
+ // Shared edge scrolling ramps by elapsed time to exactly 5x, independently per axis.
+ const edgeApi=(await load('src/edge-scroll.ts')).namespace,edgeController=edgeApi.createEdgeScroll(),bounds={left:62,top:24,right:900,bottom:600};
+ const startDelta=edgeController.step({x:900,y:300},bounds,false,0).dx;
+ edgeController.step({x:900,y:300},bounds,false,300);
+ const middle=edgeController.step({x:900,y:300},bounds,false,1800).dx;
+ const capped=edgeController.step({x:900,y:300},bounds,false,3300).dx;
+ assert.ok(middle>startDelta);assert.equal(capped,150);assert.equal(edgeController.step({x:900,y:300},bounds,false,4300).dx,capped);
+ assert.equal(edgeController.step({x:62,y:300},bounds,false,4350).dx,-30,'direction reversal resets speed');
+ assert.equal(edgeController.step({x:450,y:300},bounds,true,4400).dx,0);
+ assert.equal(edgeController.step({x:900,y:600},bounds,true,4450).dy,30);
+ edgeController.reset();assert.equal(edgeController.step({x:900,y:600},bounds,true,5000).dx,startDelta);
+ const atRate=rate=>{const motion=edgeApi.createEdgeScroll();motion.step({x:900,y:600},bounds,true,0);motion.step({x:900,y:600},bounds,true,3300);return motion.step({x:900,y:600},bounds,true,3300+1000/rate).dx*rate;};
+ assert.ok(Math.abs(atRate(60)-atRate(120))<1e-6);
+ // Resize shares the same edge driver, including scroll displacement and cancellation.
+ run('project.notes=[{id:1,instrument:0,start:200,length:32,pitch:60,volume:8}];selection=new Set([1])');commands.refresh();view.scrollLeft=500;
+ const resizeRect=geometry.rect(run('project.notes[0]')),resizeData=run('JSON.stringify(project)');
+ c.onpointerdown(event(resizeRect.x+resizeRect.w-1,resizeRect.y+5));c.onpointermove(event(899,resizeRect.y+5));
+ const resizeLength=run('project.notes[0].length');frame(0);frame(3300);frame(3350);assert.ok(run('project.notes[0].length')>resizeLength);c.onpointercancel();assert.equal(frame,null);assert.equal(run('JSON.stringify(project)'),resizeData);
+ }
+
+ { // Both drawing and resizing grow the scroll extent without a full layout pass.
+  run('state.segment=null;state.active=0;state.tool="draw";project.notes=[];selection.clear()');commands.refresh();
+  const extent=doc.getElementById('extent'),oldWidth=parseFloat(extent.style.width);view.scrollLeft=oldWidth-900;
+  const y=HEAD+100;c.onpointerdown(event(760,y));c.onpointermove(event(899,y));frame(0);frame(1000);
+  assert.ok(parseFloat(extent.style.width)>oldWidth);const drawnLength=run('project.notes[0].length');frame(1100);assert.ok(run('project.notes[0].length')>=drawnLength);c.onpointerup(event(899,y));
+  const n=run('project.notes[0]');view.scrollLeft=n.start*3;const r=geometry.rect(n),widthBefore=parseFloat(extent.style.width);
+  c.onpointerdown(event(r.x+r.w-1,r.y+5));c.onpointermove(event(899,r.y+5));frame(0);frame(3300);frame(3350);assert.ok(parseFloat(extent.style.width)>=widthBefore);c.onpointercancel();
+ }
+
+ { // Whole-view section ticks stay fixed during scroll, distinguish songs and refresh on edit.
+  run('state.segment=null;state.active=0;project.instruments=[{name:"Piano",color:"#abcdef"},{name:"Instructions",color:"#579dff",isInstructions:true}];project.notes=[{id:1,instrument:0,start:0,length:4096,pitch:60,volume:8},{id:2,instrument:1,start:0,length:1,pitch:60,volume:0,section:"First",resetMeasures:true},{id:3,instrument:1,start:1024,length:1,pitch:60,volume:0,section:"Verse"},{id:4,instrument:1,start:2048,length:1,pitch:60,volume:0,section:"Second",resetMeasures:true}];selection.clear()');commands.refresh();
+  const ticks=doc.getElementById('scroll-markers');assert.equal(ticks.hidden,false);assert.deepEqual(ticks.children.map(t=>t.title),['Song: First','Section: Verse','Song: Second']);assert.equal(ticks.children[1].className,'scroll-marker');assert.equal(ticks.children[2].className,'scroll-marker song');
+  const positions=ticks.children.map(t=>t.style.left),before=run('JSON.stringify([project,state.history,state.dirty])');view.scrollLeft=900;paint.draw();assert.deepEqual(ticks.children.map(t=>t.style.left),positions);assert.equal(run('JSON.stringify([project,state.history,state.dirty])'),before);
+  run('project.notes=project.notes.map(n=>n.id===3?{...n,section:"Bridge"}:n)');paint.draw();assert.equal(ticks.children[1].title,'Section: Bridge');
+  run('project.notes=project.notes.filter(n=>n.instrument===0)');paint.draw();assert.equal(ticks.hidden,true);
+ }
+
+ {
+  // Alt-click anchors the chronological first note, independent of selection order/pitch.
+  prefs.resetInstrumentView();run('state.segment=null;state.active=0;state.zoom=3;state.tool="draw";project.grid=4;project.instruments=[{name:"A",color:"#abcdef"},{name:"B",color:"#77baff"}];project.notes=[{id:1,instrument:0,start:96,length:17,pitch:60,volume:8},{id:2,instrument:1,start:32,length:13,pitch:67,volume:9}];state.selectedInstruments=new Set([1,0]);selection=new Set([1,2])');commands.refresh();view.scrollLeft=0;
+  const original=run('JSON.stringify(project)'),historyBefore=run('state.history.length');
+  c.onpointerdown({...event(KEY+160*3+4,300),altKey:true});
+  assert.deepEqual(plain('project.notes.map(n=>[n.start,n.length,n.pitch,n.instrument])'),[[224,17,60,0],[160,13,67,1]]);assert.deepEqual(plain('[...selection]'),[1,2]);assert.deepEqual(plain('[...state.selectedInstruments]'),[1,0]);assert.equal(run('state.history.length'),historyBefore+1);
+  c.onpointerdown({...event(KEY+160*3+4,240),altKey:true});assert.equal(run('state.history.length'),historyBefore+1);
+  (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project)'),original);
+  run('selection.clear()');c.onpointerdown({...event(600,300),altKey:true});assert.equal(run('project.notes.length'),2);
+  // Track clicks jump in one pointer-down; thumb dragging stays proportional.
+  const bar=doc.getElementById('horizontal-scroll');view.scrollLeft=0;paint.draw();const max=parseFloat(doc.getElementById('extent').style.width)-view.clientWidth,thumb=parseFloat(doc.getElementById('horizontal-thumb').style.width),travel=view.clientWidth-thumb;
+  bar.onpointerdown({...event(700,5)});assert.ok(Math.abs(view.scrollLeft-(700-thumb/2)/travel*max)<1e-6);bar.onpointerup(event(700,5));
+  const thumbLeft=parseFloat(doc.getElementById('horizontal-thumb').style.left),before=view.scrollLeft;bar.onpointerdown(event(thumbLeft+5,5));assert.equal(view.scrollLeft,before);bar.onpointermove(event(thumbLeft-35,5));assert.ok(view.scrollLeft<before);bar.onpointerup(event(thumbLeft-35,5));
+ }
+
+ { // Tools process the selected stack main-first and keep one atomic Undo.
+  prefs.resetInstrumentView();run('state.segment=null;state.active=1;state.selectedInstruments=new Set([2,0,1]);selection.clear();project.instruments=[{name:"A",color:"#abcdef"},{name:"B",color:"#77baff"},{name:"C",color:"#ff9c33"},{name:"Outside",color:"#ffffff"}];project.notes=[0,1,2,3].flatMap(instrument=>[{id:instrument*2+1,instrument,start:0,length:64,pitch:60,volume:8},{id:instrument*2+2,instrument,start:32,length:32,pitch:60,volume:8}])');commands.refresh();
+  const api=(await load('src/tools.ts')).namespace;
+  assert.deepEqual(Array.from(api.toolTargets(),n=>n.instrument),[1,1,0,0,2,2]);
+  const original=run('JSON.stringify(project)'),historyBefore=run('state.history.length');doc.getElementById('remove-overlap').onclick();
+  assert.deepEqual(plain('project.notes.filter(n=>n.start===0).map(n=>n.length)'),[32,32,32,64]);assert.equal(run('state.history.length'),historyBefore+1);assert.deepEqual(plain('[...state.selectedInstruments]'),[2,0,1]);assert.equal(run('state.active'),1);
+  (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project)'),original);
+  run('state.active=1;state.selectedInstruments=new Set([2,0,1]);selection=new Set([1,2])');doc.getElementById('remove-overlap').onclick();assert.deepEqual(plain('project.notes.filter(n=>n.start===0).map(n=>n.length)'),[32,64,64,64]);
+  run('selection.clear();state.active=1;state.selectedInstruments=new Set([2,0,1])');api.shiftToolVolumes(2);assert.deepEqual(plain('project.notes.map(n=>n.volume)'),[10,10,10,10,10,10,8,8]);
+ }
 });

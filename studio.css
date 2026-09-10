@@ -40,7 +40,7 @@ dialog{max-width:620px;max-height:85vh;overflow:auto;padding:26px;background:var
 
 /* Settings above, actions below: the panel had both at the same level. */
 .export-option{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px;white-space:nowrap}.export-option input[type=number]{width:96px;padding:6px 8px}.export-hint{margin:7px 0 0;font-size:10px;line-height:1.55;color:var(--secondary);white-space:normal}.export-check{margin-top:12px;justify-content:flex-start;gap:9px;white-space:normal;cursor:pointer}.export-check input{width:auto;flex:0 0 auto;margin:0;padding:0}.export-check:has(input:disabled){opacity:.45;cursor:default}.export-check:has(input:disabled)+.export-hint{opacity:.45}
-#export-limit-dialog{max-width:560px}
+#export-limit-dialog,#export-channel-dialog{max-width:560px}
 .export-limit-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
 
 /* The project name is a document title, so it only looks like a field while you edit it. */
@@ -97,7 +97,7 @@ dialog{max-width:620px;max-height:85vh;overflow:auto;padding:26px;background:var
 .panel-divider[data-collapsed=true]::before{content:'';position:absolute;top:0;bottom:0;width:8px}
 #left-divider[data-collapsed=true]::before{left:0}
 #right-divider[data-collapsed=true]::before{right:0}
-.menu summary>svg{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}#tools-menu .menu-panel{left:auto;right:0}.tools-panel{width:296px;padding:4px}.tool-item{padding:11px 11px 12px}.tool-item+.tool-item{border-top:1px solid var(--line)}.tool-item h3{margin:0;font-size:12px;font-weight:600;color:var(--text)}.tool-item p{margin:5px 0 10px;font-size:10px;line-height:1.55;color:var(--secondary)}.tool-row{display:flex;align-items:center;gap:9px;margin-bottom:10px}.tool-row>label{flex:0 0 auto;font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--secondary)}.tool-row .select-control{flex:0 0 auto}.tool-row select{width:94px;margin:0}.tools-panel .tool-apply{width:100%;margin:0;padding:8px 12px;text-align:center;background:var(--control);border:1px solid var(--line);border-radius:6px}.tools-panel .tool-apply:hover{background:var(--soft);border-color:var(--accent)}.tool-footnote{display:block;padding:10px 11px 9px;border-top:1px solid var(--line);font-size:9px;line-height:1.55;color:var(--secondary)}
+.menu summary>svg{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}#tools-menu .menu-panel{left:auto;right:0}.tools-panel{width:296px;padding:4px;max-height:calc(100vh - 120px);overflow-y:auto}.tool-item{padding:11px 11px 12px}.tool-item+.tool-item{border-top:1px solid var(--line)}.tool-item h3{margin:0;font-size:12px;font-weight:600;color:var(--text)}.tool-item p{margin:5px 0 10px;font-size:10px;line-height:1.55;color:var(--secondary)}.tool-row{display:flex;align-items:center;gap:9px;margin-bottom:10px}.tool-row>label{flex:0 0 auto;font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--secondary)}.tool-row .select-control{flex:0 0 auto}.tool-row select{width:94px;margin:0}.tools-panel .tool-apply{width:100%;margin:0;padding:8px 12px;text-align:center;background:var(--control);border:1px solid var(--line);border-radius:6px}.tools-panel .tool-apply:hover{background:var(--soft);border-color:var(--accent)}.tool-footnote{display:block;padding:10px 11px 9px;border-top:1px solid var(--line);font-size:9px;line-height:1.55;color:var(--secondary)}
 
 .note-fields [hidden]{display:none!important} #loop-warning{color:#dba82f;font-size:11px;line-height:1.5}
 
@@ -216,3 +216,21 @@ button.instrument-flag{padding:0;border:0;background:transparent;cursor:pointer}
 #export-options[open]>summary{margin-bottom:12px}
 
 .instrument-gain{display:flex;align-items:center;gap:8px;width:100%;font-size:11px}.instrument-gain input[type=range]{flex:1;min-width:0;margin:0;padding:0;border:0;background:transparent;cursor:pointer}.instrument-gain output{min-width:34px;text-align:right}.instrument.collapsed>.instrument-gain{display:none}
+
+.tools-panel input[type=checkbox]{width:auto;margin:8px 5px 10px 0}.tools-panel .tool-row input[type=number]{min-width:0;width:70px;flex:0 0 70px}.tools-panel label{font-size:11px}
+
+/* Landmarks sit above the scrollbar so its native thumb remains fully draggable. */
+#scroll-markers{position:absolute;left:0;height:12px;z-index:4;pointer-events:none}
+#scroll-markers[hidden]{display:none}
+.scroll-marker{position:absolute;bottom:0;width:9px;height:7px;transform:translateX(-50%);pointer-events:auto;cursor:default}
+.scroll-marker::before{content:"";position:absolute;bottom:0;left:4px;width:1px;height:6px;background:var(--text);box-shadow:0 0 1px var(--panel)}
+.scroll-marker.song{height:12px;z-index:1}
+.scroll-marker.song::before{left:3px;width:3px;height:11px;background:var(--accent)}
+.scroll-marker:hover::before{background:var(--accent);box-shadow:0 0 0 1px var(--panel)}
+
+.roll-surface{flex-direction:column}
+#view::-webkit-scrollbar:horizontal{height:0}
+#horizontal-scroll{position:relative;flex:0 0 12px;height:12px;background:var(--soft);touch-action:none;cursor:default}
+#horizontal-thumb{position:absolute;top:2px;height:8px;min-width:24px;border-radius:5px;background:var(--accent);opacity:.5;pointer-events:none}
+#horizontal-scroll:hover #horizontal-thumb,#horizontal-scroll:focus-visible #horizontal-thumb{opacity:.8}
+#horizontal-scroll:focus-visible{outline:1px solid var(--accent);outline-offset:-1px}

@@ -5,7 +5,8 @@ import { tempoChanges } from '../music/tempo.js';
 import { speedRegions } from '../music/speed.js';
 import { loopRegions } from '../music/loops.js';
 import { INSTRUCTIONS_COLOR } from '../model/instructions.js';
-import { palette } from '../appearance.js';
+import { layoutCaptions, drawCaptions } from './captions.js';
+import { warningCaptions } from './note-density.js';
 export function drawLoopRegions() {
     const paint = (loops) => {
         for (const loop of loops) {
@@ -29,7 +30,8 @@ export function drawLoopRegions() {
 export function drawInstructionLines() {
     for (const n of state.project.notes)
         if (state.project.instruments[n.instrument]?.isInstructions && !isMuted(n.instrument)) {
-            const x = KEY + n.start * state.zoom - view.scrollLeft;
+            const offset = state.gesture?.movePreview && state.selection.has(n.id) ? state.gesture.movePreview.dt : 0;
+            const x = KEY + (n.start + offset) * state.zoom - view.scrollLeft;
             if (x + 15 < KEY || x > state.width)
                 continue;
             ctx.fillStyle = state.project.instruments[n.instrument].color;
@@ -59,44 +61,8 @@ function captions() {
         else if (n.tempo != null)
             entries.push({ note: n, color: INSTRUCTIONS_COLOR, text: `T${n.tempo}` });
     }
-    const rowEnds = [], result = [];
-    ctx.font = '11px Segoe UI';
-    for (const entry of entries.sort((a, b) => a.note.start - b.note.start || a.note.id - b.note.id)) {
-        const x = KEY + entry.note.start * state.zoom - view.scrollLeft;
-        if (x < KEY || x >= state.width - 12)
-            continue;
-        let text = entry.text;
-        const maxWidth = Math.min(320, state.width - x - 8);
-        if (ctx.measureText(text).width + 12 > maxWidth) {
-            while (text.length && ctx.measureText(text + '…').width + 12 > maxWidth)
-                text = text.slice(0, -1);
-            text += '…';
-        }
-        const w = Math.min(maxWidth, ctx.measureText(text).width + 12);
-        let row = rowEnds.findIndex(end => end < x);
-        if (row < 0)
-            row = rowEnds.length;
-        rowEnds[row] = x + w + 8;
-        result.push({ ...entry, text, x: x + 3, y: HEAD + 4 + row * 24, w, h: 20 });
-    }
-    return result;
+    return layoutCaptions([...entries.sort((a, b) => a.note.start - b.note.start || a.note.id - b.note.id).map(entry => ({ ...entry, start: entry.note.start })), ...warningCaptions()]);
 }
-export function instructionCaptionHit(p) { return captions().findLast(c => state.project.instruments[c.note.instrument]?.isInstructions && p.x >= c.x && p.x <= c.x + c.w && p.y >= c.y && p.y <= c.y + c.h)?.note; }
+export function instructionCaptionHit(p) { return captions().findLast(c => c.note && state.project.instruments[c.note.instrument]?.isInstructions && p.x >= c.x && p.x <= c.x + c.w && p.y >= c.y && p.y <= c.y + c.h)?.note; }
 export function instructionLineHit(p) { return p.y >= HEAD && p.y <= state.height && p.x >= KEY ? [...state.project.notes].reverse().find(n => { const x = KEY + n.start * state.zoom - view.scrollLeft; return state.project.instruments[n.instrument]?.isInstructions && !isMuted(n.instrument) && p.x >= x && p.x <= x + 15; }) : undefined; }
-export function drawTempoMarkers() {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(KEY, HEAD, state.width - KEY, state.height - HEAD);
-    ctx.clip();
-    ctx.textBaseline = 'middle';
-    for (const c of captions()) {
-        ctx.fillStyle = palette.ruler;
-        ctx.fillRect(c.x, c.y, c.w, c.h);
-        ctx.strokeStyle = c.color;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(c.x + .5, c.y + .5, c.w - 1, c.h - 1);
-        ctx.fillStyle = palette.text;
-        ctx.fillText(c.text, c.x + 6, c.y + 10);
-    }
-    ctx.restore();
-}
+export function drawTempoMarkers() { drawCaptions(captions()); }

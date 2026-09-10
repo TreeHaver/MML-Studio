@@ -99,7 +99,7 @@ All seven findings were reviewed with the user on **2026-09-08**. The original r
 | A4: nested same-pitch notes exchange lifetimes | Fixed: preview shares MML's monophonic partition and restores held notes on their assigned routes. `tests/playback.test.mjs`, `tests/electron-behavior.cjs`. |
 | A5: missing melodic samples / boundary spelling | Fixed: shared sample fallback; output B-1/C9 as `o0c-`/`o8b+`. `tests/playback.test.mjs`, `tests/mml.test.mjs`, `tests/electron-behavior.cjs`. |
 | A6: native close loses unsaved edits | Fixed: authenticated Save/Discard/Cancel handshake; failed/cancelled saves or intervening edits keep the window open. `tests/electron-close.cjs`. |
-| A7: scoped return collides with header | Fixed: Segment return below the ruler under Time signature; Song return in File; neither at root. `tests/electron-segment-view.cjs`. |
+| A7: scoped return collides with header | Fixed: Song and Segment return below the ruler under Time signature; neither at root (updated by user request 2026-09-10). `tests/electron-segment-view.cjs`. |
 
 `tests/behavior-audit.mjs` is a standalone diagnostic, not part of the normal suite. `tests/electron-behavior-audit.cjs` intentionally retains original pre-fix assertions and is historical; use the current regression harnesses above as acceptance checks.
 

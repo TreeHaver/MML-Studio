@@ -1,3 +1,5 @@
+import { refreshHorizontalScroll } from './horizontal-scroll.js';
+import { refreshScrollMarkers } from './scroll-markers.js';
 import { drawCrowdedRegions, drawCrowdedMarkers, drawOverlapMarkers } from './rendering/note-density.js';
 import { refreshSignature } from './toolbar.js';
 import { refreshSegmentControls, drawSegmentBoundary } from './segment-view.js';
@@ -15,9 +17,14 @@ import { drawLoopSpan, drawLoopBar } from './rendering/loop-region.js';
 import { drawKeyboard } from './rendering/keyboard.js';
 import { drawInstructionLines, drawLoopRegions, drawTempoMarkers } from './rendering/tempo.js';
 export function draw() {
-    syncPlaybackControls();
-    refreshSignature();
-    refreshSegmentControls();
+    refreshHorizontalScroll();
+    const moving = !!state.gesture?.movePreview;
+    if (!moving) {
+        syncPlaybackControls();
+        refreshSignature();
+        refreshSegmentControls();
+        refreshScrollMarkers();
+    }
     const { width, height } = state;
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = palette.background;
@@ -28,19 +35,25 @@ export function draw() {
     ctx.clip();
     drawGrid();
     drawLoopSpan();
-    drawLoopRegions();
+    if (!moving)
+        drawLoopRegions();
     drawInstructionLines();
-    drawCrowdedRegions();
+    if (!moving)
+        drawCrowdedRegions();
     drawNotes();
-    drawOverlapMarkers();
+    if (!moving)
+        drawOverlapMarkers();
     ctx.restore();
     drawRuler();
     drawLoopBar();
-    drawCrowdedMarkers();
+    if (!moving)
+        drawCrowdedMarkers();
     drawKeyboard();
-    drawTempoMarkers();
+    if (!moving)
+        drawTempoMarkers();
     drawSegmentBoundary();
-    drawSheetLimit();
+    if (!moving)
+        drawSheetLimit();
     if (playback.tick !== null) {
         const x = KEY + playback.tick * state.zoom - view.scrollLeft;
         ctx.save();

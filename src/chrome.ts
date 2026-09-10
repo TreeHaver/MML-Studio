@@ -11,7 +11,9 @@ export function installChrome(){
   const target=event.target as HTMLElement;
   // Our select lists are appended to <body>, so a click in one is not outside its menu.
   if(target.closest('.select-panel'))return;
-  for(const menu of menus)if(!menu.contains(target)||target.closest('button'))menu.open=false;
+  const button=target.closest('button');
+  // Keep the scale estimate visible after its read-only calculation.
+  for(const menu of menus)if(!menu.contains(target)||button&&button.id!=='detect-scale')menu.open=false;
  };
  document.onkeyup=event=>{if(event.key==='Escape')for(const menu of menus){if(menu.open){menu.open=false;menu.querySelector('summary')?.focus();}}};
 }

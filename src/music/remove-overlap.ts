@@ -2,9 +2,9 @@ import type {Note,Project} from '../model/types.ts';
 import {resolveVolumes} from './volume.ts';
 
 /** Cut held notes at the next distinct onset of the exact same pitch. */
-export function removeOverlap(project:Project,index:number){
+export function removeOverlap(project:Project,index:number,ids?:ReadonlySet<number>){
  if(project.instruments[index]?.isInstructions)return {notes:project.notes,changed:0,shortened:0,duplicates:0};
- const source=project.notes.filter(n=>n.instrument===index).sort((a,b)=>a.pitch-b.pitch||a.start-b.start||a.id-b.id);
+ const source=project.notes.filter(n=>n.instrument===index&&(!ids||ids.has(n.id))).sort((a,b)=>a.pitch-b.pitch||a.start-b.start||a.id-b.id);
  const replacements=new Map<number,Note>(),removed=new Set<number>(),volumes=resolveVolumes(project.notes);
  for(let a=0;a<source.length;){
   let b=a+1;

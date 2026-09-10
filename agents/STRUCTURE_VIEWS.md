@@ -8,7 +8,7 @@ Turn on **Enable Advanced Instructions**, select the dedicated **Instructions** 
 
 Unbound tempo and imported MIDI signatures reuse/create this silent lane. Instructions are stored as note-shaped records but never sound or consume musical MIDI/MML channels. Moving/deleting a marker moves/removes its instructions and supports Undo.
 
-The roll paints 15-screen-pixel instruction bands independently of pitch/zoom. Click a band or its caption to select it; captions can select an Instructions lane from another active instrument. Tempo, signature, section and reset captions group by position in bordered boxes below the ruler. Neighboring boxes stack, stay fixed vertically while scrolling, and ellipsize long text at the viewport edge. Full text remains in the inspector. Yellow tempo lines include both note-bound and unbound actual changes.
+The roll paints 15-screen-pixel instruction bands independently of pitch/zoom. Click a band or its caption to select it; captions can select an Instructions lane from another active instrument. Tempo, signature, section and reset captions group by position in bordered boxes below the ruler. Neighboring boxes stack, stay fixed vertically while scrolling, and ellipsize long text at the viewport edge. Full text remains in the inspector. Instructions lanes and note-bound tempo lines use blue. Loading an existing version-2 project normalizes its Instructions color to blue, including empty lanes; musical instrument colors remain unchanged. Saving retains the normalized color. Event and warning captions share the same collision layout; warning text wraps.
 
 ## Time signatures and measure numbers
 
@@ -40,7 +40,7 @@ The latest matching marker at/before the playhead determines the view. The UI of
 
 Opening stops playback, clones/clips the interval into a local timeline starting at zero, and starts measure numbering at 1. A Song containing Segments can open its current Segment. A Segment hides further section navigation. Return always goes to the full project, translating the playhead to absolute time.
 
-Segment View's **Return to Project** floats 6px below the current 24px ruler, under Time signature, and remains fixed while scrolling. Song View returns through File. The root project shows neither return control. The scoped name appears beneath the full Project name.
+Both Song and Segment Views’ **Return to Project** floats 6px below the current 24px ruler, under Time signature, and remains fixed while scrolling. Neither scoped view places Return to Project in File. The root project shows neither return control. The scoped name appears beneath the full Project name.
 
 ## Editing without damaging the parent
 

@@ -39,6 +39,7 @@ export function syncSegment() {
     const root = mergeSegment(session.root, session.projection, state.project, session.sourceIndices, ids);
     const route = (index) => { const source = session.sourceIndices[index] ?? -1; return source >= 0 ? source : session.root.instruments.length + state.project.instruments.slice(0, index).filter((_, i) => (session.sourceIndices[i] ?? -1) < 0).length; };
     const active = route(state.active);
+    const selectedInstruments = [...state.selectedInstruments].map(route);
     if (state.project.instruments.some((_, index) => route(index) !== index)) {
         for (const set of [instrumentView.muted, instrumentView.collapsed]) {
             const mapped = [...set].map(route);
@@ -54,7 +55,7 @@ export function syncSegment() {
     state.segment = { root, projection, sourceIndices: projection.project.instruments.map((_, index) => index < root.instruments.length ? index : -1) };
     state.project = projection.project;
     state.active = Math.max(0, Math.min(active, state.project.instruments.length - 1));
-    state.selectedInstruments.clear();
+    state.selectedInstruments = new Set(selectedInstruments.filter(index => state.project.instruments[index] && !state.project.instruments[index].isInstructions));
     const present = new Set(state.project.notes.map(n => n.id));
     state.selection = new Set([...state.selection].map(id => ids.get(id) ?? id).filter(id => present.has(id)));
 }

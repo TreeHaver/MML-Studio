@@ -13,7 +13,17 @@ export function point(e:PointerEvent){const r=canvas.getBoundingClientRect();ret
 
 export function musical(p:any){return {tick:Math.max(0,(p.x-KEY+view.scrollLeft)/state.zoom),pitch:pitchAtY(state.topPitch,p.y-HEAD+view.scrollTop)};}
 
-export function hit(p:any){const caption=instructionCaptionHit(p);if(caption?.instrument===state.active)return caption;return [...state.project.notes].reverse().find(n=>{const r=rect(n);return !isMuted(n.instrument)&&instrumentSelected(n.instrument)&&(state.project.instruments[n.instrument]?.isInstructions||musical(p).pitch===n.pitch)&&p.x>=r.x-1&&p.x<=r.x+r.w+1&&p.y>=r.y-2&&p.y<=r.y+r.h+2;});}
+export function hits(p:any){const caption=instructionCaptionHit(p);if(caption?.instrument===state.active)return [caption];return [...state.project.notes].reverse().filter(n=>{const r=rect(n);return !isMuted(n.instrument)&&instrumentSelected(n.instrument)&&(state.project.instruments[n.instrument]?.isInstructions||musical(p).pitch===n.pitch)&&p.x>=r.x-1&&p.x<=r.x+r.w+1&&p.y>=r.y-2&&p.y<=r.y+r.h+2;});}
+export function hit(p:any){return hits(p)[0];}
+
+/** Direct musical-body picking across visible instruments, in actual paint order. */
+export function musicalNoteHit(p:{x:number,y:number}){
+ const matches=[...state.project.notes].reverse().filter(n=>{
+  if(isMuted(n.instrument)||state.project.instruments[n.instrument]?.isInstructions)return false;
+  const r=rect(n);return p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h;
+ });
+ return (state.selection.size===1?matches.find(n=>state.selection.has(n.id)):undefined)??matches[0];
+}
 
 export function edge(n:Note,p:any){if(state.project.instruments[n.instrument]?.isInstructions)return false;const r=rect(n);return p.x>=r.x+r.w-Math.min(6,r.w/3);}
 

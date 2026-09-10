@@ -1,5 +1,5 @@
 import type {Project} from './types.ts';
-export const INSTRUCTIONS_NAME='Instructions',INSTRUCTIONS_COLOR='#f4d35e';
+export const INSTRUCTIONS_NAME='Instructions',INSTRUCTIONS_COLOR='#579dff';
 
 export function hasInstructions(project:Project){
  return project.notes.some(n=>project.instruments[n.instrument]?.isInstructions||n.tempo!=null||n.timeSignature||n.section||n.resetMeasures||n.loopEntry||n.loopExit||n.loopTie||n.loopCount!=null||n.speedEntry||n.speedExit||n.speedMultiplier!=null);
@@ -9,6 +9,8 @@ export function hasInstructions(project:Project){
 // event and its ID while routing them to the single dedicated lane.
 export function consolidateInstructions(project:Project){
  const first=project.instruments.findIndex(i=>i.isInstructions);if(first<0)return;
+ // Instructions has no color control: normalize old saved colors on load too.
+ project.instruments[first].color=INSTRUCTIONS_COLOR;
  const routes:number[]=[];const instruments:Project['instruments']=[];
  project.instruments.forEach((instrument,index)=>{
   if(instrument.isInstructions&&index!==first){routes[index]=routes[first];return;}

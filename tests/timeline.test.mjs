@@ -49,3 +49,17 @@ test('tempo-only MIDI files populate Instructions and import without audible not
   assert.equal(readSMF(new Uint8Array(compilePlayback(project).binary)).events.filter(e=>(e.status>>4)===9).length,0);
  }
 });
+
+test('loading version-2 projects normalizes old Instructions colors without changing musical data',()=>{
+ for(const color of ['#f4d35e','#ff0000','#123456']){
+  const p=fresh();p.instruments[0].color=color;
+  p.instruments.push({name:'Instructions',color,isInstructions:true});
+  p.notes=[{id:1,instrument:0,start:0,length:128,pitch:60,volume:8},{id:2,instrument:1,start:32,length:1,pitch:60,volume:0,tempo:90}];
+  const source=JSON.stringify(p),loaded=parse(source);
+  assert.equal(loaded.instruments[1].color,'#579dff');assert.equal(loaded.instruments[0].color,color);
+  assert.deepEqual(loaded.notes,p.notes);assert.equal(loaded.version,2);assert.equal(JSON.stringify(p),source);
+  assert.deepEqual(parse(JSON.stringify(loaded)),loaded);
+ }
+ const empty=fresh();empty.instruments.push({name:'Instructions',color:'#f4d35e',isInstructions:true});
+ assert.equal(parse(JSON.stringify(empty)).instruments[1].color,'#579dff');
+});

@@ -1,4 +1,37 @@
 import { expandLoops } from './loops.js';
+/** Exact shared lifetimes of same-pitch notes with distinct onsets, per owner.
+ * Same-start duplicates retain their separate onset warning. No notes are edited. */
+export function sustainedOverlapSpans(notes) {
+    const groups = new Map(), spans = [];
+    for (const n of notes) {
+        const key = `${n.instrument}:${n.pitch}`, group = groups.get(key) ?? [];
+        group.push(n);
+        groups.set(key, group);
+    }
+    for (const group of groups.values()) {
+        group.sort((a, b) => a.start - b.start);
+        let earlierEnd = -Infinity, last;
+        for (let i = 0; i < group.length;) {
+            const { start, instrument, pitch } = group[i];
+            let end = start;
+            while (i < group.length && group[i].start === start) {
+                end = Math.max(end, group[i].start + group[i].length);
+                i++;
+            }
+            const sharedEnd = Math.min(earlierEnd, end);
+            if (sharedEnd > start) {
+                if (last && last.end >= start)
+                    last.end = Math.max(last.end, sharedEnd);
+                else {
+                    last = { instrument, pitch, start, end: sharedEnd };
+                    spans.push(last);
+                }
+            }
+            earlierEnd = Math.max(earlierEnd, end);
+        }
+    }
+    return spans;
+}
 /** Editable locations for the same overlaps reported by MML, including repeat
  * restarts. Expanded IDs are temporary, so select the original sounding notes. */
 export function overlapLocations(project, instrument) {
@@ -37,6 +70,10 @@ export function hasOverlappingNotes(notes) {
 }
 /** Half-open intervals: a note ending at t does not overlap one starting at t. */
 export function crowdedRegions(notes, limit = 10) {
+    return crowdedRegionCounts(notes, limit).map(({ start, end }) => ({ start, end }));
+}
+/** Peak simultaneous notes within each continuous over-limit area. */
+export function crowdedRegionCounts(notes, limit = 10) {
     const events = new Map();
     for (const n of notes) {
         events.set(n.start, (events.get(n.start) ?? 0) + 1);
@@ -44,13 +81,17 @@ export function crowdedRegions(notes, limit = 10) {
         events.set(end, (events.get(end) ?? 0) - 1);
     }
     const regions = [];
-    let count = 0, start;
+    let count = 0, start, peak = 0;
     for (const [tick, delta] of [...events].sort((a, b) => a[0] - b[0])) {
         const next = count + delta;
-        if (count <= limit && next > limit)
+        if (count <= limit && next > limit) {
             start = tick;
+            peak = next;
+        }
+        if (start !== undefined)
+            peak = Math.max(peak, next);
         if (count > limit && next <= limit && start !== undefined) {
-            regions.push({ start, end: tick });
+            regions.push({ start, end: tick, peak });
             start = undefined;
         }
         count = next;

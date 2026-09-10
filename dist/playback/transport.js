@@ -7,6 +7,7 @@ import { volumeAt } from '../music/volume.js';
 import { getEngine, setMasterVolume } from './engine.js';
 import { followPlayback } from '../viewport.js';
 import { loopRegion, looping } from './loop-region.js';
+import { expandLoops } from '../music/loops.js';
 let position = null;
 export const playback = { get tick() { return position === null ? null : phase === 'idle' || !plan ? position : plan.sourceTick(position); }, set tick(value) { position = value; } };
 export const playbackSettings = { speed: 1, volume: 1 };
@@ -162,11 +163,33 @@ function buttons() {
     for (const id of ['start', 'rewind', 'forward'])
         $(id).disabled = phase === 'idle' || phase === 'loading';
 }
+let clockNotes, clockCount = -1, clockRoles = '', clockEnd = -1;
+let clock, clockMap = [];
+function currentClock() {
+    const range = state.segment?.projection.range, end = Math.max(range ? range.end - range.start : 0, looping() ? loopRegion.end : 0);
+    const notes = state.project.notes, roles = state.project.instruments.map(i => i.isInstructions ? '1' : '0').join('');
+    if (clockNotes !== notes || clockCount !== notes.length || clockRoles !== roles || clockEnd !== end) {
+        clock = expandLoops(state.project, end);
+        clockMap = tempoMap(clock.project.notes);
+        clockNotes = notes;
+        clockCount = notes.length;
+        clockRoles = roles;
+        clockEnd = end;
+    }
+    return { map: clockMap, end: clock.end, performanceTick: clock.performanceTick };
+}
+function clockText(seconds) {
+    const total = Math.floor(Math.max(0, seconds) + 1e-9), minutes = Math.floor(total / 60), remainder = String(total % 60).padStart(2, '0');
+    return minutes >= 60 ? `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}:${remainder}` : `${minutes}:${remainder}`;
+}
 function positionLabel() {
     const tick = position ?? 0, project = phase === 'idle' ? state.project : plan?.project ?? snapshot ?? state.project;
     const bpm = tempoAt(project.notes, tick), effective = bpm * playbackSettings.speed;
     $('playback-bpm').textContent = `${bpm} BPM`;
-    $('playback-time').textContent = position === null ? '' : `${secondsAtTick(phase === 'idle' ? tempoMap(state.project.notes) : plan?.map ?? tempoMap(state.project.notes), tick).toFixed(1)} s · `;
+    const running = (phase === 'playing' || phase === 'paused') && plan, timing = running ? plan : currentClock();
+    const total = secondsAtTick(timing.map, timing.end) / playbackSettings.speed;
+    const elapsed = secondsAtTick(timing.map, running ? tick : timing.performanceTick(Math.min(tick, timing.end))) / playbackSettings.speed;
+    $('playback-time').textContent = `${clockText(Math.min(elapsed, total))} / ${clockText(total)} · `;
     const label = $('effective-bpm'), outOfBounds = effective < 32 || effective > 255;
     // The effective figure only matters when the speed slider has moved, but a tempo the game
     // cannot play matters at any speed: at 1x the warning is shown on its own, beside the BPM.

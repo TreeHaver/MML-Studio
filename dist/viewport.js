@@ -9,6 +9,14 @@ export function followPlayback(tick) {
     if (left !== view.scrollLeft)
         view.scrollLeft = left;
 }
+/** Grow only the scroll extent during a drag, without rescanning/rebuilding the canvas. */
+export function extendDragExtent(end) {
+    if (state.segment)
+        return;
+    const extent = $('extent'), width = KEY + (end + 512) * state.zoom;
+    if (width > (parseFloat(extent.style.width) || 0))
+        extent.style.width = width + 'px';
+}
 export function layout() {
     const notes = state.project.notes;
     let nt = 127, nb = 0, end = 4096;

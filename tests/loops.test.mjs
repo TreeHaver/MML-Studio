@@ -13,7 +13,7 @@ import {sliceProject} from '../dist/music/structure.js';
 import {speedMap} from '../dist/music/speed.js';
 const note=(id,start,length,pitch=60,extra={})=>({id,start,length,pitch,instrument:0,volume:null,...extra});
 const marker=(id,start,extra)=>note(id,start,1,60,{instrument:1,volume:0,...extra});
-const project=notes=>({format:'mml-studio',version:2,grid:4,instruments:[{name:'Piano',color:'#4488aa'},{name:'Instructions',color:'#f4d35e',isInstructions:true}],notes});
+const project=notes=>({format:'mml-studio',version:2,grid:4,instruments:[{name:'Piano',color:'#4488aa'},{name:'Instructions',color:'#579dff',isInstructions:true}],notes});
 const music=p=>p.notes.filter(n=>!p.instruments[n.instrument].isInstructions).sort((a,b)=>a.start-b.start||a.id-b.id).map(n=>[n.start,n.length,n.pitch]);
 test('multiplier clock nests, exits, repeats and restores source tempo',()=>{
  const p=project([note(1,0,128),marker(2,16,{speedEntry:true,speedMultiplier:2}),marker(3,32,{speedEntry:true,speedMultiplier:1.5}),marker(4,64,{speedExit:true,tempo:100}),marker(5,96,{speedExit:true}),marker(6,32,{loopEntry:true,loopCount:2}),marker(7,96,{loopExit:true,loopTie:true})]);

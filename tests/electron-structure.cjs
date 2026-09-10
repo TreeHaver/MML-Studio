@@ -23,5 +23,28 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  fs.writeFileSync('.validation/electron-structure.png',(await win.webContents.capturePage()).toPNG());
  win.setSize(900,700);await evaluate(`new Promise(r=>setTimeout(r,150))`);
  assert.equal(await evaluate(`document.getElementById('export-open').getBoundingClientRect().right<=innerWidth`),true);
+
+ win.setSize(1320,850);await evaluate(`new Promise(r=>setTimeout(r,100))`);
+ await evaluate(`s.active=0;s.selection.clear();s.project.notes=[{id:1,instrument:0,start:0,length:4096,pitch:60,volume:8},{id:2,instrument:2,start:0,length:1,pitch:60,volume:0,section:'First song',resetMeasures:true},{id:3,instrument:2,start:1024,length:1,pitch:60,volume:0,section:'Verse'},{id:4,instrument:2,start:2048,length:1,pitch:60,volume:0,section:'Second song',resetMeasures:true},{id:5,instrument:2,start:3072,length:1,pitch:60,volume:0,section:'Outro'}];refresh();document.getElementById('view').scrollLeft=0;`);
+ await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`);
+ const landmarkInfo=await evaluate(`(()=>{const v=document.getElementById('view'),strip=document.getElementById('scroll-markers');return {bottom:strip.getBoundingClientRect().bottom,track:v.getBoundingClientRect().top+v.clientHeight,ticks:[...strip.children].map(t=>({title:t.title,left:t.getBoundingClientRect().left,width:getComputedStyle(t,'::before').width,height:getComputedStyle(t,'::before').height}))};})()`);
+ assert.ok(Math.abs(landmarkInfo.bottom-landmarkInfo.track)<1);assert.deepEqual(landmarkInfo.ticks.map(t=>[t.title,t.width,t.height]),[['Song: First song','3px','11px'],['Section: Verse','1px','6px'],['Song: Second song','3px','11px'],['Section: Outro','1px','6px']]);
+ await evaluate(`document.getElementById('view').scrollLeft=1800`);await evaluate(`new Promise(r=>requestAnimationFrame(r))`);
+ assert.deepEqual(await evaluate(`[...document.getElementById('scroll-markers').children].map(t=>t.getBoundingClientRect().left)`),landmarkInfo.ticks.map(t=>t.left));
+ fs.writeFileSync('.validation/electron-scroll-markers.png',(await win.webContents.capturePage()).toPNG());
+ const scrollbar=await evaluate(`(()=>{const v=document.getElementById('view'),r=v.getBoundingClientRect();return {x:Math.round(r.left+v.clientWidth*.8),y:Math.round(r.top+v.clientHeight+5),before:v.scrollLeft};})()`);
+ win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:scrollbar.x,y:scrollbar.y});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:scrollbar.x,y:scrollbar.y});await evaluate(`new Promise(r=>setTimeout(r,200))`);
+ assert.ok(await evaluate(`document.getElementById('view').scrollLeft`)>scrollbar.before,'Horizontal scrollbar remains usable');
+
+ // A track press centers the thumb immediately, without page stepping or animation.
+ const jump=await evaluate(`(()=>{const bar=document.getElementById('horizontal-scroll'),v=document.getElementById('view'),r=bar.getBoundingClientRect(),thumb=document.getElementById('horizontal-thumb').getBoundingClientRect().width,x=100;return {x:Math.round(r.left+x),y:Math.round(r.top+6),expected:(x-thumb/2)/(r.width-thumb)*(v.scrollWidth-v.clientWidth)};})()`);
+ win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:jump.x,y:jump.y});
+ await evaluate(`new Promise(r=>requestAnimationFrame(r))`);
+ const jumped=await evaluate(`document.getElementById('view').scrollLeft`);assert.ok(Math.abs(jumped-jump.expected)<2,JSON.stringify({jumped,...jump}));
+ win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:jump.x,y:jump.y});
+ await evaluate(`s.project.notes=[{id:1,instrument:0,start:64,length:17,pitch:60,volume:8},{id:2,instrument:0,start:0,length:13,pitch:67,volume:9}];s.selection=new Set([1,2]);s.active=0;s.project.grid=4;refresh();document.getElementById('view').scrollLeft=0;`);
+ const altPoint=await evaluate(`(()=>{const c=document.getElementById('canvas').getBoundingClientRect();return {x:Math.round(c.left+62+128*s.zoom+3),y:Math.round(c.top+180)}})()`);
+ win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,modifiers:['alt'],...altPoint});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,modifiers:['alt'],...altPoint});
+ assert.deepEqual(await evaluate(`s.project.notes.map(n=>[n.start,n.pitch,n.length])`),[[192,60,17],[128,67,13]]);
  stage='completed native editing, section navigation, reset alignment, responsive header and IPC saves/exports; OS picker stubbed';finish();
  }catch(error){finish(error);}});});require('../main.cjs');

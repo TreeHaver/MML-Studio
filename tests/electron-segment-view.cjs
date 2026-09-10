@@ -40,7 +40,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  await evaluate(`document.querySelector('#theme-menu [data-theme=sky]').click()`);
  win.setSize(1320,850);await evaluate(`new Promise(r=>setTimeout(r,150))`);
  await evaluate(`document.getElementById('open-song').click()`);
- assert.ok(await evaluate(`document.getElementById('return-project').hidden&&!document.getElementById('return-song-project').hidden`));
+ assert.ok(await evaluate(`!document.getElementById('return-project').hidden&&document.getElementById('return-song-project').hidden`));
  assert.equal(await evaluate(`s.segment.projection.range.end`),256);assert.equal(await evaluate(`document.getElementById('section-control').hidden`),false);
  await evaluate(`transport.seekToTick(120);document.getElementById('open-segment').click()`);
  assert.deepEqual(await evaluate(`s.project.notes.filter(n=>n.instrument===0).map(n=>[n.start,n.length])`),[[0,64],[14,12]]);
@@ -64,7 +64,9 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  win.setSize(900,700);await evaluate(`new Promise(r=>setTimeout(r,150))`);
  assert.ok(await evaluate(`document.getElementById('export-open').getBoundingClientRect().right<=innerWidth`),'Header fits 900px');
  assert.ok(await evaluate(`(()=>{const p=document.getElementById('project-name').getBoundingClientRect(),badge=document.getElementById('segment-view-label').getBoundingClientRect();return badge.top>=p.bottom&&badge.left>=p.left-60&&badge.right<=innerWidth;})()`),'View name stays with the Project input');
- await evaluate(`document.getElementById('return-song-project').click()`);assert.equal(await evaluate('s.segment'),null);await evaluate(`transport.seekToTick(120);document.getElementById('open-segment').click()`);
+ await checkReturn();
+ await evaluate(`document.getElementById('view').scrollLeft=80;document.getElementById('view').scrollTop=200;refresh()`);await checkReturn();
+ await evaluate(`document.getElementById('return-project').click()`);assert.equal(await evaluate('s.segment'),null);await evaluate(`transport.seekToTick(120);document.getElementById('open-segment').click()`);
  await checkReturn();await evaluate(`document.getElementById('view').scrollLeft=80;document.getElementById('view').scrollTop=200`);await new Promise(r=>setTimeout(r,60));await checkReturn();fs.writeFileSync('.validation/electron-segment-return-900.png',(await win.webContents.capturePage()).toPNG());
  await evaluate(`document.querySelector('#theme-menu [data-theme=night]').click();refresh()`);assert.equal(await evaluate(`document.documentElement.dataset.theme`),'night');await evaluate(`new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))`);fs.writeFileSync('.validation/electron-segment-return-night.png',(await win.webContents.capturePage()).toPNG());await evaluate(`document.querySelector('#theme-menu [data-theme=sky]').click();refresh()`);
  const returnPoint=await evaluate(`(()=>{const r=document.getElementById('return-project').getBoundingClientRect();return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)};})()`);win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...returnPoint});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...returnPoint});await new Promise(r=>setTimeout(r,60));assert.ok(await evaluate(`s.segment===null&&getComputedStyle(document.getElementById('return-project')).display==='none'&&getComputedStyle(document.getElementById('return-song-project')).display==='none'`));

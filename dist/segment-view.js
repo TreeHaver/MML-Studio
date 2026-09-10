@@ -19,8 +19,8 @@ export function refreshSegmentControls() {
     if (menu.hidden)
         menu.open = false;
     $('segment-view-label').hidden = !session;
-    $('return-project').hidden = session?.projection.range.kind !== 'segment';
-    $('return-song-project').hidden = session?.projection.range.kind !== 'song';
+    $('return-project').hidden = !session;
+    $('return-song-project').hidden = true;
     $('segment-view-label').textContent = session ? `${session.projection.range.kind === 'song' ? 'Song' : 'Segment'}: ${session.projection.range.name}` : '';
     $('export-sections').disabled = !!session;
 }

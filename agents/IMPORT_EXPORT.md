@@ -124,6 +124,12 @@ At the root, **Export sections as separate song sheets** splits MS2MML/text/MIDI
 
 In Song/Segment View, exports use the local projection and view name; additional section splitting is disabled. JSON Save always saves the full parent instead. MML text files with blank-line channel separation are for reading/sharing; the importer expects comma-separated channels and does not promise direct multi-channel `.txt` round-trip fidelity.
 
+## Channel overflow warning
+
+Ordinary MS2MML and MML text exports check each instrument/section's generated channel count before character-limit planning or destination selection. Above ten channels, offer **Cancel**, **Continue anyway**, or **Continue, try to fit it**. Escape cancels. Continue anyway retains every original channel. Try to fit operates on an export copy of the expanded performance: run Held Note Simplifier, check channels, and only if still above ten run Chord Simplifier at complexity 2. Recheck the generated result and stop with an error if it still exceeds ten; no files from that export are written. The original performance end is retained as padding, including loops. Recalculate character counts/parts from the fitted output and report shortened/removed note totals. Project data, selection, history and editor MML remain unchanged.
+
+This applies to the chosen export scope, independently of piano-roll selection or Tools settings. MIDI/audio have no ten-channel sheet cap; Lazy Ensemble already guarantees at most ten channels per player file and retains its separate player/character-limit checks.
+
 ## Character limits and synchronized parts
 
 **Experimental Extreme Compression** is an unchecked export-dialog option for MS2MML, Lazy Ensemble and MML text. It substitutes exact note/rest lengths under temporary T32–T255 tempos when the encoding, including tempo restoration, is shorter. Held continuations retain ties across tempo and speed boundaries. Whole-channel L optimization is checked again; a channel that does not shrink retains its ordinary encoding. This bounded candidate search is experimental, not a globally shortest encoding search.
@@ -153,6 +159,6 @@ These are code-inspected limitations as of 2026-09-08, not newly approved behavi
 - **Selected-instrument MIDI filters the clock's source notes.** `src/export.ts` retains the selected instrument and Instructions events, but drops tempo carriers on other musical instruments before compilation. Audio and musical MML retain the global clock. Broader MIDI tempo preservation needs a separate fix.
 - **Scoped MIDI does not pass the view's explicit end** into `compilePlayback`; silent time after its last included event can be shorter than the view. Live playback and audio pass that boundary explicitly.
 - **MIDI is the preview compiler's performance output**, including sample-fallback tuning/routes. It emits tempo and voice data, not editor time-signature/section metadata. It is not a lossless project interchange format, and compiler warnings/skipped pitches are not surfaced by the MIDI file-export success message.
-- **Compatibility warnings are not a complete export-resolution wizard.** More than ten MML channels are retained (XML is not capped at nine chords); out-of-range tempos/pitches and Standard Kit remain the user's responsibility. Only character overflow currently presents the single/parts/cancel choice.
+- **Compatibility warnings are not a complete export-resolution wizard.** More than ten MML channels can be retained through Continue anyway (XML is not capped at nine chords), or fitted through the explicit channel-overflow choice above. Out-of-range tempos/pitches and Standard Kit remain the user's responsibility. Character overflow separately presents the single/parts/cancel choice.
 
 MIDI/preview encoding also has actual binary timing/tempo/port constraints; see [audio limits](PLAYBACK_AUDIO.md#limits-and-revalidation). Do not turn those execution limitations into project/import restrictions. Automated decoding and native harnesses cover specified behaviors; in-game MS2 playback is not established by those checks.
