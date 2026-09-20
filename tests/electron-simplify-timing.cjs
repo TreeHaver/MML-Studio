@@ -15,7 +15,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  const evaluate=code=>win.webContents.executeJavaScript(code,true);
  await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/commands.js')]).then(([{state},{refresh}])=>{window.testState=state;window.testRefresh=refresh;})`);
  for(const fixture of cases){
-  await evaluate(`testState.project={format:'mml-studio',version:2,grid:32,instruments:[{name:'Piano',color:'#abcdef'}],notes:${JSON.stringify(fixture.notes)}};testState.active=0;testState.history=[];testState.future=[];testState.selection.clear();testRefresh();document.getElementById('tools-menu').open=true;document.getElementById('simplify-length').value='16';document.getElementById('simplify-timing').click();`);
+  await evaluate(`testState.project={format:'mml-studio',version:2,grid:32,instruments:[{name:'Piano',color:'#abcdef'}],notes:${JSON.stringify(fixture.notes)}};testState.active=0;testState.history=[];testState.future=[];testState.selection.clear();testRefresh();document.getElementById('tools-open').click();document.getElementById('simplify-length').value='16';document.getElementById('simplify-timing').click();`);
   const actual=await evaluate(`testState.project.notes.map(n=>[n.id,n.start,n.length,n.pitch])`);
   assert.deepEqual(actual,fixture.expected);
   assert.match(await evaluate(`document.getElementById('status').textContent`),/Simplify Timing L16:.*0 skipped/);

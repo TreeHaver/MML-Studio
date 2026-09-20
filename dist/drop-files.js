@@ -14,7 +14,12 @@ import { isAudioFile, importAudio } from './import/audio.js';
 import { chooseAudioSampling } from './audio-import-ui.js';
 import { sheetSettings } from './sheet-settings.js';
 let importing = false;
-export async function importDroppedFiles(files) {
+/**
+ * `forceReplace` is what the Import menu entry asks for: the chosen files become the
+ * project instead of joining it. Dropping decides for itself, replacing only a project
+ * that has nothing in it yet.
+ */
+export async function importDroppedFiles(files, forceReplace = false) {
     if (!files.length || importing)
         return;
     importing = true;
@@ -22,7 +27,7 @@ export async function importDroppedFiles(files) {
         if (state.gesture)
             throw Error('Finish the current edit before dropping files.');
         const before = historySnapshot(), segment = state.segment, imported = [];
-        const replaceEmpty = !segment && state.project.instruments.filter(i => !i.isInstructions).length === 1 && state.project.notes.length === 0;
+        const replaceEmpty = forceReplace || (!segment && state.project.instruments.filter(i => !i.isInstructions).length === 1 && state.project.notes.length === 0);
         status('Reading dropped files…');
         for (const file of files) {
             const audio = isAudioFile(file.name);

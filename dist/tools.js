@@ -86,7 +86,12 @@ export function installTools() {
         $('volume-reading').textContent = range ? 'Target notes: V' + range.min + ' to V' + range.max + ', ' + range.headroom + ' left before V15.' + (range.min + delta < 0 || range.max + delta > 15 ? ' Warning: Apply will clamp volumes to V0–V15 and may flatten velocity differences.' : '') : 'No musical target notes.';
     };
     input('volume-amount').oninput = volumeReading;
-    $('tools-menu').addEventListener('toggle', volumeReading);
+    // The readings are worked out again each time the screen opens, since the notes they
+    // describe move underneath it.
+    const dialog = $('tools-dialog');
+    $('tools-open').onclick = () => { volumeReading(); $('tools-status').textContent = ''; if (!dialog.open)
+        dialog.showModal(); };
+    $('tools-close').onclick = () => dialog.close();
     volumeReading();
     $('volume-apply').onclick = () => { shiftToolVolumes(Math.round(Number(input('volume-amount').value) || 0)); volumeReading(); };
     $('volume-max').onclick = () => { const range = volumeRange(); if (range)

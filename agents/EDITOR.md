@@ -85,6 +85,8 @@ The caption contains the character limit, H/V zoom, playback position/BPM and Ti
 
 ## Explicit cleanup tools
 
+Tools open as a modal screen from the header button, with one card per tool laid out in columns so every tool is visible without scrolling; the footer status line is repeated inside it, since the screen covers the footer. A custom select list opened from inside a modal dialog is mounted in that dialog rather than on the body, because a modal makes everything outside it inert.
+
 Tools commands operate on **selected musical notes**, across their owning instruments, or **all selected musical instruments** when no notes are selected. Instruments are processed from the main instrument down the selection stack; unselected instruments stay unchanged. Edits stay in the current view and undo in one step. They never run automatically during import or export. Project Scale is read-only and always estimates the full project.
 
 - **Volume**: apply the requested V offset to the target notes; Max raises the loudest target to V15. A visible warning appears before Apply if the request will clamp to V0–V15, but Apply permits that clamping. Unselected notes retain their effective velocities, materializing inherited V only as needed. Instrument actions volume controls likewise warn and allow clamping, and continue to target their own card.
@@ -100,4 +102,4 @@ Play toggles Pause/Resume. The transport also offers Return to start, Stop and f
 
 Instructions markers supply global tempo, signatures, named sections and nested loops. Section > Open Song/Open Segment opens a temporary editable local timeline. **Save still writes the entire project**; playback and export use the active view. Both Song and Segment return buttons remain under the ruler, fixed while scrolling; neither uses File. See [STRUCTURE_VIEWS.md](STRUCTURE_VIEWS.md).
 
-Export opens one dialog with MS2MML sheet, MML text, MIDI file and Audio, plus selected/all-instrument scope. Raw channel copying remains in Open MML, not Export. See [IMPORT_EXPORT.md](IMPORT_EXPORT.md) for counts, sheet choices and format-specific limits.
+Export opens one dialog with MS2MML sheet, MML text, MIDI file and Audio, plus selected/all-instrument scope. Raw channel copying remains in Show MS2 code, not Export. See [IMPORT_EXPORT.md](IMPORT_EXPORT.md) for counts, sheet choices and format-specific limits.

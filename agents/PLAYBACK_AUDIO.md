@@ -23,6 +23,14 @@ Keyboard click/glide previews last about 500 ms and highlight the requested key.
 
 Speed/master controls are behind the playback-settings icon in the editing toolbar and survive Stop/Play and voice reloads within the session. The caption shows elapsed time/source BPM and, at non-100% speed, rounded effective BPM. Effective BPM outside 32–255 is highlighted without clamping playback. Audio export snapshots these settings; MIDI and MML files do not apply them.
 
+## Metronome
+
+A click on every beat while the piece plays, stronger on the first beat of the bar. The beats come from the same `measureLines` the editor draws with, so time signature changes and measure resets are already accounted for and the click always agrees with the bar lines on screen. They are taken from the compiled performance rather than the written project, so a repeated bar is counted every time it is heard, and beats are counted up to the end of the performance, not through it.
+
+Clicks are prepared a quarter of a second in advance against the audio clock, on the same 40 ms timer as the rehearsal loop and for the same reason: a window behind another application stops being painted. A backwards jump in the sequencer clock (a loop wrap) or a forward one (a seek) discards what was prepared and picks the beat list up at the new position; seeking, pausing and stopping all clear it. Playback speed is applied when a beat is turned into a moment on the audio clock.
+
+The switch is a toggle in the editor toolbar’s icon group, beside the piano-key view and the playback settings, and follows that group’s on/off look; the level is a slider inside playback settings, beside speed and volume. Both are session only, like their neighbours, and it starts off. `src/playback/metronome.ts` owns the beat list and the scheduling; `src/playback/transport.ts` installs the controls and feeds it the clock.
+
 ## Voice routing and sample fallback
 
 `src/playback/midi.ts` shares `src/music/channels.ts` with MML. Overlapping notes use distinct monophonic routes, including nested same-pitch voices, so a note-off cannot exchange their lifetimes. MIDI uses format 1 with 32 PPQ. Melodic routes avoid zero-based channel 9; drums use channel 9 on separate ports. All routes carry their owning instrument index for presets and Mute/Solo.

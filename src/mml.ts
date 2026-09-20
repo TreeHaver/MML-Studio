@@ -1,5 +1,6 @@
 import {state,instrumentView} from './state.ts';
 import {generateMml,type MmlResult} from './music/mml.ts';
+import {partsSummary} from './music/ms2-parts.ts';
 import {tempoMap} from './music/tempo.ts';
 import type {Note,Project} from './model/types.ts';
 import {overlapLocations} from './music/note-density.ts';
@@ -17,7 +18,7 @@ let opened:number|undefined;
 function entry(i:number){let e=entries.get(i);if(!e){e={live:true,revision:-1};entries.set(i,e);}return e;}
 function payload(i:Project['instruments'][number],e:Entry){return {name:i.name,...e.result,stale:e.revision!==revision};}
 function publish(i:Project['instruments'][number],e:Entry,index:number){
- if(e.label)e.label.textContent=`Instrument character count: ${e.result?.bytes??'—'} bytes · ${e.result?.channels.length??'—'} Channels${e.revision!==revision?' · Out of date':''}`;
+ if(e.label)e.label.textContent=`MS2 code: ${e.result?.bytes??'—'} characters · ${e.result?partsSummary(e.result.channels.length):'not generated yet'}${e.revision!==revision?' · Out of date':''}`;
  if(e.warning){const text=e.result?.warnings.join(' ')??'';e.warning.setAttribute('data-message',text);e.warning.hidden=!text;e.warning.setAttribute('aria-label',text);}
  if(opened===index&&(sentResult!==e.result||sentStale!==(e.revision!==revision)||sentName!==i.name)){sentResult=e.result;sentStale=e.revision!==revision;sentName=i.name;void (window as any).mml?.update(payload(i,e));}
 }
@@ -49,8 +50,8 @@ export function mmlControls(row:HTMLElement,body:HTMLElement,index:number){
  };
  e.warning.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
  const label=document.createElement('label'),toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=e.live;toggle.onchange=()=>{e.live=toggle.checked;updateMml();};const caption=document.createElement('span');caption.textContent='Real time updating';label.append(toggle,caption);
- const refresh=document.createElement('button');refresh.textContent='Update MML';refresh.title='Regenerate this instrument’s MML from the notes now. Only needed with real time updating off.';refresh.onclick=()=>{e.result=generateMml(state.project,index);e.revision=revision;publish(i,e,index);};
- const show=document.createElement('button');show.textContent='Open MML';show.title='Show the generated MML text in a separate window, one tab per channel, ready to copy into MapleStory 2.';show.onclick=async()=>{if(!e.result)refresh.onclick!({} as MouseEvent);opened=index;try{await (window as any).mml.open(payload(i,e));}catch{e.warning!.textContent='Could not open the MML window.';}};
+ const refresh=document.createElement('button');refresh.textContent='Update code';refresh.title='Regenerate this instrument’s MS2 code from the notes now. Only needed with real time updating off.';refresh.onclick=()=>{e.result=generateMml(state.project,index);e.revision=revision;publish(i,e,index);};
+ const show=document.createElement('button');show.textContent='Show MS2 code';show.title='Open this instrument’s MapleStory 2 score code in its own window, one tab per channel, each with a button that copies it.';show.onclick=async()=>{if(!e.result)refresh.onclick!({} as MouseEvent);opened=index;try{await (window as any).mml.open(payload(i,e));}catch{e.warning!.textContent='Could not open the MML window.';}};
  // Generating MML is the last step of a session, so it sits inside Instrument actions,
  // opened only when wanted. Warnings stay in the card, where they must be seen.
  box.append(e.label,label,refresh,show);body.append(box);row.append(e.warning);publish(i,e,index);

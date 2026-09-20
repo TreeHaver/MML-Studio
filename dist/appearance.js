@@ -80,7 +80,10 @@ export function installAppearance() {
                 panel.append(item);
                 return item;
             });
-            document.body.append(panel);
+            // A modal dialog makes everything outside it inert, so a list opened from a select
+            // inside one is mounted in that dialog. The panel is fixed-positioned either way, so
+            // the coordinates worked out below do not change.
+            (select.closest('dialog[open]') ?? document.body).append(panel);
             shell.classList.add('open');
             closeOpenList = close;
             openOwner = shell;
@@ -174,7 +177,7 @@ export function installAppearance() {
             l = baseL + Math.floor((l - baseL) * extra / wanted);
             r = baseR + Math.floor((r - baseR) * extra / wanted);
         }
-        main.style.gridTemplateColumns = `${l}px ${l ? 6 : 0}px minmax(0,1fr) ${r ? 6 : 0}px ${r}px`;
+        main.style.gridTemplateColumns = `${l}px ${l ? 10 : 0}px minmax(0,1fr) ${r ? 10 : 0}px ${r}px`;
         $('track-panel').hidden = settings.leftHidden;
         $('note-properties').hidden = settings.rightHidden;
         for (const [side, handle, width] of [['left', left, l], ['right', right, r]]) {

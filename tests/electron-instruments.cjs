@@ -70,9 +70,17 @@ app.on('browser-window-created',(_,win)=>win.webContents.once('did-finish-load',
  await evaluate(`document.getElementById('collapse-all').click()`);
  assert.equal(await evaluate(`[...document.querySelectorAll('.instrument:not(.instructions-lane)')].some(el=>el.classList.contains('collapsed'))`),false);
 
- // The two panel switches sit together now, and the preset filter says MS2 for short.
- assert.equal(await evaluate(`document.getElementById('vanilla-only').closest('.panel-switches')===document.getElementById('advanced-instructions').closest('.panel-switches')`),true);
- assert.equal(await evaluate(`document.getElementById('vanilla-only').textContent`),'Show only MS2 instruments');
+ // Neither switch earns a permanent block above the list, so both live behind the options
+ // button beside the search box, and the list stays open while they are flipped.
+ assert.equal(await evaluate(`!!document.getElementById('vanilla-only').closest('#instrument-options')&&!!document.getElementById('advanced-instructions').closest('#instrument-options')`),true);
+ assert.equal(await evaluate(`document.getElementById('vanilla-only').textContent`),'Only MS2 instruments');
+ assert.equal(await evaluate(`document.querySelector('.panel-switches')`),null,'the old block is gone');
+ await evaluate(`document.querySelector('#instrument-options>summary').click()`);
+ assert.equal(await evaluate(`document.getElementById('instrument-options').open`),true);
+ await evaluate(`document.getElementById('vanilla-only').click()`);
+ assert.equal(await evaluate(`document.getElementById('instrument-options').open`),true,'flipping a switch must not close the list holding it');
+ await evaluate(`document.getElementById('vanilla-only').click();document.body.click()`);
+ assert.equal(await evaluate(`document.getElementById('instrument-options').open`),false,'a click outside closes it');
 
  finish();
 }catch(e){finish(e);}}));require('../main.cjs');

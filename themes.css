@@ -14,7 +14,11 @@ button:focus-visible,summary:focus-visible,select:focus-visible,input:focus-visi
 :root[data-theme=night] .instrument-warning,:root[data-theme=night] .instrument-flag{color:#edc784}
 html,body{margin:0;width:100%;height:100%;background:var(--surface)}
 .panel-divider::after{content:none;display:none}
-.panel-divider,.panel-divider:hover,.panel-divider:focus-visible,:root[data-theme=night] .panel-divider:hover,:root[data-theme=night] .panel-divider:focus-visible{background:transparent}
+/* The handle carries the panel colour, so the panel and the 6px strip beside it read as one
+   block and the page no longer shows between the panel and the editor. This works because
+   the panels are square on the side facing the editor; with the old rounded corner there,
+   the square fill beside it read as a straight bar across the top. */
+.panel-divider,.panel-divider:hover,.panel-divider:focus-visible,:root[data-theme=night] .panel-divider:hover,:root[data-theme=night] .panel-divider:focus-visible{background:var(--panel)}
 .menu summary{gap:12px;padding-right:17px}.menu-chevron,.select-chevron,.instrument-actions summary::after{display:block;width:7px;height:7px;flex:0 0 7px;background:none;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);transition:transform .15s ease}.menu[open] .menu-chevron,.select-control.open .select-chevron,.instrument-actions[open] summary::after{transform:rotate(225deg)}.instrument-actions summary::after{content:'';float:right;margin:1px 6px 0 0;font-size:0;line-height:normal}.select-control{position:relative;display:inline-flex;min-width:0;align-items:center}.select-control>select{-webkit-appearance:none;appearance:none;background-image:none!important;padding-right:34px}.select-control>.select-chevron{position:absolute;right:14px;top:50%;margin-top:-4px;pointer-events:none}.instrument .select-control,.note-fields .select-control{width:100%}.note-fields .select-control{margin-top:8px}.note-fields .select-control>select{margin-top:0}
 .instrument.collapsed>.select-control{display:none}
 #track-panel{grid-column:1}#left-divider{grid-column:2}.editor{grid-column:3}#right-divider{grid-column:4}#note-properties{grid-column:5}

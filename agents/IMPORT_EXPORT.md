@@ -1,6 +1,6 @@
 # Import, MML generation and export
 
-File > Import MIDI / MML / ABC parses before replacing the open project. Cancellation, invalid input or declining unsaved replacement leaves the project intact. Successful imports are unsaved version-2 projects; save JSON to keep them. Failures open an Import failed report, and conversion notices appear in the success report.
+File > Import MIDI / MML / ABC parses before replacing the open project, and accepts several files at once: they are sorted by filename with numeric collation, so "part 2" precedes "part 10", and become one project with an instrument each. **File > Add parts to this project** reads the same picker and takes the additive drop path instead, leaving the open project in place and adding the chosen files as new instruments in one undo step; an ensemble written as one file per player is loaded this way. Cancellation, invalid input or declining unsaved replacement leaves the project intact. Successful imports are unsaved version-2 projects; save JSON to keep them. Failures open an Import failed report, and conversion notices appear in the success report.
 
 Only drag/drop into an already populated project asks **Import tempos** or **Remove tempos** when a parsed file contains T instructions. Menu imports and empty-project drops retain tempos automatically. Removal strips T from musical notes and removes otherwise empty tempo-only silent carriers; signatures/other metadata, notes and velocities remain, and dropped notes follow the existing project clock. Files without retained T do not prompt. The separate Speed Multiplier offer still applies to retained out-of-range tempos on either import path.
 
@@ -96,11 +96,11 @@ External grid paste uses this parser before committing notes/history. Musical pa
 
 ## Generated channel text
 
-Each instrument's Instrument actions contains its total Character count, channel count, Real time updating checkbox, Update MML and Open MML. Real-time updating defaults on. Turning it off retains a visibly Out of date snapshot until Update; selection/scroll/Mute/Solo do not regenerate unchanged strings. New/Open/Import reset session caches. Generated strings are never stored in JSON.
+Each instrument's Instrument actions contains its total character count, channel count, Real time updating checkbox, Update code and Show MS2 code (named after the MapleStory 2 score code they produce, since "Open MML" did not say what it opened). Real-time updating defaults on. Turning it off retains a visibly Out of date snapshot until Update; selection/scroll/Mute/Solo do not regenerate unchanged strings. New/Open/Import reset session caches. Generated strings are never stored in JSON.
 
 The warning triangle is a keyboard-accessible button: click it to activate the instrument, select its first overlapping notes and scroll both axes to reveal them. Other warning types have no overlap destination; stale warnings use current notes when clicked. The active instrument continuously shows red vertical lines at every overlap onset while scrolling/scrubbing, independent of triangle clicks and automatic MML updates. Markers follow current-view and expanded-loop warning semantics, mapping repeated positions back to the editable source. Navigation changes neither music nor history/dirty state.
 
-Open MML is a non-modal native window. Channel tabs show individual counts; Copy to clipboard copies exactly the selected raw string without wrappers/whitespace/newlines. The window follows its instrument, clamps removed tabs and clears on project replacement.
+Show MS2 code opens a non-modal native window. Channel tabs show individual counts; Copy to clipboard copies exactly the selected raw string without wrappers/whitespace/newlines. The window follows its instrument, clamps removed tabs and clears on project replacement.
 
 `src/music/mml.ts` expands loops, partitions overlapping voices into the minimum monophonic channels, emits leading rests and exact durations, propagates the global tempo clock, and applies resolved per-note V. `src/music/mml-optimizer.ts` then compacts L defaults and redundant V commands without changing music. Counts, file export and sheet planning share this optimized output. It is not a global shortest-score search; channel allocation, duration decomposition and sheet-cut optimization are separate concerns.
 

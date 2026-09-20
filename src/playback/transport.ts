@@ -8,6 +8,7 @@ import {getEngine,setMasterVolume} from './engine.ts';
 import {followPlayback} from '../viewport.ts';
 import {loopRegion,looping} from './loop-region.ts';
 import {expandLoops} from '../music/loops.ts';
+import {metronome,metronomeBeats,setMetronomeBeats,clearMetronome,scheduleMetronome} from './metronome.ts';
 let position:number|null=null;
 export const playback={get tick():number|null{return position===null?null:phase==='idle'||!plan?position:plan.sourceTick(position);},set tick(value:number|null){position=value;}};
 export const playbackSettings={speed:1,volume:1};
@@ -41,6 +42,15 @@ async function rewindLoop(){
   seekToTick(loopRegion.start);restoreHeld();
  }finally{rewinding=false;}
 }
+/**
+ * Both the rehearsal loop and the metronome read the sequencer's own clock on this timer
+ * rather than on the animation frame, because a window behind another application stops
+ * being painted while the audio plays straight on.
+ */
+function playbackGuard(){
+ if(phase==='playing'&&engine&&plan)scheduleMetronome(engine.context,Math.max(0,engine.seq.currentHighResolutionTime),playbackSettings.speed);
+ loopGuard();
+}
 function loopGuard(){
  if(phase!=='playing'||!looping()||!engine||!plan)return;
  const heard=plan.sourceTick(tickAtSeconds(plan.map,Math.max(0,engine.seq.currentHighResolutionTime)));
@@ -64,6 +74,9 @@ async function loadSnapshot(token:number){
   // loop structure changed, seek the same source position in the new plan.
   position=Math.min(next.end,plan&&next.sourceTick(from)===source?from:next.performanceTick(source));
   plan=next;engine.seq.playbackRate=playbackSettings.speed;engine.seq.currentTime=Math.min(plan.duration,secondsAtTick(plan.map,position??0));
+  // Loops are already unrolled in the compiled performance, so a repeated bar is counted
+  // as many times as it is heard.
+  setMetronomeBeats(metronomeBeats(plan.project,plan.map,plan.end));clearMetronome();
   loadedVoiceRevision=revision;updatePlaybackMutes(true);return true;
  }
  return false;
@@ -148,7 +161,7 @@ export function syncPlaybackControls(){
  }
  buttons();positionLabel();
 }
-function setPosition(seconds:number){if(!engine||!plan)return;const time=Math.max(0,Math.min(plan.duration,seconds));engine.seq.currentTime=time;position=tickAtSeconds(plan.map,time);if(phase==='playing')restoreHeld();followPlayback(playback.tick!);draw();}
+function setPosition(seconds:number){if(!engine||!plan)return;clearMetronome();const time=Math.max(0,Math.min(plan.duration,seconds));engine.seq.currentTime=time;position=tickAtSeconds(plan.map,time);if(phase==='playing')restoreHeld();followPlayback(playback.tick!);draw();}
 // Idle seeks park the playhead so the next play() starts from there.
 export function seekToTick(tick:number){
  const range=state.segment?.projection.range,target=Math.max(0,Math.min(tick,range?range.end-range.start:Infinity));
@@ -168,7 +181,7 @@ function animate(){
  frame=requestAnimationFrame(animate);
 }
 export function stopPlayback(message=true){
- generation++;cancelAnimationFrame(frame);engine?.stop();position=null;
+ generation++;cancelAnimationFrame(frame);engine?.stop();clearMetronome();position=null;
  // Retain the loading lock until an in-flight initialization completes.
  if(phase!=='loading')phase='idle';buttons();draw();
  if(message)status('Playback stopped.');
@@ -204,10 +217,21 @@ export function installPlayback(){
   positionLabel();
  };
  volume.oninput=()=>{const percent=Math.max(0,Math.min(100,Number(volume.value)||0));volume.value=String(percent);playbackSettings.volume=percent/100;$('playback-volume-value').textContent=`${percent}%`;setMasterVolume(playbackSettings.volume);};
- $('play').onclick=()=>{if(phase==='playing'){position=tickAtSeconds(plan.map,Math.max(0,engine.seq.currentHighResolutionTime));engine.pause();phase='paused';cancelAnimationFrame(frame);buttons();status('Playback paused.');}else void play();};
+ $('play').onclick=()=>{if(phase==='playing'){position=tickAtSeconds(plan.map,Math.max(0,engine.seq.currentHighResolutionTime));engine.pause();clearMetronome();phase='paused';cancelAnimationFrame(frame);buttons();status('Playback paused.');}else void play();};
+ // The switch is one click in the transport, where it is reached while rehearsing; how loud
+ // it is belongs beside the other playback levels, since it is set once and left alone.
+ const beat=$('metronome'),beatVolume=$('metronome-volume') as HTMLInputElement;
+ const showMetronome=()=>{
+  beat.setAttribute('aria-pressed',String(metronome.on));
+  beat.title=metronome.on?'Metronome on: a click on every beat, stronger on the first beat of the bar':'Metronome off';
+ };
+ beat.onclick=()=>{metronome.on=!metronome.on;if(!metronome.on)clearMetronome();showMetronome();status(metronome.on?'Metronome on.':'Metronome off.');};
+ beatVolume.value='50';
+ beatVolume.oninput=()=>{const percent=Math.max(0,Math.min(100,Number(beatVolume.value)||0));beatVolume.value=String(percent);metronome.volume=percent/100;$('metronome-volume-value').textContent=`${percent}%`;};
+ showMetronome();
  $('stop').onclick=()=>stopPlayback();buttons();
  // 40ms is far below the shortest loop worth rehearsing and costs nothing while idle.
- setInterval(loopGuard,40);
+ setInterval(playbackGuard,40);
  $('start').onclick=()=>setPosition(0);
  $('rewind').onclick=()=>setPosition((engine?.seq.currentHighResolutionTime??0)-5);
  $('forward').onclick=()=>setPosition((engine?.seq.currentHighResolutionTime??0)+5);

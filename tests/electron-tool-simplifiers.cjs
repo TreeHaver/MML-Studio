@@ -7,7 +7,7 @@ function finish(error){clearTimeout(timer);evidence.passed=!error;if(error)evide
 app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.webContents.once('did-finish-load',async()=>{try{
  const run=code=>win.webContents.executeJavaScript(code,true);
  await run(`Promise.all([import('./dist/state.js'),import('./dist/commands.js')]).then(([{state},{refresh}])=>{window.s=state;window.refresh=refresh;});`);
- const fixture=async(notes,selection=[])=>run(`s.segment=null;s.project={format:'mml-studio',version:2,grid:4,instruments:[{name:'Piano',color:'#abcdef'},{name:'Other',color:'#fedcba'}],notes:${JSON.stringify(notes)}};s.active=0;s.selection=new Set(${JSON.stringify(selection)});s.history=[];s.future=[];refresh();document.getElementById('tools-menu').open=true;`);
+ const fixture=async(notes,selection=[])=>run(`s.segment=null;s.project={format:'mml-studio',version:2,grid:4,instruments:[{name:'Piano',color:'#abcdef'},{name:'Other',color:'#fedcba'}],notes:${JSON.stringify(notes)}};s.active=0;s.selection=new Set(${JSON.stringify(selection)});s.history=[];s.future=[];refresh();document.getElementById('tools-open').click();`);
  const note=(id,start,length,pitch,volume=8,instrument=0)=>({id,start,length,pitch,volume,instrument});
  const chord=[60,62,64,66,68,70,72].map((p,i)=>note(i+1,0,32,p));
  await fixture(chord);
@@ -32,15 +32,25 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  assert.deepEqual(await run('s.project.notes.map(n=>n.volume)'),[15,13]);evidence.checks.push('instrument volume warning permits clamp');
  await fixture([60,62,64,65,67,69,71].map((p,i)=>note(i+1,0,i?16:128,p)));
  await run('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
- await run(`document.getElementById('tools-menu').open=true`);
+ await run(`document.getElementById('tools-open').click()`);
  await run('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
  await run(`document.getElementById('detect-scale').click()`);
  assert.match(await run(`document.getElementById('scale-reading').textContent`),/C major/);assert.equal(await run('s.history.length'),0);
- await run(`document.querySelector('.tools-panel').scrollTop=10000`);
- const bounds=await run(`(()=>{const panel=document.querySelector('.tools-panel').getBoundingClientRect(),button=document.getElementById('detect-scale').getBoundingClientRect();return {bottom:panel.bottom,height:innerHeight,visible:button.top>=panel.top&&button.bottom<=panel.bottom};})()`);
- evidence.bounds=bounds;assert.ok(bounds.bottom<=bounds.height);assert.equal(bounds.visible,true);evidence.checks.push('read-only project scale and scrollable Tools menu');
+ // The tools used to be one column in a dropdown, so the last of them was only reachable
+ // by scrolling the whole list. They are now cards side by side on a screen of their own:
+ // every card is measured against the screen it sits on, and against its neighbours.
+ const bounds=await run(`(()=>{const dialog=document.getElementById('tools-dialog').getBoundingClientRect();
+  const button=document.getElementById('detect-scale').getBoundingClientRect();
+  const cards=[...document.querySelectorAll('#tools-dialog .tool-item')].map(e=>e.getBoundingClientRect());
+  return {bottom:dialog.bottom,height:innerHeight,visible:button.top>=dialog.top&&button.bottom<=dialog.bottom,
+   cards:cards.length,columns:new Set(cards.map(r=>Math.round(r.x))).size,
+   inside:cards.filter(r=>r.top>=dialog.top&&r.bottom<=dialog.bottom).length};})()`);
+ evidence.bounds=bounds;assert.ok(bounds.bottom<=bounds.height);assert.equal(bounds.visible,true);
+ assert.ok(bounds.columns>=2,'the tools sit side by side, not in one scrolling column: '+JSON.stringify(bounds));
+ assert.equal(bounds.inside,bounds.cards,'every tool is on screen without scrolling: '+JSON.stringify(bounds));
+ evidence.checks.push('read-only project scale, and every tool visible at once on the Tools screen');
  await run('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
- assert.equal(await run(`document.getElementById('tools-menu').open`),true);
+ assert.equal(await run(`document.getElementById('tools-dialog').open`),true);
  fs.writeFileSync('.validation/tool-simplifiers.png',(await win.webContents.capturePage()).toPNG());
  finish();
  }catch(error){finish(error);}});});

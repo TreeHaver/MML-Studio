@@ -1,6 +1,7 @@
 import { checkpoint } from './history.js';
-import { importSong } from './import/source.js';
-import { prepareImportTempos, importReport } from './import-ui.js';
+import {} from './import/source.js';
+import { importDroppedFiles } from './drop-files.js';
+import { importReport } from './import-ui.js';
 import { stopPlayback } from './playback/transport.js';
 import { refresh, refreshTitle } from './commands.js';
 import { $, input, status, view } from './dom.js';
@@ -71,21 +72,32 @@ export function installFiles() {
         state.project.name = name;
     } $('project-name').value = name; refreshTitle(); };
     let importing = false;
-    $('import-midi').onclick = async () => {
+    // Both menu entries read the same chosen files. The picker takes several at once because
+    // an ensemble is one file per player: each file becomes its own instrument, which is the
+    // only way to hear whether the parts fit together.
+    const chosenImports = async () => {
+        const picked = await window.files.importMidi();
+        return (Array.isArray(picked) ? picked : picked ? [picked] : []).map((file) => {
+            const bytes = new Uint8Array(file.bytes);
+            return { name: file.name, arrayBuffer: async () => bytes.buffer };
+        });
+    };
+    // Replacing was the only thing the menu could do, so importing a second part erased the
+    // first and the parts could only be gathered by the undocumented file drop. Adding is now
+    // its own entry, and it is the drop path underneath, undo included.
+    const runImport = async (replace) => {
         if (importing)
             return;
         importing = true;
-        $('import-midi').disabled = true;
+        const button = $(replace ? 'import-midi' : 'import-add');
+        button.disabled = true;
         try {
-            const file = await window.files.importMidi();
-            if (file === null)
+            const files = await chosenImports();
+            if (!files.length)
                 return;
-            const bytes = new Uint8Array(file.bytes);
-            const imported = importSong(bytes, file.name);
-            if (unsaved() && !confirm('Replace the current project with this import and discard unsaved changes?'))
+            if (replace && unsaved() && !confirm('Replace the current project with this import and discard unsaved changes?'))
                 return;
-            prepareImportTempos(imported, file.name);
-            replaceWithImport(imported, file.name);
+            await importDroppedFiles(files, replace);
         }
         catch (error) {
             // A failed import used to report only in the footer, which reads as "nothing happened".
@@ -94,9 +106,11 @@ export function installFiles() {
         }
         finally {
             importing = false;
-            $('import-midi').disabled = false;
+            button.disabled = false;
         }
     };
+    $('import-midi').onclick = () => runImport(true);
+    $('import-add').onclick = () => runImport(false);
     $('midi-report-close').onclick = () => $('midi-report').close();
     $('save').onclick = () => saveProject();
     $('open').onclick = async () => { try {

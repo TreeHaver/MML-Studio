@@ -9,7 +9,7 @@ export function installChrome() {
     if (appInfo)
         void appInfo.version().then((version) => { if (typeof version === 'string' && /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version))
             $('app-version').textContent = 'v' + version; });
-    const menus = [$('file-menu'), $('theme-menu'), $('tools-menu'), $('section-menu'), $('playback-menu')];
+    const menus = [$('file-menu'), $('theme-menu'), $('section-menu'), $('playback-menu'), $('instrument-options')];
     document.onclick = event => {
         const target = event.target;
         // Our select lists are appended to <body>, so a click in one is not outside its menu.
@@ -17,8 +17,9 @@ export function installChrome() {
             return;
         const button = target.closest('button');
         // Keep the scale estimate visible after its read-only calculation.
+        const stays = ['detect-scale', 'advanced-instructions', 'vanilla-only'];
         for (const menu of menus)
-            if (!menu.contains(target) || button && button.id !== 'detect-scale')
+            if (!menu.contains(target) || button && !stays.includes(button.id))
                 menu.open = false;
     };
     document.onkeyup = event => { if (event.key === 'Escape')

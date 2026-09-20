@@ -14,7 +14,7 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  assert.ok(await evaluate(`!document.getElementById('section-menu').hidden&&!document.querySelector('.editor-toolbar #section-control')&&!document.querySelector('.editor-toolbar #open-segment')&&!document.querySelector('.editor-toolbar #open-song')`),'Section controls replace the old toolbar controls');
  await evaluate(`document.querySelector('#section-menu summary').click()`);
  assert.ok(await evaluate(`document.getElementById('section-menu').open`));
- const menuBoxes=await evaluate(`(()=>{const box=id=>{const r=document.getElementById(id).getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};return {menu:box('section-menu'),tools:box('tools-menu'),go:box('section-control'),segment:box('open-segment'),song:box('open-song'),transport:document.querySelector('.transport').getBoundingClientRect().right}})()`);
+ const menuBoxes=await evaluate(`(()=>{const box=id=>{const r=document.getElementById(id).getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};return {menu:box('section-menu'),tools:box('tools-open'),go:box('section-control'),segment:box('open-segment'),song:box('open-song'),transport:document.querySelector('.transport').getBoundingClientRect().right}})()`);
  assert.ok(menuBoxes.menu.right<=menuBoxes.tools.x&&menuBoxes.menu.x>=menuBoxes.transport,JSON.stringify(menuBoxes));
  assert.ok(menuBoxes.go.bottom<=menuBoxes.segment.y&&menuBoxes.segment.bottom<=menuBoxes.song.y,JSON.stringify(menuBoxes));
  assert.equal(menuBoxes.segment.width,menuBoxes.song.width);assert.equal(menuBoxes.segment.height,menuBoxes.song.height);

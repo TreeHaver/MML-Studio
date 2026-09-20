@@ -48,7 +48,11 @@ export function installAppearance(){
     item.onclick=()=>{const changed=select.value!==option.value;select.value=option.value;close();select.focus({preventScroll:true});if(changed)select.dispatchEvent(new Event('change',{bubbles:true}));};
     panel!.append(item);return item;
    });
-   document.body.append(panel);shell.classList.add('open');closeOpenList=close;openOwner=shell;
+   // A modal dialog makes everything outside it inert, so a list opened from a select
+   // inside one is mounted in that dialog. The panel is fixed-positioned either way, so
+   // the coordinates worked out below do not change.
+   (select.closest('dialog[open]')??document.body).append(panel);
+   shell.classList.add('open');closeOpenList=close;openOwner=shell;
    const box=select.getBoundingClientRect();
    panel.style.minWidth=box.width+'px';panel.style.maxWidth=Math.round(innerWidth-16)+'px';
    const below=innerHeight-box.bottom-14,above=box.top-14,full=panel.offsetHeight;
@@ -85,7 +89,7 @@ export function installAppearance(){
   let l=settings.leftHidden?0:settings.left,r=settings.rightHidden?0:settings.right;
   const available=Math.max(0,main.clientWidth-340-12),sum=l+r;
   if(sum>available){const baseL=l?180:0,baseR=r?180:0,extra=Math.max(0,available-baseL-baseR),wanted=Math.max(1,sum-baseL-baseR);l=baseL+Math.floor((l-baseL)*extra/wanted);r=baseR+Math.floor((r-baseR)*extra/wanted);}
-  main.style.gridTemplateColumns=`${l}px ${l?6:0}px minmax(0,1fr) ${r?6:0}px ${r}px`;
+  main.style.gridTemplateColumns=`${l}px ${l?10:0}px minmax(0,1fr) ${r?10:0}px ${r}px`;
   $('track-panel').hidden=settings.leftHidden;$('note-properties').hidden=settings.rightHidden;
   for(const [side,handle,width] of [['left',left,l],['right',right,r]] as const){handle.dataset.collapsed=String(!width);handle.setAttribute('aria-valuenow',String(width));handle.setAttribute('aria-valuemax',String(Math.max(180,main.clientWidth-340-12-(side==='left'?r:l))));$('toggle-'+side).setAttribute('aria-pressed',String(!settings[side+'Hidden' as 'leftHidden'|'rightHidden']));}
  };

@@ -1,6 +1,7 @@
 import {checkpoint} from './history.ts';
-import {importSong,type ImportedSong} from './import/source.ts';
-import {prepareImportTempos,importReport} from './import-ui.ts';
+import {type ImportedSong} from './import/source.ts';
+import {importDroppedFiles} from './drop-files.ts';
+import {importReport} from './import-ui.ts';
 import {stopPlayback} from './playback/transport.ts';
 import {refresh,refreshTitle} from './commands.ts';
 import {$,input,status,view} from './dom.ts';
@@ -43,22 +44,36 @@ export function installFiles(){
  markSaved();
 $('project-name').onchange=()=>{const name=($('project-name') as HTMLInputElement).value.trim()||'Untitled';if(name!==(state.project.name||'Untitled')){checkpoint();state.project.name=name;}($('project-name') as HTMLInputElement).value=name;refreshTitle();};
 let importing=false;
-$('import-midi').onclick=async()=>{
- if(importing)return;importing=true;($('import-midi') as HTMLButtonElement).disabled=true;
- try{
-  const file=await (window as any).files.importMidi();if(file===null)return;
+// Both menu entries read the same chosen files. The picker takes several at once because
+// an ensemble is one file per player: each file becomes its own instrument, which is the
+// only way to hear whether the parts fit together.
+const chosenImports=async():Promise<{name:string;arrayBuffer():Promise<ArrayBuffer>}[]>=>{
+ const picked=await (window as any).files.importMidi();
+ return (Array.isArray(picked)?picked:picked?[picked]:[]).map((file:any)=>{
   const bytes=new Uint8Array(file.bytes);
-  const imported=importSong(bytes,file.name);
-  if(unsaved()&&!confirm('Replace the current project with this import and discard unsaved changes?'))return;
-  prepareImportTempos(imported,file.name);
-  replaceWithImport(imported,file.name);
+  return {name:file.name,arrayBuffer:async()=>bytes.buffer};
+ });
+};
+// Replacing was the only thing the menu could do, so importing a second part erased the
+// first and the parts could only be gathered by the undocumented file drop. Adding is now
+// its own entry, and it is the drop path underneath, undo included.
+const runImport=async(replace:boolean)=>{
+ if(importing)return;
+ importing=true;
+ const button=$(replace?'import-midi':'import-add') as HTMLButtonElement;button.disabled=true;
+ try{
+  const files=await chosenImports();if(!files.length)return;
+  if(replace&&unsaved()&&!confirm('Replace the current project with this import and discard unsaved changes?'))return;
+  await importDroppedFiles(files,replace);
  }catch(error){
   // A failed import used to report only in the footer, which reads as "nothing happened".
   const reason=String((error as any)?.message??error).replace(/^Error:\s*/,'');
   importReport(reason,[],true);
  }
- finally{importing=false;($('import-midi') as HTMLButtonElement).disabled=false;}
+ finally{importing=false;button.disabled=false;}
 };
+$('import-midi').onclick=()=>runImport(true);
+$('import-add').onclick=()=>runImport(false);
 $('midi-report-close').onclick=()=>($('midi-report') as HTMLDialogElement).close();
 $('save').onclick=()=>saveProject();
 $('open').onclick=async()=>{try{if(unsaved()&&!confirm('Discard unsaved changes and open a project?'))return;const text=await (window as any).files.open();if(text===null)return;const loaded=parse(text);stopPlayback(false);resetInstrumentView();resetAdvancedInstructions();resetSegment();state.project=loaded;state.selection.clear();state.active=0;state.selectedInstruments.clear();state.history=[];state.future=[];view.scrollLeft=0;refresh();markSaved();status('Project opened.');}catch(e){status('Open failed: '+e);}};

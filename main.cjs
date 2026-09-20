@@ -73,11 +73,16 @@ app.whenReady().then(()=>{
 });
 ipcMain.handle('save',async(_,text)=>{if(typeof text!=='string')throw Error('Invalid project');const r=await fileDialog('showSaveDialog',{defaultPath:await startPath(JSON.parse(text).name+'.json'),filters:[{name:'Studio JSON',extensions:['json']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text);rememberFolder(path.dirname(r.filePath));return true;});
 ipcMain.handle('open',async()=>{const r=await fileDialog('showOpenDialog',{defaultPath:await startFolder(),properties:['openFile'],filters:[{name:'Studio JSON',extensions:['json']}]});if(r.canceled)return null;rememberFolder(path.dirname(r.filePaths[0]));return fs.readFile(r.filePaths[0],'utf8');});
+// An ensemble is written as one file per player, so the picker takes several at once and
+// the menu decides whether they replace the project or join it. The dialog returns them in
+// the order they were clicked; sorting by name keeps "part 2" ahead of "part 10" so the
+// instruments arrive in the order the band reads them.
 ipcMain.handle('import-midi',async()=>{
- const r=await fileDialog('showOpenDialog',{title:'Import MIDI, MML or ABC',defaultPath:await startFolder(),properties:['openFile'],filters:[{name:'MIDI, MML and ABC files',extensions:['mid','midi','mml','ms2mml','mne','abc']},{name:'Text files',extensions:['txt','xml']},{name:'All files',extensions:['*']}]});
- if(r.canceled)return null;
- const file=r.filePaths[0],bytes=await fs.readFile(file);rememberFolder(path.dirname(file));
- return {name:path.basename(file),bytes:new Uint8Array(bytes)};
+ const r=await fileDialog('showOpenDialog',{title:'Import MIDI, MML or ABC',defaultPath:await startFolder(),properties:['openFile','multiSelections'],filters:[{name:'MIDI, MML and ABC files',extensions:['mid','midi','mml','ms2mml','mne','abc']},{name:'Text files',extensions:['txt','xml']},{name:'All files',extensions:['*']}]});
+ if(r.canceled||!r.filePaths.length)return [];
+ const chosen=[...r.filePaths].sort((a,b)=>path.basename(a).localeCompare(path.basename(b),undefined,{numeric:true}));
+ rememberFolder(path.dirname(chosen[0]));
+ return Promise.all(chosen.map(async file=>({name:path.basename(file),bytes:new Uint8Array(await fs.readFile(file))})));
 });
 ipcMain.handle('export-mml',async(_,name,text)=>{if(typeof name!=='string'||typeof text!=='string')throw Error('Invalid MML export');const r=await fileDialog('showSaveDialog',{defaultPath:await startPath(name),filters:[{name:'MapleStory 2 MML',extensions:['ms2mml']}]});if(r.canceled)return false;await fs.writeFile(r.filePath,text,'utf8');rememberFolder(path.dirname(r.filePath));return true;});
 // Plain MML text and MIDI are the same export decision with a different file on the end.

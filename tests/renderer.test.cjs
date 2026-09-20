@@ -43,7 +43,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.equal(doc.getElementById('play').disabled,false);
  const mmlHome=()=>doc.getElementById('instruments').children[0].children.find(el=>el.className==='instrument-actions').children.find(el=>el.className==='instrument-action-body');
  const mmlBox=()=>mmlHome().children.find(el=>el.className==='instrument-mml');
- assert.match(mmlBox().children[0].textContent,/Instrument character count: [1-9][0-9]* bytes/);
+ assert.match(mmlBox().children[0].textContent,/MS2 code: [1-9][0-9]* characters/);
  const mmlToggle=mmlBox().children[1].children[0];mmlToggle.checked=false;mmlToggle.onchange();
  const frozen=mmlBox().children[0].textContent;
  drag(252,240,348,240);assert.match(mmlBox().children[0].textContent,/Out of date/);
@@ -414,7 +414,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  assert.deepEqual(plain('project.notes.filter(n=>n.instrument===0).map(n=>[n.start,n.length])'),[[0,64],[14,12]]);
  assert.equal(currentSignature.value,'6/8');assert.equal(doc.getElementById('playback-bpm').textContent,'90 BPM');
  const generate=(await load('src/music/mml.ts')).namespace.generateMml;const viewMml=generate(run('project'),0);
- assert.match(mmlBox().children[0].textContent,new RegExp('count: '+viewMml.bytes+' bytes'));
+ assert.match(mmlBox().children[0].textContent,new RegExp('MS2 code: '+viewMml.bytes+' characters'));
  limitInput.value=String(viewMml.bytes);limitInput.onchange();fills.length=0;paint.draw();assert.ok(fills.some(f=>f.color==='#e53935'&&f.x===KEY+64*3));
  limitInput.value='10000';limitInput.onchange();saves.length=0;await doc.getElementById('export-run').onclick();
  assert.deepEqual(saves.map(s=>s.name),['Solo-Piano.ms2mml']);assert.deepEqual([...saves[0].text.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>/g)].map(m=>m[1]),[...viewMml.channels]);
@@ -448,7 +448,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  doc.getElementById('simplify-length').value='64';doc.getElementById('simplify-timing').onclick();
  assert.deepEqual(plain('project.notes.map(n=>[n.start,n.length,n.volume])'),[[0,5,11],[5,3,11]]);
  assert.match(doc.getElementById('status').textContent,/1 notes changed/);
- assert.match(mmlBox().children[0].textContent,new RegExp('count: '+generate(run('project'),0).bytes+' bytes'));
+ assert.match(mmlBox().children[0].textContent,new RegExp('MS2 code: '+generate(run('project'),0).bytes+' characters'));
  (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeSimplify);
  run('project.notes=[{id:1,instrument:0,start:0,length:2,pitch:60,volume:11},{id:2,instrument:0,start:2,length:2,pitch:62,volume:11},{id:3,instrument:0,start:4,length:2,pitch:64,volume:11},{id:4,instrument:0,start:16,length:1,pitch:65,volume:11},{id:5,instrument:0,start:17,length:15,pitch:67,volume:11}]');commands.refresh();
  const beforeOrnaments=run('JSON.stringify(project.notes)');
@@ -465,7 +465,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  doc.getElementById('remove-overlap').onclick();
  assert.deepEqual(plain('project.notes.map(n=>[n.start,n.length,n.volume])'),[[0,7,11],[7,16,8]]);
  assert.match(doc.getElementById('status').textContent,/1 notes shortened/);
- assert.match(mmlBox().children[0].textContent,new RegExp('count: '+generate(run('project'),0).bytes+' bytes'));
+ assert.match(mmlBox().children[0].textContent,new RegExp('MS2 code: '+generate(run('project'),0).bytes+' characters'));
  const overlapHistory=run('state.history.length');doc.getElementById('remove-overlap').onclick();assert.equal(run('state.history.length'),overlapHistory);
  (await load('src/history.ts')).namespace.undo();assert.equal(run('JSON.stringify(project.notes)'),beforeOverlap);
  run('project.notes=[{id:1,instrument:0,start:0,length:128,pitch:60,volume:1},{id:2,instrument:0,start:0,length:4,pitch:60,volume:4}]');commands.refresh();
@@ -572,7 +572,7 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  const speedInput=doc.getElementById('speed-multiplier');speedInput.value='3';speedInput.onchange();
  assert.equal(run('project.notes.find(n=>n.id===2).speedMultiplier'),3);
  assert.equal(doc.getElementById('playback-bpm').textContent,'360 BPM');
- assert.ok(mmlBox().children[0].textContent.includes('Instrument character count'));
+ assert.ok(mmlBox().children[0].textContent.includes('MS2 code:'));
  let speedPayload;const previousMmlBridge=sandbox.window.mml;sandbox.window.mml={open:async payload=>{speedPayload=payload},update:async()=>{}};
  await mmlBox().children[3].onclick();assert.match(speedPayload.channels[0],/t120/);assert.doesNotMatch(speedPayload.channels[0],/t360/);sandbox.window.mml=previousMmlBridge;
  speedInput.value='0';speedInput.onchange();assert.equal(run('project.notes.find(n=>n.id===2).speedMultiplier'),3);

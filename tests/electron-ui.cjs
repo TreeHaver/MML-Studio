@@ -70,7 +70,8 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
   assert.equal(await evaluate(`getComputedStyle(document.getElementById('undo')).width`),'36px');
   assert.equal(await evaluate(`getComputedStyle(document.getElementById('undo')).borderTopWidth`),'1px');
   assert.notEqual(await evaluate(`getComputedStyle(document.getElementById('undo')).borderTopColor`),'rgba(0, 0, 0, 0)');
-  assert.equal(await evaluate(`document.querySelectorAll('#file-menu .menu-panel button svg').length`),4);
+  // New project, Open, Import, Add parts, Save: every entry carries its own icon.
+  assert.equal(await evaluate(`document.querySelectorAll('#file-menu .menu-panel button svg').length`),5);
  });
 
  await check('dragging a divider resizes its panel',async()=>{
@@ -125,20 +126,23 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
  });
 
  await check('a select list can be used without closing the menu holding it',async()=>{
-  await evaluate(`document.querySelector('#tools-menu summary').click()`);
-  assert.equal(await evaluate(`document.getElementById('tools-menu').open`),true);
+  await evaluate(`document.getElementById('tools-open').click()`);
+  assert.equal(await evaluate(`document.getElementById('tools-dialog').open`),true);
   assert.equal(await evaluate(`document.getElementById('simplify-length').parentElement.classList.contains('select-control')`),true);
   await evaluate(`document.getElementById('simplify-length').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))`);
-  await until(`document.querySelectorAll('body>.select-panel').length===1`,'the select list to open');
+  await until(`document.querySelectorAll('.select-panel').length===1`,'the select list to open');
+  // A modal dialog makes everything outside it inert, so the list has to be mounted inside
+  // the Tools screen rather than on the body, or its options cannot be clicked at all.
+  assert.equal(await evaluate(`!!document.querySelector('#tools-dialog>.select-panel')`),true,'the list belongs to the dialog it was opened from');
   // The roll scrolls constantly while following playback and must not close an open list.
   await evaluate(`document.getElementById('view').scrollLeft+=120`);
   await frame();
-  assert.equal(await evaluate(`document.querySelectorAll('body>.select-panel').length`),1,'scrolling the roll must not close a toolbar list');
-  await evaluate(`document.querySelector('body>.select-panel button:nth-child(3)').dispatchEvent(new MouseEvent('click',{bubbles:true}))`);
+  assert.equal(await evaluate(`document.querySelectorAll('.select-panel').length`),1,'scrolling the roll must not close a toolbar list');
+  await evaluate(`document.querySelector('.select-panel button:nth-child(3)').dispatchEvent(new MouseEvent('click',{bubbles:true}))`);
   assert.equal(await evaluate(`document.getElementById('simplify-length').value`),'16');
-  assert.equal(await evaluate(`document.getElementById('tools-menu').open`),true,'a click in a select list must not close the menu holding it');
-  await evaluate(`document.body.dispatchEvent(new KeyboardEvent('keyup',{key:'Escape',bubbles:true}))`);
-  assert.equal(await evaluate(`document.getElementById('tools-menu').open`),false);
+  assert.equal(await evaluate(`document.getElementById('tools-dialog').open`),true,'a click in a select list must not close the screen holding it');
+  await evaluate(`document.getElementById('tools-close').click()`);
+  assert.equal(await evaluate(`document.getElementById('tools-dialog').open`),false);
  });
 
  // Fixture for the editing checks below; a failure here is fatal, the rest depends on it.
@@ -224,7 +228,16 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;win.web
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.track-panel')).backgroundColor`),'rgb(20, 20, 20)');
   assert.equal(await evaluate(`getComputedStyle(document.documentElement).backgroundColor`),'rgb(13, 13, 13)');
   assert.equal(await evaluate(`getComputedStyle(document.getElementById('left-divider'),'::after').content`),'none');
-  assert.equal(await evaluate(`getComputedStyle(document.getElementById('left-divider')).backgroundColor`),'rgba(0, 0, 0, 0)');
+  // The handle carries the panel colour and the panels are square on the editor side, so
+  // nothing shows between them and no straight bar appears where a corner used to curve.
+  assert.equal(await evaluate(`getComputedStyle(document.getElementById('left-divider')).backgroundColor`),'rgb(20, 20, 20)');
+  assert.deepEqual(await evaluate(`['.track-panel','.inspector-panel','#left-divider','#right-divider'].map(s=>getComputedStyle(document.querySelector(s)).backgroundColor)`),Array(4).fill('rgb(20, 20, 20)'));
+  assert.deepEqual(await evaluate(`['.track-panel','.inspector-panel'].map(s=>getComputedStyle(document.querySelector(s)).borderRadius)`),['0px','0px']);
+  // The bevel lives on the handle, which is the outer edge of the block, and only at the top:
+  // the left handle rounds towards the editor on its right, the right handle on its left.
+  assert.deepEqual(await evaluate(`['left','right'].map(s=>{const c=getComputedStyle(document.getElementById(s+'-divider'));
+   return [c.borderTopLeftRadius,c.borderTopRightRadius,c.borderBottomRightRadius,c.borderBottomLeftRadius].join(' ')})`),
+   ['0px 10px 0px 0px','10px 0px 0px 0px']);
   assert.equal(await evaluate(`getComputedStyle(document.getElementById('view'),'::-webkit-scrollbar').width`),'18px');
   assert.equal(await evaluate(`import('./dist/appearance.js').then(m=>m.palette.gridA)`),'#171717');
   await frame();

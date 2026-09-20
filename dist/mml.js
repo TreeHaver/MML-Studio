@@ -1,5 +1,6 @@
 import { state, instrumentView } from './state.js';
 import { generateMml } from './music/mml.js';
+import { partsSummary } from './music/ms2-parts.js';
 import { tempoMap } from './music/tempo.js';
 import { overlapLocations } from './music/note-density.js';
 import { view, status } from './dom.js';
@@ -19,7 +20,7 @@ function entry(i) { let e = entries.get(i); if (!e) {
 function payload(i, e) { return { name: i.name, ...e.result, stale: e.revision !== revision }; }
 function publish(i, e, index) {
     if (e.label)
-        e.label.textContent = `Instrument character count: ${e.result?.bytes ?? '—'} bytes · ${e.result?.channels.length ?? '—'} Channels${e.revision !== revision ? ' · Out of date' : ''}`;
+        e.label.textContent = `MS2 code: ${e.result?.bytes ?? '—'} characters · ${e.result ? partsSummary(e.result.channels.length) : 'not generated yet'}${e.revision !== revision ? ' · Out of date' : ''}`;
     if (e.warning) {
         const text = e.result?.warnings.join(' ') ?? '';
         e.warning.setAttribute('data-message', text);
@@ -97,12 +98,12 @@ export function mmlControls(row, body, index) {
     caption.textContent = 'Real time updating';
     label.append(toggle, caption);
     const refresh = document.createElement('button');
-    refresh.textContent = 'Update MML';
-    refresh.title = 'Regenerate this instrument’s MML from the notes now. Only needed with real time updating off.';
+    refresh.textContent = 'Update code';
+    refresh.title = 'Regenerate this instrument’s MS2 code from the notes now. Only needed with real time updating off.';
     refresh.onclick = () => { e.result = generateMml(state.project, index); e.revision = revision; publish(i, e, index); };
     const show = document.createElement('button');
-    show.textContent = 'Open MML';
-    show.title = 'Show the generated MML text in a separate window, one tab per channel, ready to copy into MapleStory 2.';
+    show.textContent = 'Show MS2 code';
+    show.title = 'Open this instrument’s MapleStory 2 score code in its own window, one tab per channel, each with a button that copies it.';
     show.onclick = async () => { if (!e.result)
         refresh.onclick({}); opened = index; try {
         await window.mml.open(payload(i, e));
