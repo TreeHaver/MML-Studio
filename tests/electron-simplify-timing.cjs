@@ -6,6 +6,7 @@ const timer=setTimeout(()=>finish(Error('Simplify Timing timed out')),30000);
 function finish(error){clearTimeout(timer);evidence.passed=!error;if(error)evidence.error=String(error.stack);fs.writeFileSync('.validation/electron-simplify-timing.json',JSON.stringify(evidence,null,2));app.exit(error?1:0);}
 const note=(id,start,length,pitch=60)=>({id,start,length,pitch,instrument:0,volume:8});
 const cases=[
+ {name:'one-unit notes expand at aligned and offset onsets',notes:[note(1,0,1),note(2,19,1),note(3,39,1)],expected:[[1,0,8,60],[2,16,8,60],[3,32,8,60]]},
  {name:'hammer-on ending pitch',notes:[note(1,0,4,62),note(2,4,28,63)],expected:[[2,0,32,63]]},
  {name:'longer same-pitch notes retain balanced tile',notes:[note(1,0,12),note(2,12,12)],expected:[[1,0,12,60],[2,12,12,60]]},
  {name:'rapid repeated pitches',notes:[note(1,0,4),note(2,4,4),note(3,8,4,62),note(4,12,4,62)],expected:[[1,0,8,60],[3,8,8,62]]},

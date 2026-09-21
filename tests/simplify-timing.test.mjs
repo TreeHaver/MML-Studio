@@ -14,11 +14,35 @@ test('simplification extends edge windows above 40% on every offered grid withou
  }
 });
 
-test('edge coverage uses 40% instead of 50% and short notes that cannot fit survive',()=>{
- for(const [start,length,expected] of [[0,44,[0,32]],[0,45,[0,64]],[19,45,[0,64]],[20,44,[32,32]],[20,12,[20,12]],[3,3,[3,3]]]){
+test('edge coverage uses 40% instead of 50% and collapsed short notes fill their onset tile',()=>{
+ for(const [start,length,expected] of [[0,44,[0,32]],[0,45,[0,64]],[19,45,[0,64]],[20,44,[32,32]],[20,12,[0,32]],[3,3,[0,32]]]){
   const r=simplifyTiming(project([note(1,start,length)]),0,4);
   assert.deepEqual([r.notes[0].start,r.notes[0].length],expected);
  }
+});
+
+test('one-unit notes fill every target grid tile at every onset offset, retaining data and selection scope',()=>{
+ for(const denominator of [4,8,16,32,64]){
+  const step=128/denominator;
+  for(let offset=0;offset<step;offset++){
+   const p=project([note(1,step+offset,1,{volume:0,tempo:140}),note(2,4*step+1,1),note(3,step+offset,1,{instrument:1})]);
+   const before=JSON.stringify(p),r=simplifyTiming(p,0,denominator,Infinity,new Set([1]));
+   assert.deepEqual(r.notes[0],{...p.notes[0],start:step,length:step});
+   assert.deepEqual(r.notes.slice(1),p.notes.slice(1));assert.equal(JSON.stringify(p),before);
+   assert.equal(r.skipped,0);assert.equal(r.changed,1);
+   assert.equal(simplifyTiming({...p,notes:r.notes},0,denominator,Infinity,new Set([1])).changed,0);
+  }
+ }
+});
+
+test('short-note expansion retains collision and scoped-end safeguards',()=>{
+ const p=project([note(1,0,1,{tempo:140}),note(2,4,8,{pitch:64})]);
+ const r=simplifyTiming(p,0,16);
+ assert.equal(r.notes.length,2);assert.ok(r.notes[0].start+r.notes[0].length<=r.notes[1].start);
+ const clipped=project([note(1,8,1)]),bounded=simplifyTiming(clipped,0,16,10);
+ assert.deepEqual(bounded.notes,clipped.notes);assert.equal(bounded.skipped,1);
+ const chord=simplifyTiming(project([note(1,3,1),note(2,3,1,{pitch:64})]),0,16);
+ assert.deepEqual(chord.notes.map(n=>[n.start,n.length]),[[0,8],[0,8]]);
 });
 
 test('slightly offset consecutive chords fit the windows without extra tails',()=>{

@@ -59,11 +59,16 @@ export function simplifyTiming(project:Project,index:number,denominator:number,e
  const original=project.notes.filter(n=>n.instrument===index&&(!ids||ids.has(n.id))).sort((a,b)=>a.start-b.start||a.id-b.id);
  const condensed=condense(original,step,end);
  // Extend into an edge window only when its actual coverage exceeds 40%.
- const roundedStart=(n:Note)=>n.start===down(n.start)||5*Math.min(n.length,down(n.start)+step-n.start)>2*step?down(n.start):down(n.start)+step;
- const roundedEnd=(n:Note)=>{
+ const edgeStart=(n:Note)=>n.start===down(n.start)||5*Math.min(n.length,down(n.start)+step-n.start)>2*step?down(n.start):down(n.start)+step;
+ const edgeEnd=(n:Note)=>{
   const stop=n.start+n.length,base=down(stop);
   return base+(5*(stop-Math.max(base,n.start))>2*step?step:0);
  };
+ // Coverage rounding can collapse a tiny note. Give survivors their onset
+ // tile instead; ornament removal has already run on the original timing.
+ const needsTile=(n:Note)=>n.length<step&&edgeEnd(n)<=edgeStart(n);
+ const roundedStart=(n:Note)=>needsTile(n)?down(n.start):edgeStart(n);
+ const roundedEnd=(n:Note)=>needsTile(n)?down(n.start)+step:edgeEnd(n);
  const starts=new Map<number,number>(),stops=new Map<number,number>();
  const candidates=condensed.source,orderedEnds=[...candidates].sort((a,b)=>a.start+a.length-b.start-b.length);
  // Two sequential notes sharing a window compete by coverage inside that

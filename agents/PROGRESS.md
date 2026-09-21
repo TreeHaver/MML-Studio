@@ -1,5 +1,11 @@
 # Progress
 
+## Restore tiny-note expansion after pull
+
+**2026-09-21.** Audited the fixes requested in this task against current sources: same-start overlap length/V selection, hammer-on ending-note retention, rapid repeats/pitch-run condensation and longer-note balanced splitting were still present. Restored the missing tiny-note fallback in `src/music/simplify-timing.ts`: surviving short notes whose coverage-rounded edges collapse fill their original onset tile. Restored all-grid/all-offset one-unit regressions, collision/view-boundary/chord/selection coverage, and the native tiny-note fixture in the existing suites. Updated generated module and EDITOR. Newer Tools screen/selection behavior, unrelated working files and version-2 storage remain intact.
+
+Validation: authorized `node build.cjs` passed. `node --experimental-vm-modules --test tests/simplify-timing.test.mjs tests/remove-overlap.test.mjs tests/volume.test.mjs tests/segment-view.test.mjs tests/renderer.test.cjs` passed **39/39** pure/model and simulated renderer tests. Authorized `node node_modules/electron/cli.js tests/electron-simplify-timing.cjs` passed **eight native cases**; fresh `.validation/electron-simplify-timing.json` confirms tiny-note expansion, prior screenshot patterns, selected instrument stack, no-op repeat history and Undo/Redo. Native checks use programmatic clicks in isolated Electron, not manual UI or listening. No packaging/version bump; working folder updated directly. Remaining work: none.
+
 ## Maplebeats default with three excluded presets
 
 **2026-09-21.** New profiles select maplebeats-2.dls when present; saved choices remain authoritative and absent defaults fall back to TimGM6mb.sf2. Release packaging requires the new DLS. CRASH60B, KICK264 and FATSD60A are removed from this bank's parsed copy by exact name, leaving 125 melodic overrides; slots 122–124 use bundled GM Breath Noise, Seashore and Bird Tweet, including TimGM pitch correction. The source DLS is unchanged (SHA-256 0102aefc43d79a0d16892ac091007858826d884a6227dc4b528251e5e843f9ee) and remains untracked. Other custom banks are unaffected.
