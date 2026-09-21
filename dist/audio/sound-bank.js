@@ -1,11 +1,16 @@
 import { SoundBankLoader } from 'spessasynth_core';
-const ignored = new Set(['CRASH60B', 'KICK264', 'FATSD60A']);
-/** Exclude only the requested Maplebeats replacements; the GM bank fills these slots. */
+import { MAPLEBEATS_DRUMS } from '../playback/drums.js';
+/** Move Maplebeats percussion into private kits, leaving the melodic FX slots to GM. */
 export function filterSoundBank(bank, id) {
     if (id === 'maplebeats-2.dls')
         for (const preset of [...bank.presets]) {
-            if (ignored.has(preset.name.trim()))
-                bank.deletePreset(preset);
+            const mapping = Object.values(MAPLEBEATS_DRUMS).find(item => item.name === preset.name.trim());
+            if (mapping) {
+                preset.program = mapping.program;
+                preset.bankMSB = 0;
+                preset.bankLSB = 0;
+                preset.isGMGSDrum = true;
+            }
         }
     return bank;
 }

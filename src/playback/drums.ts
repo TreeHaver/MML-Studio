@@ -14,6 +14,21 @@ export const drumName=(pitch:number)=>names[pitch-35]??`Drum note ${pitch} (outs
 
 export const MS2_DRUMS={snare:{name:'Snare Drum',pitch:38},bass:{name:'Bass Drum',pitch:35},cymbals:{name:'Cymbals',pitch:49}} as const;
 export type Ms2Drum=keyof typeof MS2_DRUMS;
+// Private drum presets keep the Standard Kit and the original melodic FX slots intact.
+export const MAPLEBEATS_DRUMS={
+ cymbals:{name:'CRASH60B',program:125,pitch:48},
+ bass:{name:'KICK264',program:126,pitch:36},
+ snare:{name:'FATSD60A',program:127,pitch:38}
+} as const;
+export type DrumOverrides=Partial<Record<Ms2Drum,{program:number,pitch:number}>>;
+export function mappedDrums(presets:{name:string,program:number,isDrum:boolean}[]):DrumOverrides{
+ const result:DrumOverrides={};
+ for(const role of Object.keys(MAPLEBEATS_DRUMS) as Ms2Drum[]){
+  const mapped=MAPLEBEATS_DRUMS[role];
+  if(presets.some(p=>p.isDrum&&p.program===mapped.program&&p.name===mapped.name))result[role]=mapped;
+ }
+ return result;
+}
 export function drumCategory(pitch:number):Ms2Drum|undefined{
  if([35,36].includes(pitch))return 'bass';
  if([38,40].includes(pitch))return 'snare';

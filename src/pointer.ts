@@ -62,7 +62,7 @@ export function installPointer(){
   edgeFrame=requestAnimationFrame(edgeScroll);
  };
  let keyHighlightTimer:number|undefined;
- const previewKey=(p:any)=>{const instrument=state.project.instruments[state.active],pitch=musical(p).pitch;if(pitch<0||pitch>127)return;state.previewPitch=pitch;draw();if(keyHighlightTimer!==undefined)window.clearTimeout(keyHighlightTimer);keyHighlightTimer=window.setTimeout(()=>{if(state.previewPitch===pitch){state.previewPitch=null;draw();}},500);void previewNote(playbackPitch(instrument,pitch),instrument.midiProgram??0,instrument.isDrum===true||!!instrument.ms2Drum,instrument.volume??100);return pitch;};
+ const previewKey=(p:any)=>{const instrument=state.project.instruments[state.active],pitch=musical(p).pitch;if(pitch<0||pitch>127)return;state.previewPitch=pitch;draw();if(keyHighlightTimer!==undefined)window.clearTimeout(keyHighlightTimer);keyHighlightTimer=window.setTimeout(()=>{if(state.previewPitch===pitch){state.previewPitch=null;draw();}},500);void previewNote(playbackPitch(instrument,pitch),instrument.midiProgram??0,instrument.isDrum===true||!!instrument.ms2Drum,instrument.volume??100,instrument.ms2Drum);return pitch;};
 canvas.onpointerdown=e=>{
  if(e.button!==0&&e.button!==2)return;const p=point(e);
  if(p.y<HEAD){

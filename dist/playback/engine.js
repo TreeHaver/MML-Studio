@@ -1,3 +1,4 @@
+import { mappedDrums } from './drums.js';
 import { samplePitch, tuningControllers, tuningWheel, overridePrograms, usesBundledSamples } from './sample-pitch.js';
 // Independent lazy synths keep keyboard previews from changing song channels.
 let masterVolume = 1;
@@ -62,6 +63,7 @@ async function createSynth(id = bankId) {
         const bytes = await window.files.soundBank(id);
         await loadBank(synth, id === 'maplebeats-2.dls' ? new Uint8Array(lib.prepareSoundBank(new Uint8Array(bytes), id)) : bytes, 'Selected');
         const customPrograms = id === 'TimGM6mb.sf2' ? [] : overridePrograms(synth.presetList ?? []);
+        const drumOverrides = mappedDrums(synth.presetList ?? []);
         if (id !== 'TimGM6mb.sf2') {
             const fallback = await window.files.soundBank('TimGM6mb.sf2');
             await loadBank(synth, fallback, 'General MIDI');
@@ -70,7 +72,7 @@ async function createSynth(id = bankId) {
         await synth.isReady;
         output.gain.value = masterVolume;
         outputs.add(output);
-        return { lib, context, synth, customPrograms, dispose: async () => { outputs.delete(output); synth.stopAll(true); await context.close(); } };
+        return { lib, context, synth, customPrograms, drumOverrides, dispose: async () => { outputs.delete(output); synth.stopAll(true); await context.close(); } };
     }
     catch (error) {
         await context.close();
@@ -85,26 +87,32 @@ export function getPreviewEngine() {
         return previewInstance;
     previewInstance = (async () => {
         try {
-            const { context, synth, dispose, customPrograms } = await createSynth();
+            const { context, synth, dispose, customPrograms, drumOverrides } = await createSynth();
             let timer;
             let generation = 0;
             return { context, dispose: async () => { generation++; clearTimeout(timer); await dispose(); },
-                async preview(pitch, program, isDrum = false, volume = 100) {
+                async preview(pitch, program, isDrum = false, volume = 100, ms2Drum) {
                     const token = ++generation;
                     await context.resume();
                     if (token !== generation)
                         return;
                     clearTimeout(timer);
                     synth.stopAll(false);
+                    const mapped = ms2Drum ? drumOverrides[ms2Drum] : undefined;
                     const channel = isDrum ? 9 : 0;
-                    const sample = samplePitch(pitch, program, isDrum, usesBundledSamples(program, customPrograms)), sourcePitch = sample.pitch;
+                    const sample = samplePitch(pitch, program, isDrum, usesBundledSamples(program, customPrograms)), sourcePitch = mapped?.pitch ?? sample.pitch;
                     for (const [cc, value] of tuningControllers())
                         synth.controllerChange(channel, cc, value);
                     synth.pitchWheel(channel, tuningWheel(sample.tuning));
                     synth.midiChannels[channel].setSystemParameter('gain', volume / 100);
-                    synth.programChange(channel, isDrum ? 0 : program);
+                    synth.programChange(channel, mapped?.program ?? (isDrum ? 0 : program));
                     synth.noteOn(channel, sourcePitch, 100);
-                    timer = setTimeout(() => synth.noteOff(channel, sourcePitch), 500);
+                    // Trigger the complete authored release envelope now. In particular the crash
+                    // loops during release, so holding it until a written note end would extend it.
+                    if (mapped)
+                        synth.noteOff(channel, sourcePitch);
+                    else
+                        timer = setTimeout(() => synth.noteOff(channel, sourcePitch), 500);
                 }
             };
         }
@@ -131,7 +139,7 @@ export function getEngine() {
             const seq = new lib.Sequencer(synth, { skipToFirstNoteOn: false });
             seq.loopCount = 0;
             return {
-                seq, context, customPrograms: ready.customPrograms, dispose: async () => { seq.pause(); await ready.dispose(); },
+                seq, context, customPrograms: ready.customPrograms, drumOverrides: ready.drumOverrides, dispose: async () => { seq.pause(); await ready.dispose(); },
                 restoreNotes(notes) { for (const n of notes) {
                     for (const [cc, value] of tuningControllers())
                         synth.controllerChange(n.channel, cc, value);

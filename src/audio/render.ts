@@ -1,3 +1,4 @@
+import {mappedDrums,type DrumOverrides} from '../playback/drums.ts';
 import {filterSoundBank} from './sound-bank.ts';
 import {SpessaSynthProcessor,SoundBankLoader} from 'spessasynth_core';
 import {overridePrograms,type SamplePolicy} from '../playback/sample-pitch.ts';
@@ -9,10 +10,10 @@ export const SAMPLE_RATE=44100;
 export type AudioRequest={project:unknown;minimumEnd:number;speed:number;volume:number;muted:number[];soundBank?:string};
 
 /** Compile the active view with the same loop/channel compiler as live playback. */
-export function audioPlan(request:AudioRequest,samplePolicy:SamplePolicy=true){
+export function audioPlan(request:AudioRequest,samplePolicy:SamplePolicy=true,drumOverrides:DrumOverrides={}){
  const project=parse(JSON.stringify(request.project));
  if(!Number.isSafeInteger(request.minimumEnd)||request.minimumEnd<0||!Number.isFinite(request.speed)||request.speed<.25||request.speed>4||!Number.isFinite(request.volume)||request.volume<0||request.volume>1||!Array.isArray(request.muted)||request.muted.some(i=>!Number.isInteger(i)||!project.instruments[i]))throw Error('Invalid audio export settings.');
- const plan=compilePlayback(project,request.minimumEnd,samplePolicy),midi=readSMF(new Uint8Array(plan.binary));
+ const plan=compilePlayback(project,request.minimumEnd,samplePolicy,drumOverrides),midi=readSMF(new Uint8Array(plan.binary));
  // Read the actual encoded MIDI clock, including its integer microsecond tempos.
  let tick=0,seconds=0,micros=500000;
  const events:{frame:number;message:number[];offset:number}[]=[];
@@ -28,7 +29,7 @@ export function audioPlan(request:AudioRequest,samplePolicy:SamplePolicy=true){
 /** Stream stereo PCM without holding the whole recording in memory. No DOM or live synth. */
 export async function renderAudio(request:AudioRequest,bankBytes:ArrayBuffer,write:(pcm:Float32Array)=>Promise<void>,progress:(fraction:number)=>void=()=>{},cancelled:()=>boolean=()=>false,fallbackBytes?:ArrayBuffer){
  const bank=filterSoundBank(SoundBankLoader.fromArrayBuffer(bankBytes),request.soundBank);
- const plan=audioPlan(request,fallbackBytes?overridePrograms(bank.presets):true),synth=new SpessaSynthProcessor(SAMPLE_RATE);
+ const plan=audioPlan(request,fallbackBytes?overridePrograms(bank.presets):true,mappedDrums(bank.presets)),synth=new SpessaSynthProcessor(SAMPLE_RATE);
  await synth.processorInitialized;
  synth.soundBankManager.addSoundBank(bank,'Selected');
  if(fallbackBytes){

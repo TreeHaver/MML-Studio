@@ -100,7 +100,7 @@ Preview must honor every original start, duration and resolved onset V, includin
 - Dotted defaults such as `l1.` are supported. An explicit length overrides the complete default: `l1.c128` is one unit.
 - Conventional dotted lengths and ties can represent every integer model duration exactly. Their use in generated strings does not imply that the dialect forbids other denominators.
 
-Melodic preview must sound from C0 through B8 and both accidental boundaries. Keyboard and song preview share the preset-specific sample fallback in `src/playback/sample-pitch.ts`. Standard Drum Kit keeps its percussion mapping; fixed MS2 drums keep their mapped sounds.
+Melodic preview must sound from C0 through B8 and both accidental boundaries. Keyboard and song preview share the preset-specific sample fallback in `src/playback/sample-pitch.ts`. Standard Drum Kit keeps its percussion mapping; fixed MS2 drums keep their mapped sounds. With Maplebeats selected, dedicated Cymbals/Bass/Snare trigger complete one-shot sounds independently of written note length; stored timing, MIDI export and MML stay unchanged.
 
 ## Instruments, import and preservation
 

@@ -6,15 +6,15 @@ The time beside BPM shows elapsed / total (for example, 0:01 / 2:10), including 
 
 ## Sound bank selection
 
-Playback settings > Sound bank lists local .sf2 and .dls files in the application assets folder, including a locally supplied ms2.dls. Add banks there and restart the editor to refresh the list. New profiles default to maplebeats-2.dls when present, otherwise TimGM6mb.sf2. Existing saved selections take precedence. The choice persists as an application preference; it does not change project JSON or MIDI/MML export.
+Playback settings > Sound bank lists local .sf2 and .dls files in the application assets folder, including maplebeats-2.dls. Add banks there and restart the editor to refresh the list. New profiles default to maplebeats-2.dls when present, otherwise TimGM6mb.sf2. Existing saved selections take precedence. The choice persists as an application preference; it does not change project JSON or MIDI/MML export.
 
-For maplebeats-2.dls, CRASH60B, KICK264 and FATSD60A are excluded by exact preset name. Their slots (122–124 in the editor) use GM Breath Noise, Seashore and Bird Tweet. The source DLS is unchanged: the worklet receives a filtered in-memory SF2 copy, and offline rendering filters the parsed bank through the same helper. Other banks are unaffected.
+For maplebeats-2.dls, CRASH60B, KICK264 and FATSD60A are moved by exact preset name into private drum presets for the dedicated Cymbals, Bass Drum and Snare Drum instruments. Their original melodic slots (122–124 in the editor) still use GM Breath Noise, Seashore and Bird Tweet. Standard Drum Kit remains GM. The source DLS is unchanged: the worklet receives a filtered in-memory SF2 copy, and offline rendering filters the parsed bank through the same helper. Other banks are unaffected.
 
 A selected custom bank takes priority over TimGM6mb.sf2. Exact MIDI bank/program/drum-role matches use its presets, while missing presets use General MIDI. Matching is by MIDI slot, not instrument name; the existing instrument labels and stored program numbers remain unchanged. A supplied drum kit replaces that kit as a whole, without filling individual missing drum keys from GM.
 
 Changing banks stops playback and retires both song and keyboard synths after the new bank loads successfully. Invalid banks report an error and retain the previous selection. The bundled bank's measured sample-pitch correction applies only to melodic programs still supplied by TimGM; overridden programs use their own original pitch zones. Audio export snapshots the selected bank ID and loads the same custom-first/GM-second stack in its worker.
 
-The release builder requires maplebeats-2.dls alongside TimGM6mb.sf2 so new releases include the default. Other custom banks are not automatically included. The user-provided DLS remains untracked. SF3 remains unsupported; DLS is decoded natively by the pinned core and needs no conversion to SF2 or external decoder.
+The release builder requires maplebeats-2.dls alongside TimGM6mb.sf2 so new releases include the default. Other custom banks are not automatically included. The source DLS is preserved unchanged. SF3 remains unsupported; DLS is decoded natively by the pinned core and needs no conversion to SF2 or external decoder.
 
 ## Live playback and key preview
 
@@ -69,6 +69,8 @@ Its preset text is always yellow. The [Vanilla instrument filter](EDITOR.md#inst
 The GM1 named map covers 35–81. Other keys remain editable and may be extensions or silence in the bank. Standard Kit uses program 0; each overlapping drum voice gets its own port/channel-9 route. Keyboard drums use the independent preview synth. Selecting a melodic preset changes the role without changing notes.
 
 Fixed MS2 **Snare Drum**, **Bass Drum** and **Cymbals** use optional `ms2Drum` metadata. They preview keys **38, 35, 49** respectively, regardless of stored pitch, and export every note as **C4**. They do not show the Standard Kit incompatibility warning.
+
+With Maplebeats selected, the dedicated roles use private drum programs 125/126/127 (zero-based) for Cymbals/Bass/Snare, at the bank's authored keys 48/36/38. Runtime-only routing leaves stored pitches, written lengths, MIDI export and MML untouched. Each hit triggers its full authored release envelope regardless of written length; the looped cymbal decays naturally. The playback MIDI uses 4096 PPQ for a nonzero one-tick trigger that the live sequencer retains. Other performances keep 32 PPQ. Keyboard preview uses an immediate release trigger. Seeking inside an already-started hit does not retrigger it, and natural song completion lets the tail ring; explicit Stop/Pause still silence playback. Offline rendering uses the same mappings and complete hits.
 
 Split Notes moves an exact pitch to an existing musical instrument. Split Drumkit explicitly creates populated categories: bass 35/36; snare 38/40; cymbals 42/44/46/49/51/52/53/55/57/59. Other percussion stays in the source. IDs, pitches, duration and tempo survive; inherited V is materialized to preserve sound. Neither conversion runs automatically.
 

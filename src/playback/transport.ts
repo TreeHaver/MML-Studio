@@ -67,7 +67,7 @@ async function loadSnapshot(token:number){
   const range=state.segment?.projection.range;
   // A loop drawn past the end of the music still has to be played to its end, so the
   // performance is compiled at least that long; without it the song simply stops early.
-  const next=compilePlayback(snapshot,Math.max(range?range.end-range.start:0,looping()?loopRegion.end:0),engine.customPrograms);
+  const next=compilePlayback(snapshot,Math.max(range?range.end-range.start:0,looping()?loopRegion.end:0),engine.customPrograms,engine.drumOverrides);
   await engine.load(next.binary);if(token!==generation)return false;
   if(revision!==voiceRevision||from!==(position??0)||notes!==state.project.notes||count!==state.project.notes.length)continue;
   // Retain the current repeat when its source mapping survives an edit. If
@@ -177,11 +177,13 @@ function animate(){
  if(looping()&&playback.tick!==null&&playback.tick>=loopRegion.end){void rewindLoop();frame=requestAnimationFrame(animate);return;}
  followPlayback(playback.tick!);
  draw();
- if(engine.seq.isFinished){if(looping()){void rewindLoop();frame=requestAnimationFrame(animate);return;}stopPlayback(false);return;}
+ if(engine.seq.isFinished){if(looping()){void rewindLoop();frame=requestAnimationFrame(animate);return;}stopPlayback(false,plan.channels.some((c:any)=>c.oneShot));return;}
  frame=requestAnimationFrame(animate);
 }
-export function stopPlayback(message=true){
- generation++;cancelAnimationFrame(frame);engine?.stop();clearMetronome();position=null;
+export function stopPlayback(message=true,naturalTail=false){
+ // The sequencer already releases voices at its natural end. A hard stop here
+ // would cut off the one-shot drum tail; explicit Stop/Pause still silence it.
+ generation++;cancelAnimationFrame(frame);if(!naturalTail)engine?.stop();clearMetronome();position=null;
  // Retain the loading lock until an in-flight initialization completes.
  if(phase!=='loading')phase='idle';buttons();draw();
  if(message)status('Playback stopped.');

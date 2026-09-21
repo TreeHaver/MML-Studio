@@ -105,7 +105,7 @@ export function installPointer() {
         window.clearTimeout(keyHighlightTimer); keyHighlightTimer = window.setTimeout(() => { if (state.previewPitch === pitch) {
         state.previewPitch = null;
         draw();
-    } }, 500); void previewNote(playbackPitch(instrument, pitch), instrument.midiProgram ?? 0, instrument.isDrum === true || !!instrument.ms2Drum, instrument.volume ?? 100); return pitch; };
+    } }, 500); void previewNote(playbackPitch(instrument, pitch), instrument.midiProgram ?? 0, instrument.isDrum === true || !!instrument.ms2Drum, instrument.volume ?? 100, instrument.ms2Drum); return pitch; };
     canvas.onpointerdown = e => {
         if (e.button !== 0 && e.button !== 2)
             return;

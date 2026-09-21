@@ -36,6 +36,24 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;
   assert.ok(peak>.0001,'DLS AudioWorklet must output nonzero PCM');result.peak=peak;
   await run(`t.stopPlayback(false);e.getPreviewEngine().then(engine=>engine.preview(60,0))`);
   result.checks.push('DLS plays through the real AudioWorklet and initializes independent keyboard preview');
+  await run(`e.getEngine().then(engine=>{
+   window.drumMeter=meters.find(m=>m.context===engine.context);
+   window.capture=engine.context.createScriptProcessor(256,1,1);window.recorded=[];
+   capture.onaudioprocess=event=>recorded.push(...event.inputBuffer.getChannelData(0));
+   drumMeter.connect(capture);capture.connect(engine.context.destination);
+  })`);
+  for(const role of ['cymbals','bass','snare']){
+   await run(`t.stopPlayback(false);import('./dist/commands.js').then(({refresh})=>{
+    s.project.instruments=[{name:'Test drum',color:'#ff8800',ms2Drum:${JSON.stringify(role)}}];
+    s.project.notes=[{id:1,instrument:0,start:0,length:1,pitch:90,volume:12}];s.active=0;refresh();recorded=[];
+   })`);
+   await run(`t.play()`);await wait(role==='cymbals'?1600:450);
+   const measured=await run(`(()=>{const onset=recorded.findIndex(x=>Math.abs(x)>.0001);const start=onset+Math.ceil(.025*capture.context.sampleRate);return {frames:recorded.length,status:document.getElementById('status').textContent,onset,tail:recorded.slice(start).reduce((p,x)=>Math.max(p,Math.abs(x)),0),playing:document.getElementById('play').classList.contains('is-playing')};})()`);
+   assert.ok(measured.onset>=0&&measured.tail>.0001,`${role} must remain audible beyond its short written note: ${JSON.stringify(measured)}`);
+   assert.equal(measured.playing,false,'natural transport end must preserve the remaining hit');
+   result.checks.push({oneShot:role,...measured});
+  }
+  await run(`capture.disconnect();drumMeter.disconnect(capture);`);
   await run(`document.getElementById('sound-bank').value=${JSON.stringify(badName)};document.getElementById('sound-bank').dispatchEvent(new Event('change'));`);await settled();
   assert.equal(await run(`e.activeSoundBank()`),'maplebeats-2.dls');
   assert.match(await run(`document.getElementById('status').textContent`),/could not be loaded/);

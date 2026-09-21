@@ -27,7 +27,7 @@ test('preview releases notes, replaces rapid clicks, and uses a synth separate f
  const calls=[],timers=new Map(),gains=[];let nextTimer=0,nextSynth=0,contexts=0,closed=0,failBank=false;
  class Context{constructor(){contexts++;this.currentTime=0;this.destination={};this.audioWorklet={addModule:async()=>{}};}createGain(){const output={context:this,connect(){},gain:{value:1,setTargetAtTime(value){this.value=value}}};gains.push(output);return output;}async resume(){}async close(){closed++;}}
  class Synth{
-  constructor(){this.id=++nextSynth;this.presetList=[{program:73,bankMSB:0,bankLSB:0,isDrum:false}];this.midiChannels=Array.from({length:16},()=>({setSystemParameter(){}}));this.soundBankManager={addSoundBank:async()=>{}};this.isReady=Promise.resolve();}
+  constructor(){this.id=++nextSynth;this.presetList=[{program:73,bankMSB:0,bankLSB:0,isDrum:false},...['CRASH60B','KICK264','FATSD60A'].map((name,i)=>({name,program:125+i,bankMSB:0,bankLSB:0,isDrum:true}))];this.midiChannels=Array.from({length:16},()=>({setSystemParameter(){}}));this.soundBankManager={addSoundBank:async()=>{}};this.isReady=Promise.resolve();}
   connect(){}stopAll(force){calls.push([this.id,'stop',force]);}
   controllerChange(c,cc,v){calls.push([this.id,'cc',c,cc,v]);}
   programChange(c,p){calls.push([this.id,'program',c,p]);}
@@ -42,7 +42,7 @@ test('preview releases notes, replaces rapid clicks, and uses a synth separate f
  await lib.link(()=>{});await lib.evaluate();
  const engine=new vm.SourceTextModule(transpile(fs.readFileSync('src/playback/engine.ts','utf8'),'engine.ts'),{
   context,initializeImportMeta:meta=>{meta.url='file:///studio/dist/playback/engine.js';},importModuleDynamically:()=>lib
- });const samples=new vm.SourceTextModule(transpile(fs.readFileSync('src/playback/sample-pitch.ts','utf8'),'sample-pitch.ts'),{context});await samples.link(()=>{});await samples.evaluate();await engine.link(()=>samples);await engine.evaluate();
+ });const samples=new vm.SourceTextModule(transpile(fs.readFileSync('src/playback/sample-pitch.ts','utf8'),'sample-pitch.ts'),{context});await samples.link(()=>{});await samples.evaluate();const drums=new vm.SourceTextModule(transpile(fs.readFileSync('src/playback/drums.ts','utf8'),'drums.ts'),{context});await drums.link(()=>{});await drums.evaluate();await engine.link(spec=>spec==='./drums.ts'?drums:samples);await engine.evaluate();
  const preview=await engine.namespace.getPreviewEngine();
  await preview.preview(60,40);await preview.preview(62,73);
  assert.equal(timers.size,1);[...timers.values()][0]();
@@ -61,6 +61,12 @@ test('preview releases notes, replaces rapid clicks, and uses a synth separate f
  assert.equal(engine.namespace.activeSoundBank(),'other.dls');assert.equal(closed,3);assert.equal(timers.size,0);
  const other=await engine.namespace.getPreviewEngine();calls.length=0;await other.preview(109,73);
  assert.ok(calls.some(c=>c[1]==='on'&&c[3]===109),'DLS preview must not use TimGM sample remapping');
+ for(const [role,program,pitch] of [['cymbals',125,48],['bass',126,36],['snare',127,38]]){
+  calls.length=0;await other.preview(90,0,true,100,role);
+  assert.ok(calls.some(c=>c[1]==='program'&&c[2]===9&&c[3]===program));
+  assert.ok(calls.some(c=>c[1]==='on'&&c[3]===pitch));
+  assert.ok(calls.some(c=>c[1]==='off'&&c[3]===pitch));assert.equal(timers.size,0,'one-shot keyboard hits use no written-duration timer');
+ }
  const synthCount=nextSynth;await engine.namespace.getEngine();assert.equal(nextSynth,synthCount,'reuse the validated candidate');
  await engine.namespace.changeSoundBank('TimGM6mb.sf2');assert.equal(engine.namespace.activeSoundBank(),'TimGM6mb.sf2');
 });

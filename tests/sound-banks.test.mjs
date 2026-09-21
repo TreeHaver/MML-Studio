@@ -6,6 +6,8 @@ import banks from '../sound-banks.cjs';
 import {fresh} from '../dist/model/project.js';
 import {compilePlayback,heldPlaybackNotes} from '../dist/playback/midi.js';
 import {renderAudio} from '../dist/audio/render.js';
+import {mappedDrums} from '../dist/playback/drums.js';
+import {readSMF} from '../dist/import/smf.js';
 import {overridePrograms} from '../dist/playback/sample-pitch.js';
 import {filterSoundBank,prepareSoundBank} from '../dist/audio/sound-bank.js';
 
@@ -58,7 +60,7 @@ test('partial DLS overrides matching programs while missing melodic and drum pro
  assert.notDeepEqual(await render(true),await render(false),'matching piano slot is overridden by violin');
 });
 
-test('Maplebeats excludes exactly the three named replacements in worklet bytes and offline PCM',async()=>{
+test('Maplebeats remaps three drum presets while preserving GM melodic slots',async()=>{
  const buffer=bytes=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
  const gm=buffer(fs.readFileSync('assets/TimGM6mb.sf2'));
  const fixture=SoundBankLoader.fromArrayBuffer(gm);
@@ -66,17 +68,41 @@ test('Maplebeats excludes exactly the three named replacements in worklet bytes 
  const source=fs.existsSync('assets/maplebeats-2.dls')?buffer(fs.readFileSync('assets/maplebeats-2.dls')):fixture.writeSF2();
  const untouched=SoundBankLoader.fromArrayBuffer(source);
  const filtered=filterSoundBank(SoundBankLoader.fromArrayBuffer(source),'maplebeats-2.dls');
- assert.equal(filtered.presets.length,untouched.presets.length-3);
+ assert.equal(filtered.presets.length,untouched.presets.length);
  const expected=untouched.presets.filter(p=>!['CRASH60B','KICK264','FATSD60A'].includes(p.name)).map(p=>p.name);
- assert.deepEqual(filtered.presets.map(p=>p.name),expected);
+ assert.deepEqual(filtered.presets.filter(p=>!p.isDrum).map(p=>p.name),expected);
+ assert.deepEqual(mappedDrums(filtered.presets),{cymbals:{name:'CRASH60B',program:125,pitch:48},bass:{name:'KICK264',program:126,pitch:36},snare:{name:'FATSD60A',program:127,pitch:38}});
  assert.equal(filterSoundBank(untouched,'other.dls').presets.length,untouched.presets.length);
  const worklet=SoundBankLoader.fromArrayBuffer(prepareSoundBank(new Uint8Array(source),'maplebeats-2.dls'));
- assert.deepEqual(worklet.presets.map(p=>p.name),expected);
+ assert.deepEqual(worklet.presets.filter(p=>!p.isDrum).map(p=>p.name),expected);
+ assert.deepEqual(mappedDrums(worklet.presets),mappedDrums(filtered.presets));
  const p=fresh();p.notes=[{id:1,instrument:0,start:0,length:8,pitch:60,volume:8}];
  for(const program of [121,122,123]){
   assert.ok(!overridePrograms(filtered.presets).includes(program));
   p.instruments[0].midiProgram=program;
   const render=async(custom)=>{const pcm=[];await renderAudio({project:p,minimumEnd:0,speed:1,volume:1,muted:[],soundBank:custom?'maplebeats-2.dls':'TimGM6mb.sf2'},custom?source:gm,async chunk=>pcm.push(...chunk),()=>{},()=>false,custom?gm:undefined);return pcm;};
   assert.deepEqual(await render(true),await render(false),`slot ${program+1} must use the original GM sound`);
+ }
+});
+
+test('dedicated Maplebeats drums trigger complete hits independently of written length', {skip:!fs.existsSync('assets/maplebeats-2.dls')},async()=>{
+ const buffer=file=>{const b=fs.readFileSync(file);return b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength);};
+ const source=buffer('assets/maplebeats-2.dls'),gm=buffer('assets/TimGM6mb.sf2');
+ const bank=filterSoundBank(SoundBankLoader.fromArrayBuffer(source),'maplebeats-2.dls'),overrides=mappedDrums(bank.presets);
+ for(const role of ['cymbals','bass','snare']){
+  const p=fresh();p.instruments[0].ms2Drum=role;p.notes=[{id:1,instrument:0,start:0,length:1,pitch:90,volume:8}];
+  const original=JSON.stringify(p),plan=compilePlayback(p,0,overridePrograms(bank.presets),overrides);
+  const events=readSMF(new Uint8Array(plan.binary)).events;
+  assert.ok(events.some(e=>(e.status&240)===192&&e.data[0]===overrides[role].program));
+  assert.ok(events.some(e=>(e.status&240)===144&&e.data[0]===overrides[role].pitch));
+  const off=events.find(e=>(e.status&240)===128);assert.equal(off.tick,1,'release starts one fine MIDI tick after onset, not at written end');
+  assert.deepEqual(heldPlaybackNotes(plan.project,plan.channels,.5),[],'seeking inside a written hit does not retrigger it');
+  assert.equal(JSON.stringify(p),original);
+  const render=async length=>{p.notes[0].length=length;const data=[];await renderAudio({project:p,minimumEnd:0,speed:1,volume:1,muted:[],soundBank:'maplebeats-2.dls'},source,async pcm=>data.push(...pcm),()=>{},()=>false,gm);return data;};
+  const short=await render(1),long=await render(128);
+  assert.deepEqual(short.slice(0,Math.min(short.length,long.length)),long.slice(0,Math.min(short.length,long.length)),`${role}: one-shot sound must not depend on written duration`);
+  const after=short.slice(Math.ceil(.025*88200)).reduce((peak,v)=>Math.max(peak,Math.abs(v)),0);
+  assert.ok(after>.0001,`${role}: hit continues beyond the 15.625 ms note`);
+  assert.ok(short.length<88200*6,`${role}: looped cymbal must decay instead of hanging`);
  }
 });

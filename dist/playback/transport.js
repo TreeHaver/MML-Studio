@@ -79,7 +79,7 @@ async function loadSnapshot(token) {
         const range = state.segment?.projection.range;
         // A loop drawn past the end of the music still has to be played to its end, so the
         // performance is compiled at least that long; without it the song simply stops early.
-        const next = compilePlayback(snapshot, Math.max(range ? range.end - range.start : 0, looping() ? loopRegion.end : 0), engine.customPrograms);
+        const next = compilePlayback(snapshot, Math.max(range ? range.end - range.start : 0, looping() ? loopRegion.end : 0), engine.customPrograms, engine.drumOverrides);
         await engine.load(next.binary);
         if (token !== generation)
             return false;
@@ -260,15 +260,18 @@ function animate() {
             frame = requestAnimationFrame(animate);
             return;
         }
-        stopPlayback(false);
+        stopPlayback(false, plan.channels.some((c) => c.oneShot));
         return;
     }
     frame = requestAnimationFrame(animate);
 }
-export function stopPlayback(message = true) {
+export function stopPlayback(message = true, naturalTail = false) {
+    // The sequencer already releases voices at its natural end. A hard stop here
+    // would cut off the one-shot drum tail; explicit Stop/Pause still silence it.
     generation++;
     cancelAnimationFrame(frame);
-    engine?.stop();
+    if (!naturalTail)
+        engine?.stop();
     clearMetronome();
     position = null;
     // Retain the loading lock until an in-flight initialization completes.

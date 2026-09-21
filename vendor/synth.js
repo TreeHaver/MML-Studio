@@ -22328,11 +22328,23 @@ var WebMIDILinkHandler = class {
   }
 };
 
+// src/playback/drums.ts
+var MAPLEBEATS_DRUMS = {
+  cymbals: { name: "CRASH60B", program: 125, pitch: 48 },
+  bass: { name: "KICK264", program: 126, pitch: 36 },
+  snare: { name: "FATSD60A", program: 127, pitch: 38 }
+};
+
 // src/audio/sound-bank.ts
-var ignored = /* @__PURE__ */ new Set(["CRASH60B", "KICK264", "FATSD60A"]);
 function filterSoundBank(bank, id) {
   if (id === "maplebeats-2.dls") for (const preset of [...bank.presets]) {
-    if (ignored.has(preset.name.trim())) bank.deletePreset(preset);
+    const mapping = Object.values(MAPLEBEATS_DRUMS).find((item) => item.name === preset.name.trim());
+    if (mapping) {
+      preset.program = mapping.program;
+      preset.bankMSB = 0;
+      preset.bankLSB = 0;
+      preset.isGMGSDrum = true;
+    }
   }
   return bank;
 }

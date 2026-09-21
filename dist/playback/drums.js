@@ -12,6 +12,21 @@ const names = [
 ];
 export const drumName = (pitch) => names[pitch - 35] ?? `Drum note ${pitch} (outside GM standard map)`;
 export const MS2_DRUMS = { snare: { name: 'Snare Drum', pitch: 38 }, bass: { name: 'Bass Drum', pitch: 35 }, cymbals: { name: 'Cymbals', pitch: 49 } };
+// Private drum presets keep the Standard Kit and the original melodic FX slots intact.
+export const MAPLEBEATS_DRUMS = {
+    cymbals: { name: 'CRASH60B', program: 125, pitch: 48 },
+    bass: { name: 'KICK264', program: 126, pitch: 36 },
+    snare: { name: 'FATSD60A', program: 127, pitch: 38 }
+};
+export function mappedDrums(presets) {
+    const result = {};
+    for (const role of Object.keys(MAPLEBEATS_DRUMS)) {
+        const mapped = MAPLEBEATS_DRUMS[role];
+        if (presets.some(p => p.isDrum && p.program === mapped.program && p.name === mapped.name))
+            result[role] = mapped;
+    }
+    return result;
+}
 export function drumCategory(pitch) {
     if ([35, 36].includes(pitch))
         return 'bass';

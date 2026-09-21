@@ -4,6 +4,23 @@ var import_node_child_process = require("node:child_process");
 var import_promises = require("node:fs/promises");
 var import_promises2 = require("node:timers/promises");
 
+// src/playback/drums.ts
+var MS2_DRUMS = { snare: { name: "Snare Drum", pitch: 38 }, bass: { name: "Bass Drum", pitch: 35 }, cymbals: { name: "Cymbals", pitch: 49 } };
+var MAPLEBEATS_DRUMS = {
+  cymbals: { name: "CRASH60B", program: 125, pitch: 48 },
+  bass: { name: "KICK264", program: 126, pitch: 36 },
+  snare: { name: "FATSD60A", program: 127, pitch: 38 }
+};
+function mappedDrums(presets) {
+  const result = {};
+  for (const role of Object.keys(MAPLEBEATS_DRUMS)) {
+    const mapped = MAPLEBEATS_DRUMS[role];
+    if (presets.some((p) => p.isDrum && p.program === mapped.program && p.name === mapped.name)) result[role] = mapped;
+  }
+  return result;
+}
+var playbackPitch = (instrument, pitch) => instrument.ms2Drum ? MS2_DRUMS[instrument.ms2Drum].pitch : pitch;
+
 // packages/sf2-only-decoder/index.js
 var StbVorbis = Object.freeze({
   ready: Promise.resolve(),
@@ -16681,10 +16698,15 @@ var SpessaSynthProcessor = class {
 };
 
 // src/audio/sound-bank.ts
-var ignored = /* @__PURE__ */ new Set(["CRASH60B", "KICK264", "FATSD60A"]);
 function filterSoundBank(bank, id) {
   if (id === "maplebeats-2.dls") for (const preset of [...bank.presets]) {
-    if (ignored.has(preset.name.trim())) bank.deletePreset(preset);
+    const mapping = Object.values(MAPLEBEATS_DRUMS).find((item) => item.name === preset.name.trim());
+    if (mapping) {
+      preset.program = mapping.program;
+      preset.bankMSB = 0;
+      preset.bankLSB = 0;
+      preset.isGMGSDrum = true;
+    }
   }
   return bank;
 }
@@ -16743,10 +16765,6 @@ function partitionChannels(source) {
   }
   return lanes;
 }
-
-// src/playback/drums.ts
-var MS2_DRUMS = { snare: { name: "Snare Drum", pitch: 38 }, bass: { name: "Bass Drum", pitch: 35 }, cymbals: { name: "Cymbals", pitch: 49 } };
-var playbackPitch = (instrument, pitch) => instrument.ms2Drum ? MS2_DRUMS[instrument.ms2Drum].pitch : pitch;
 
 // src/music/speed.ts
 var validMultiplier = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
@@ -17042,29 +17060,30 @@ function variable(value) {
 }
 var word = (v) => [v >>> 8 & 255, v & 255];
 var dword = (v) => [v >>> 24 & 255, v >>> 16 & 255, v >>> 8 & 255, v & 255];
-function track(events, end) {
+function track(events, end, precision = 1) {
   const data = [];
   let previous = 0;
   events.sort((a, b) => a.tick - b.tick || a.order - b.order);
   for (const e of events) {
-    data.push(...variable(e.tick - previous), ...e.data);
+    data.push(...variable((e.tick - previous) * precision), ...e.data);
     previous = e.tick;
   }
-  data.push(...variable(Math.max(end, previous) - previous), 255, 47, 0);
+  data.push(...variable((Math.max(end, previous) - previous) * precision), 255, 47, 0);
   return [77, 84, 114, 107, ...dword(data.length), ...data];
 }
-function compilePlayback(project, minimumEnd = 0, samplePolicy = true) {
+function compilePlayback(project, minimumEnd = 0, samplePolicy = true, drumOverrides = {}) {
   const expanded = expandLoops(project, minimumEnd);
   project = expanded.project;
   minimumEnd = expanded.end;
   if (!valid(project.notes)) throw Error("Invalid notes or conflicting tempo instructions.");
+  const precision = project.instruments.some((i) => i.ms2Drum && drumOverrides[i.ms2Drum]) ? 128 : 1;
   const map = tempoMap(project.notes), end = project.notes.reduce((end2, n) => Math.max(end2, n.start + (project.instruments[n.instrument]?.isInstructions ? 0 : n.length)), minimumEnd);
   const conductor = map.map(({ tick, bpm }) => {
     const micros = Math.round(6e7 / bpm);
     if (micros < 1 || micros > 16777215) throw Error("This tempo cannot be represented by the MIDI preview engine. The project is unchanged.");
     return { tick, order: 0, data: [255, 81, 3, micros >>> 16 & 255, micros >>> 8 & 255, micros & 255] };
   });
-  const tracks = [track(conductor, end)];
+  const tracks = [track(conductor, end, precision)];
   let skipped = 0;
   const byInstrument = /* @__PURE__ */ new Map();
   for (const n of project.notes) {
@@ -17079,7 +17098,7 @@ function compilePlayback(project, minimumEnd = 0, samplePolicy = true) {
   used.forEach((instrument) => {
     const notes = byInstrument.get(instrument);
     const volumes = resolveVolumes(notes);
-    const owner = project.instruments[instrument], groups = /* @__PURE__ */ new Map();
+    const owner = project.instruments[instrument], mapped = owner.ms2Drum ? drumOverrides[owner.ms2Drum] : void 0, groups = /* @__PURE__ */ new Map();
     for (const n of notes) {
       const sample = samplePitch(playbackPitch(owner, n.pitch), owner.midiProgram ?? 0, !!(owner.isDrum || owner.ms2Drum), usesBundledSamples(owner.midiProgram ?? 0, samplePolicy));
       const group = groups.get(sample.tuning) ?? [];
@@ -17090,27 +17109,27 @@ function compilePlayback(project, minimumEnd = 0, samplePolicy = true) {
       const drums = project.instruments[instrument]?.isDrum === true || !!project.instruments[instrument]?.ms2Drum;
       const slot = drums ? drumSlot++ : melodicSlot++;
       const port = drums ? slot : Math.floor(slot / 15), local = slot % 15, channel = drums ? 9 : local >= 9 ? local + 1 : local;
-      channels.push({ instrument, channel: port * 16 + channel, noteIds: lane.map((n) => n.id), ...tuning ? { tuning } : {} });
+      channels.push({ instrument, channel: port * 16 + channel, noteIds: lane.map((n) => n.id), ...mapped ? { oneShot: true } : {}, ...tuning ? { tuning } : {} });
       if (port > 127) throw Error("The required playback channels exceed the MIDI port range. The project is unchanged.");
-      const program = drums ? 0 : project.instruments[instrument]?.midiProgram ?? 0;
+      const program = mapped?.program ?? (drums ? 0 : project.instruments[instrument]?.midiProgram ?? 0);
       if (!Number.isInteger(program) || program < 0 || program > 127) throw Error("Invalid GM preset.");
       const events = [{ tick: 0, order: -3, data: [255, 33, 1, port] }, { tick: 0, order: -2, data: [176 + channel, 0, 0] }, { tick: 0, order: -1, data: [176 + channel, 32, 0] }, { tick: 0, order: 0, data: [192 + channel, program] }];
       for (const [cc, value] of tuningControllers()) events.push({ tick: 0, order: 0, data: [176 + channel, cc, value] });
       const wheel = tuningWheel(tuning);
       events.push({ tick: 0, order: 0, data: [224 + channel, wheel & 127, wheel >> 7 & 127] });
       for (const n of lane) {
-        const pitch = playbackPitch(project.instruments[instrument], n.pitch), velocity = Math.round((volumes.get(n.id) ?? 8) * 127 / 15);
+        const pitch = mapped?.pitch ?? playbackPitch(project.instruments[instrument], n.pitch), velocity = Math.round((volumes.get(n.id) ?? 8) * 127 / 15);
         if (pitch < 0 || pitch > 127) {
           skipped++;
           continue;
         }
         if (velocity === 0) continue;
-        events.push({ tick: n.start, order: 2, data: [144 + channel, pitch - tuning, velocity] }, { tick: n.start + n.length, order: 1, data: [128 + channel, pitch - tuning, 0] });
+        events.push({ tick: n.start, order: 2, data: [144 + channel, pitch - tuning, velocity] }, { tick: mapped ? n.start + 1 / precision : n.start + n.length, order: 1, data: [128 + channel, pitch - tuning, 0] });
       }
-      tracks.push(track(events, end));
+      tracks.push(track(events, end, precision));
     }
   });
-  const data = [77, 84, 104, 100, 0, 0, 0, 6, 0, 1, ...word(tracks.length), 0, 32];
+  const data = [77, 84, 104, 100, 0, 0, 0, 6, 0, 1, ...word(tracks.length), ...word(32 * precision)];
   for (const t of tracks) for (const byte of t) data.push(byte);
   return { channels, binary: new Uint8Array(data).buffer, map, duration: secondsAtTick(map, end), end, skipped, project, warnings: expanded.warnings, sourceTick: expanded.sourceTick, performanceTick: expanded.performanceTick };
 }
@@ -17264,10 +17283,10 @@ function parse(text) {
 
 // src/audio/render.ts
 var SAMPLE_RATE = 44100;
-function audioPlan(request, samplePolicy = true) {
+function audioPlan(request, samplePolicy = true, drumOverrides = {}) {
   const project = parse(JSON.stringify(request.project));
   if (!Number.isSafeInteger(request.minimumEnd) || request.minimumEnd < 0 || !Number.isFinite(request.speed) || request.speed < 0.25 || request.speed > 4 || !Number.isFinite(request.volume) || request.volume < 0 || request.volume > 1 || !Array.isArray(request.muted) || request.muted.some((i) => !Number.isInteger(i) || !project.instruments[i])) throw Error("Invalid audio export settings.");
-  const plan = compilePlayback(project, request.minimumEnd, samplePolicy), midi = readSMF(new Uint8Array(plan.binary));
+  const plan = compilePlayback(project, request.minimumEnd, samplePolicy, drumOverrides), midi = readSMF(new Uint8Array(plan.binary));
   let tick = 0, seconds = 0, micros = 5e5;
   const events = [];
   for (const event of midi.events) {
@@ -17282,7 +17301,7 @@ function audioPlan(request, samplePolicy = true) {
 async function renderAudio(request, bankBytes, write, progress = () => {
 }, cancelled2 = () => false, fallbackBytes) {
   const bank = filterSoundBank(SoundBankLoader.fromArrayBuffer(bankBytes), request.soundBank);
-  const plan = audioPlan(request, fallbackBytes ? overridePrograms(bank.presets) : true), synth = new SpessaSynthProcessor(SAMPLE_RATE);
+  const plan = audioPlan(request, fallbackBytes ? overridePrograms(bank.presets) : true, mappedDrums(bank.presets)), synth = new SpessaSynthProcessor(SAMPLE_RATE);
   await synth.processorInitialized;
   synth.soundBankManager.addSoundBank(bank, "Selected");
   if (fallbackBytes) {

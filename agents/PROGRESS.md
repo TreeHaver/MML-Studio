@@ -1,5 +1,16 @@
 # Progress
 
+## Dedicated Maplebeats drums play complete one-shot hits
+
+**2026-09-21.** Replaced removal of CRASH60B/KICK264/FATSD60A with runtime remapping into private drum presets for dedicated Cymbals/Bass Drum/Snare Drum. They use zero-based drum programs 125/126/127 and the bank's authored keys 48/36/38. The original melodic FX slots still fall back to GM; Standard Drum Kit remains GM. The DLS source hash is unchanged. Stored notes and instrument roles, ordinary MIDI export and MML remain unchanged.
+
+Dedicated hits now trigger the full authored release envelope independently of written duration. This retains the cymbal's release-loop decay without holding it indefinitely. Keyboard preview releases immediately; playback/audio MIDI uses one fine tick at 4096 PPQ. An initial zero-tick implementation passed CPU rendering but produced silence in the native sequencer; the positive fine tick fixed that measured failure. Other performances retain 32 PPQ. Seeking inside a previously triggered hit skips retriggering it. Natural song completion preserves the remaining drum tail, while explicit Stop/Pause retain their existing behavior.
+
+Owners: audio/sound-bank remapping; playback/drums shared preset map; engine/preview/pointer keyboard routing; MIDI compiler/held-note restoration; transport natural completion; offline render; generated outputs and synth/worker bundles. Updated sound-bank/preview/native export tests and playback/model/map documentation.
+
+Validation: final authorized node tests/run.cjs passed 226/226; final node build.cjs passed. Regression coverage verifies private drum metadata through SF2 serialization, retained GM FX PCM, exact short/long-hit PCM equality for all three roles, signal after short note ends, finite cymbal decay, skipped seek retriggers and keyboard program/key routing. Native electron-sound-banks captured all three through AudioWorklet after a 15.625 ms note and natural transport completion: post-note peaks approximately 0.113/0.084/0.091 for cymbals/bass/snare. Native electron-audio-export with Maplebeats and MML_STUDIO_TEST_DRUM=cymbals passed all six codecs, mute, scoped export and cancellation; the regular Maplebeats export fixture also passed. git diff --check passed. No physical-speaker listening, in-game comparison or release build was performed.
+
+
 ## Restore tiny-note expansion after pull
 
 **2026-09-21.** Audited the fixes requested in this task against current sources: same-start overlap length/V selection, hammer-on ending-note retention, rapid repeats/pitch-run condensation and longer-note balanced splitting were still present. Restored the missing tiny-note fallback in `src/music/simplify-timing.ts`: surviving short notes whose coverage-rounded edges collapse fill their original onset tile. Restored all-grid/all-offset one-unit regressions, collision/view-boundary/chord/selection coverage, and the native tiny-note fixture in the existing suites. Updated generated module and EDITOR. Newer Tools screen/selection behavior, unrelated working files and version-2 storage remain intact.

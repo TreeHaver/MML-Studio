@@ -17,6 +17,11 @@ app.on('browser-window-created',(_,win)=>win.webContents.once('did-finish-load',
  }
  await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/commands.js'),import('./dist/playback/transport.js')]).then(([{state,instrumentView},commands,transport])=>{window.s=state;window.iv=instrumentView;window.transport=transport;window.commands=commands;
  s.project={format:'mml-studio',version:2,grid:4,name:'Audio test',instruments:[{name:'Flute',color:'#4488aa',midiProgram:73},{name:'Instructions',color:'#f4d35e',isInstructions:true}],notes:[{id:1,instrument:0,start:16,length:16,pitch:72,volume:10},{id:2,instrument:1,start:0,length:1,pitch:60,volume:0,loopEntry:true,loopCount:3},{id:3,instrument:1,start:32,length:1,pitch:60,volume:0,loopExit:true}]};s.active=0;s.selection.clear();commands.refresh();})`);
+ if(process.env.MML_STUDIO_TEST_DRUM){
+  assert.ok(['cymbals','bass','snare'].includes(process.env.MML_STUDIO_TEST_DRUM));
+  await evaluate(`s.project.instruments[0].ms2Drum=${JSON.stringify(process.env.MML_STUDIO_TEST_DRUM)};commands.refresh();`);
+  checks.push({dedicatedDrum:process.env.MML_STUDIO_TEST_DRUM});
+ }
  const before=await evaluate('JSON.stringify(s.project)');let captured=false;
  const run=async()=>{
   await evaluate(`document.getElementById('format-audio').checked=true;document.getElementById('scope-selected').checked=false;document.getElementById('export-open').click();`);
