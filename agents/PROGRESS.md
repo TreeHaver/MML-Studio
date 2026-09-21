@@ -1,5 +1,12 @@
 # Progress
 
+## Restore General MIDI as the default; retain optional DLS testing
+
+**2026-09-21.** Reversed the first-run MS2 default at the user's request: new profiles again use TimGM6mb.sf2. Saved selections are preserved, and ms2.dls remains available in the Sound bank selector with the existing GM fallback. Removed ms2.dls from required release assets; the local bank remains unchanged and untracked. Updated transport, generated output, release list, playback guide and the existing native startup assertion.
+
+Validation: authorized node build.cjs passed; focused renderer/sound-bank regressions passed 5/5. The isolated native bank harness passed fresh-profile GM selection with DLS available, switching, DLS PCM, malformed-bank recovery and saved GM/DLS persistence. git diff --check passed. No release rebuild or manual listening performed.
+
+
 ## MS2 bank is the first-run default
 
 **2026-09-21.** New profiles without a saved sound-bank preference now select ms2.dls when present. Existing saved choices take precedence, including General MIDI; missing MS2 files retain the bundled GM fallback. The release asset list now requires ms2.dls alongside TimGM6mb.sf2 so future packages include the requested first-run default. The large local DLS remains untracked. Owners: src/playback/transport.ts and generated dist/playback/transport.js, package-release.ps1, the playback guide and tests/electron-sound-banks.cjs.

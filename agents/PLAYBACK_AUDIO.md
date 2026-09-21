@@ -6,13 +6,13 @@ The time beside BPM shows elapsed / total (for example, 0:01 / 2:10), including 
 
 ## Sound bank selection
 
-Playback settings > Sound bank lists local .sf2 and .dls files in the application assets folder, including a locally supplied ms2.dls. Add banks there and restart the editor to refresh the list. New profiles default to ms2.dls when available, otherwise TimGM6mb.sf2. Existing saved selections take precedence. The choice persists as an application preference; it does not change project JSON or MIDI/MML export.
+Playback settings > Sound bank lists local .sf2 and .dls files in the application assets folder, including a locally supplied ms2.dls. Add banks there and restart the editor to refresh the list. New profiles default to TimGM6mb.sf2; ms2.dls remains an optional selection for testing. Existing saved selections take precedence. The choice persists as an application preference; it does not change project JSON or MIDI/MML export.
 
 A selected custom bank takes priority over TimGM6mb.sf2. Exact MIDI bank/program/drum-role matches use its presets, while missing presets use General MIDI. Matching is by MIDI slot, not instrument name; the existing instrument labels and stored program numbers remain unchanged. A supplied drum kit replaces that kit as a whole, without filling individual missing drum keys from GM.
 
 Changing banks stops playback and retires both song and keyboard synths after the new bank loads successfully. Invalid banks report an error and retain the previous selection. The bundled bank's measured sample-pitch correction applies only to melodic programs still supplied by TimGM; overridden programs use their own original pitch zones. Audio export snapshots the selected bank ID and loads the same custom-first/GM-second stack in its worker.
 
-The release builder requires and includes ms2.dls alongside TimGM6mb.sf2 so new installations receive the MS2 default. Other custom files remain local user assets and are not automatically included. The user-provided ms2.dls is not added to Git. SF3 remains unsupported; DLS is decoded natively by the pinned core and needs no conversion to SF2 or external decoder.
+The release builder includes TimGM6mb.sf2. Custom SF2/DLS files, including ms2.dls, remain local user assets and are not automatically included. The user-provided ms2.dls is not added to Git. SF3 remains unsupported; DLS is decoded natively by the pinned core and needs no conversion to SF2 or external decoder.
 
 ## Live playback and key preview
 

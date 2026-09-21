@@ -13,9 +13,9 @@ app.on('browser-window-created',(_,win)=>{if(started)return;started=true;
   const settled=async()=>{for(let i=0;i<150;i++){if(await run(`!document.getElementById('sound-bank').disabled`))return;await wait(100);}throw Error('Bank never became ready');};
   await settled();
   assert.ok(await run(`Array.from(document.getElementById('sound-bank').options).some(o=>o.value==='ms2.dls')`),'Place the user DLS at assets/ms2.dls for this native test');
-  assert.equal(await run(`import('./dist/playback/engine.js').then(e=>e.activeSoundBank())`),'ms2.dls');
-  assert.equal(await run(`document.getElementById('sound-bank').value`),'ms2.dls');
-  result.checks.push('Fresh profile defaults to MS2 DLS');
+  assert.equal(await run(`import('./dist/playback/engine.js').then(e=>e.activeSoundBank())`),'TimGM6mb.sf2');
+  assert.equal(await run(`document.getElementById('sound-bank').value`),'TimGM6mb.sf2');
+  result.checks.push('Fresh profile defaults to General MIDI while MS2 DLS remains available');
   await run(`Promise.all([import('./dist/state.js'),import('./dist/commands.js'),import('./dist/playback/engine.js'),import('./dist/playback/transport.js')]).then(([{state},{refresh},engine,transport])=>{
    window.s=state;window.e=engine;window.t=transport;
    s.project.notes=[{id:1,instrument:0,start:0,length:256,pitch:60,volume:8}];refresh();window.before=JSON.stringify(s.project);

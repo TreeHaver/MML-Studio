@@ -378,9 +378,8 @@ export function installPlayback() {
             catch { }
             bank.value = activeSoundBank();
             bank.disabled = false;
-            const initial = saved ?? 'ms2.dls';
-            if (banks.some(item => item.id === initial))
-                await chooseBank(initial);
+            if (saved && banks.some(item => item.id === saved))
+                await chooseBank(saved);
             else if (saved)
                 status('Saved sound bank is unavailable; using TimGM6mb.sf2.');
         }).catch((error) => { bank.disabled = false; status('Could not list sound banks: ' + error); });
