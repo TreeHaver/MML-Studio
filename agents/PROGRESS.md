@@ -1,5 +1,12 @@
 # Progress
 
+## MS2 bank is the first-run default
+
+**2026-09-21.** New profiles without a saved sound-bank preference now select ms2.dls when present. Existing saved choices take precedence, including General MIDI; missing MS2 files retain the bundled GM fallback. The release asset list now requires ms2.dls alongside TimGM6mb.sf2 so future packages include the requested first-run default. The large local DLS remains untracked. Owners: src/playback/transport.ts and generated dist/playback/transport.js, package-release.ps1, the playback guide and tests/electron-sound-banks.cjs.
+
+Validation: authorized node build.cjs passed. Focused renderer/sound-bank regressions passed 5/5. The isolated native sound-bank harness passed fresh-profile MS2 selection, saved-GM persistence on restart, saved-DLS restoration, switching, malformed-bank recovery and real AudioWorklet PCM. git diff --check passed. No release package was built and no manual listening was performed.
+
+
 ## Selectable SF2/DLS banks with General MIDI fallback
 
 **2026-09-21.** Playback settings now has a persistent Sound bank selector for SF2/DLS files in assets. The supplied local ms2.dls parses as DLS with 59 presets and plays directly through the pinned synth. Selecting a bank stops playback, validates a replacement synth before retiring the previous song/preview engines, and preserves project data. Failed reads, parse-error events and load timeouts restore the previous choice. Saved missing files fall back to TimGM6mb.sf2 on startup.
