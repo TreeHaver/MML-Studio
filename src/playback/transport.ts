@@ -4,7 +4,7 @@ import {draw} from '../painting.ts';
 import {compilePlayback,heldPlaybackNotes} from './midi.ts';
 import {tickAtSeconds,tempoAt,secondsAtTick,tempoMap} from '../music/tempo.ts';
 import {volumeAt} from '../music/volume.ts';
-import {getEngine,setMasterVolume} from './engine.ts';
+import {getEngine,setMasterVolume,activeSoundBank,changeSoundBank} from './engine.ts';
 import {followPlayback} from '../viewport.ts';
 import {loopRegion,looping} from './loop-region.ts';
 import {expandLoops} from '../music/loops.ts';
@@ -67,7 +67,7 @@ async function loadSnapshot(token:number){
   const range=state.segment?.projection.range;
   // A loop drawn past the end of the music still has to be played to its end, so the
   // performance is compiled at least that long; without it the song simply stops early.
-  const next=compilePlayback(snapshot,Math.max(range?range.end-range.start:0,looping()?loopRegion.end:0));
+  const next=compilePlayback(snapshot,Math.max(range?range.end-range.start:0,looping()?loopRegion.end:0),engine.customPrograms);
   await engine.load(next.binary);if(token!==generation)return false;
   if(revision!==voiceRevision||from!==(position??0)||notes!==state.project.notes||count!==state.project.notes.length)continue;
   // Retain the current repeat when its source mapping survives an edit. If
@@ -204,6 +204,31 @@ export async function play(){
  finally{if(token!==generation||phase==='loading')phase='idle';buttons();}
 }
 export function installPlayback(){
+ const bank=$('sound-bank') as HTMLSelectElement;
+ const chooseBank=async(id:string)=>{
+  if(phase==='loading'){bank.value=activeSoundBank();status('Wait for playback to finish loading before changing sound banks.');return;}
+  stopPlayback(false);phase='loading';buttons();bank.disabled=true;
+  status('Loading sound bank…');
+  try{
+   await changeSoundBank(id);engine=null;plan=null;
+   try{localStorage.setItem('mml-studio-sound-bank',id);}catch{}
+   status('Sound bank: '+id+'. Overrides matching presets; General MIDI supplies missing instruments.');
+  }catch(error){status('Sound bank could not be loaded: '+error);}
+  finally{bank.value=activeSoundBank();bank.disabled=false;phase='idle';buttons();}
+ };
+ bank.onchange=()=>void chooseBank(bank.value);
+ const files=(window as any).files;
+ if(files?.soundBanks){
+  bank.disabled=true;
+  void files.soundBanks().then(async(banks:{id:string,name:string}[])=>{
+   bank.replaceChildren(...banks.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=item.name;return option;}));
+   let saved:string|null=null;try{saved=localStorage.getItem('mml-studio-sound-bank');}catch{}
+   bank.value=activeSoundBank();bank.disabled=false;
+   if(saved&&banks.some(item=>item.id===saved))await chooseBank(saved);
+   else if(saved)status('Saved sound bank is unavailable; using TimGM6mb.sf2.');
+  }).catch((error:unknown)=>{bank.disabled=false;status('Could not list sound banks: '+error);});
+ }
+
  const speed=$('playback-speed') as HTMLInputElement,volume=$('playback-volume') as HTMLInputElement;
  let draggingSpeed=false;
  speed.value='100';volume.value='100';

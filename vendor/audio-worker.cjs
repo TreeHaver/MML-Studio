@@ -16682,8 +16682,12 @@ var SpessaSynthProcessor = class {
 
 // src/playback/sample-pitch.ts
 var ranges = { 10: [[12, 119]], 56: [[12, 119]], 44: [[0, 120]], 48: [[0, 127]], 49: [[0, 127]], 52: [[0, 127]], 60: [[0, 127]], 65: [[0, 127]], 66: [[0, 127]], 50: [[0, 116]], 64: [[0, 119]], 67: [[0, 79]], 68: [[36, 108]], 77: [[21, 108]], 96: [[21, 108]], 124: [[21, 108]], 78: [[0, 78], [102, 108]], 113: [[0, 89]], 122: [[36, 86]], 123: [[21, 127]] };
-function samplePitch(pitch, program = 0, isDrum = false) {
-  if (isDrum || pitch < 0 || pitch > 127) return { pitch, tuning: 0 };
+function overridePrograms(presets) {
+  return presets.filter((p) => !p.isDrum && p.bankMSB === 0 && p.bankLSB === 0).map((p) => p.program);
+}
+var usesBundledSamples = (program, policy = true) => typeof policy === "boolean" ? policy : !policy.includes(program);
+function samplePitch(pitch, program = 0, isDrum = false, bundledBank = true) {
+  if (!bundledBank || isDrum || pitch < 0 || pitch > 127) return { pitch, tuning: 0 };
   const zones = ranges[program] ?? [[0, 108]], audible = (key) => zones.some(([low, high]) => key >= low && key <= high);
   if (audible(pitch)) return { pitch, tuning: 0 };
   for (let shift = 12; shift <= 60; shift += 12) {
@@ -17040,7 +17044,7 @@ function track(events, end) {
   data.push(...variable(Math.max(end, previous) - previous), 255, 47, 0);
   return [77, 84, 114, 107, ...dword(data.length), ...data];
 }
-function compilePlayback(project, minimumEnd = 0) {
+function compilePlayback(project, minimumEnd = 0, samplePolicy = true) {
   const expanded = expandLoops(project, minimumEnd);
   project = expanded.project;
   minimumEnd = expanded.end;
@@ -17068,7 +17072,7 @@ function compilePlayback(project, minimumEnd = 0) {
     const volumes = resolveVolumes(notes);
     const owner = project.instruments[instrument], groups = /* @__PURE__ */ new Map();
     for (const n of notes) {
-      const sample = samplePitch(playbackPitch(owner, n.pitch), owner.midiProgram ?? 0, !!(owner.isDrum || owner.ms2Drum));
+      const sample = samplePitch(playbackPitch(owner, n.pitch), owner.midiProgram ?? 0, !!(owner.isDrum || owner.ms2Drum), usesBundledSamples(owner.midiProgram ?? 0, samplePolicy));
       const group = groups.get(sample.tuning) ?? [];
       group.push(n);
       groups.set(sample.tuning, group);
@@ -17251,10 +17255,10 @@ function parse(text) {
 
 // src/audio/render.ts
 var SAMPLE_RATE = 44100;
-function audioPlan(request) {
+function audioPlan(request, samplePolicy = true) {
   const project = parse(JSON.stringify(request.project));
   if (!Number.isSafeInteger(request.minimumEnd) || request.minimumEnd < 0 || !Number.isFinite(request.speed) || request.speed < 0.25 || request.speed > 4 || !Number.isFinite(request.volume) || request.volume < 0 || request.volume > 1 || !Array.isArray(request.muted) || request.muted.some((i) => !Number.isInteger(i) || !project.instruments[i])) throw Error("Invalid audio export settings.");
-  const plan = compilePlayback(project, request.minimumEnd), midi = readSMF(new Uint8Array(plan.binary));
+  const plan = compilePlayback(project, request.minimumEnd, samplePolicy), midi = readSMF(new Uint8Array(plan.binary));
   let tick = 0, seconds = 0, micros = 5e5;
   const events = [];
   for (const event of midi.events) {
@@ -17267,10 +17271,15 @@ function audioPlan(request) {
   return { ...plan, events, endFrame, mutedChannels: plan.channels.filter((c) => request.muted.includes(c.instrument)).map((c) => c.channel) };
 }
 async function renderAudio(request, bankBytes, write, progress = () => {
-}, cancelled2 = () => false) {
-  const plan = audioPlan(request), synth = new SpessaSynthProcessor(SAMPLE_RATE);
+}, cancelled2 = () => false, fallbackBytes) {
+  const bank = SoundBankLoader.fromArrayBuffer(bankBytes);
+  const plan = audioPlan(request, fallbackBytes ? overridePrograms(bank.presets) : true), synth = new SpessaSynthProcessor(SAMPLE_RATE);
   await synth.processorInitialized;
-  synth.soundBankManager.addSoundBank(SoundBankLoader.fromArrayBuffer(bankBytes), "General MIDI");
+  synth.soundBankManager.addSoundBank(bank, "Selected");
+  if (fallbackBytes) {
+    synth.soundBankManager.addSoundBank(SoundBankLoader.fromArrayBuffer(fallbackBytes), "General MIDI");
+    synth.soundBankManager.priorityOrder = ["Selected", "General MIDI"];
+  }
   const channels = plan.channels.reduce((end, c) => Math.max(end, c.channel + 1), 16);
   while (synth.midiChannels.length < channels) synth.createMIDIChannel();
   synth.reset();
@@ -17331,11 +17340,11 @@ import_node_worker_threads.parentPort.on("message", () => {
   cancelled = true;
 });
 async function run() {
-  const { request, encoder, bank, target, temporary, codec } = import_node_worker_threads.workerData;
+  const { request, encoder, bank, fallbackBank, target, temporary, codec } = import_node_worker_threads.workerData;
   let child;
   let finished, closed = false;
   try {
-    const bytes = await (0, import_promises.readFile)(bank);
+    const bytes = await (0, import_promises.readFile)(bank), fallback = fallbackBank ? await (0, import_promises.readFile)(fallbackBank) : void 0;
     if (cancelled) throw Error("Audio export canceled.");
     child = (0, import_node_child_process.spawn)(encoder, ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-f", "f32le", "-ar", String(SAMPLE_RATE), "-ac", "2", "-i", "pipe:0", ...codec, temporary], { windowsHide: true, stdio: ["pipe", "ignore", "pipe"] });
     let stderr = "", encoderError;
@@ -17360,7 +17369,7 @@ async function run() {
       const buffer = Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength);
       await new Promise((resolve, reject) => child.stdin.write(Buffer.from(buffer), (error) => error ? reject(error) : resolve()));
       await (0, import_promises2.setImmediate)();
-    }, (fraction) => import_node_worker_threads.parentPort.postMessage({ progress: fraction }), () => cancelled);
+    }, (fraction) => import_node_worker_threads.parentPort.postMessage({ progress: fraction }), () => cancelled, fallback?.buffer.slice(fallback.byteOffset, fallback.byteOffset + fallback.byteLength));
     child.stdin.end();
     await finished;
     if (cancelled) throw Error("Audio export canceled.");

@@ -1,4 +1,5 @@
 const path=require('node:path'),{Worker}=require('node:worker_threads'),{randomUUID}=require('node:crypto');
+const {soundBankPath}=require('./sound-banks.cjs');
 const FORMATS={
  wav:{name:'WAV — uncompressed audio',codec:['-c:a','pcm_s16le','-rf64','auto','-f','wav']},
  mp3:{name:'MP3 — compressed audio',codec:['-c:a','libmp3lame','-b:a','192k','-f','mp3']},
@@ -21,8 +22,9 @@ module.exports=function installAudioExport({ipcMain,getWindow,fileDialog,safeFil
    let target=choice.filePath,extension=path.extname(target).slice(1).toLowerCase();
    if(!extension){extension='wav';target+='.wav';}
    const format=FORMATS[extension];if(!format)throw Error('Choose a supported audio extension: .wav, .mp3, .ogg, .flac, .m4a or .opus.');
+   const bank=await soundBankPath(request.soundBank),fallbackBank=request.soundBank&&request.soundBank!=='TimGM6mb.sf2'?await soundBankPath():undefined;
    const temporary=path.join(path.dirname(target),`.mml-audio-${randomUUID()}.tmp`);
-   worker=new Worker(path.join(__dirname,'vendor/audio-worker.cjs'),{workerData:{request,encoder:path.join(__dirname,'vendor/ffmpeg.exe'),bank:path.join(__dirname,'assets/TimGM6mb.sf2'),target,temporary,codec:format.codec}});
+   worker=new Worker(path.join(__dirname,'vendor/audio-worker.cjs'),{workerData:{request,encoder:path.join(__dirname,'vendor/ffmpeg.exe'),bank,fallbackBank,target,temporary,codec:format.codec}});
    return await new Promise((resolve,reject)=>{
     let outcome;
     worker.on('message',message=>{

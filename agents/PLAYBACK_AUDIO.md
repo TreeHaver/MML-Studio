@@ -1,8 +1,18 @@
 # Playback, drums and audio export
 
-Preview and recording use the bundled **TimGM6mb.sf2** bank and pinned SpessaSynth core. The desktop loads local assets through main/preload IPC; no MIDI device or runtime network is needed. [PROJECT_MAP.md](PROJECT_MAP.md) links each audio owner and its tests.
+Preview and recording use pinned SpessaSynth core with **TimGM6mb.sf2** as the General MIDI base bank. The desktop loads local assets through main/preload IPC; no MIDI device or runtime network is needed. [PROJECT_MAP.md](PROJECT_MAP.md) links each audio owner and its tests.
 
 The time beside BPM shows elapsed / total (for example, 0:01 / 2:10), including before playback. It uses the current Project, Song or Segment performance, including tempo changes, Speed Multipliers, saved loop repeats and silence through the view endpoint. Playback speed scales both times. A rehearsal loop retains the finite performance duration rather than displaying an infinite repeat total. Times use whole seconds, with hours when needed.
+
+## Sound bank selection
+
+Playback settings > Sound bank lists local .sf2 and .dls files in the application assets folder, including a locally supplied ms2.dls. Add banks there and restart the editor to refresh the list. The choice persists as an application preference; it does not change project JSON or MIDI/MML export.
+
+A selected custom bank takes priority over TimGM6mb.sf2. Exact MIDI bank/program/drum-role matches use its presets, while missing presets use General MIDI. Matching is by MIDI slot, not instrument name; the existing instrument labels and stored program numbers remain unchanged. A supplied drum kit replaces that kit as a whole, without filling individual missing drum keys from GM.
+
+Changing banks stops playback and retires both song and keyboard synths after the new bank loads successfully. Invalid banks report an error and retain the previous selection. The bundled bank's measured sample-pitch correction applies only to melodic programs still supplied by TimGM; overridden programs use their own original pitch zones. Audio export snapshots the selected bank ID and loads the same custom-first/GM-second stack in its worker.
+
+Custom files remain local user assets: the release builder includes the default bank and the selector runtime, but does not automatically redistribute additional banks. The user-provided ms2.dls is not added to Git. SF3 remains unsupported; DLS is decoded natively by the pinned core and needs no conversion to SF2 or external decoder.
 
 ## Live playback and key preview
 
@@ -95,7 +105,7 @@ The locally validated encoder was Gyan **FFmpeg 4.4 full static**, SHA-256 `cf19
 
 The pinned dependency versions are in [package.json](../package.json) and its lockfile: SpessaSynth wrapper 4.3.14/core 4.3.22, with the local `stb-vorbis` replacement in [packages/sf2-only-decoder/](../packages/sf2-only-decoder/). Electron/esbuild/TypeScript are development dependencies.
 
-Windows previously blocked the upstream decoder entry point. The chosen resolution was to remove that decoder dependency from execution, without antivirus exclusions or protection changes. The fixed SF2 bank has uncompressed samples and needs no SF3/Vorbis decoder.
+Windows previously blocked the upstream decoder entry point. The chosen resolution was to remove that decoder dependency from execution, without antivirus exclusions or protection changes. The bundled SF2 and supported uncompressed DLS samples need no SF3/Vorbis decoder.
 
 The local adapter provides readiness and throws an explicit unsupported-SF3 error; it contains no decoder or WASM. The package name remains an import/override key, resolving locally rather than to the upstream registry decoder. `build-audio.cjs` also rebuilds the AudioWorklet from original wrapper TypeScript embedded in the pinned package's source map, ignores embedded dependency sources, and verifies the dependency graph for **all three** bundles: renderer synth, worklet and offline worker. Never copy the upstream prebuilt processor back into `vendor/`.
 

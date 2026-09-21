@@ -261,3 +261,5 @@ button.instrument-flag{padding:0;border:0;background:transparent;cursor:pointer}
 /* File and the theme are <summary> elements, which miss the fill every button gets, so
    they read as paler than Tools and Export beside them. Given it here instead. */
 #file-menu>summary,#theme-menu>summary{background:var(--control)}
+
+.playback-option select{grid-column:2 / -1;width:100%;min-width:0}

@@ -4,7 +4,7 @@ import { draw } from '../painting.js';
 import { compilePlayback, heldPlaybackNotes } from './midi.js';
 import { tickAtSeconds, tempoAt, secondsAtTick, tempoMap } from '../music/tempo.js';
 import { volumeAt } from '../music/volume.js';
-import { getEngine, setMasterVolume } from './engine.js';
+import { getEngine, setMasterVolume, activeSoundBank, changeSoundBank } from './engine.js';
 import { followPlayback } from '../viewport.js';
 import { loopRegion, looping } from './loop-region.js';
 import { expandLoops } from '../music/loops.js';
@@ -79,7 +79,7 @@ async function loadSnapshot(token) {
         const range = state.segment?.projection.range;
         // A loop drawn past the end of the music still has to be played to its end, so the
         // performance is compiled at least that long; without it the song simply stops early.
-        const next = compilePlayback(snapshot, Math.max(range ? range.end - range.start : 0, looping() ? loopRegion.end : 0));
+        const next = compilePlayback(snapshot, Math.max(range ? range.end - range.start : 0, looping() ? loopRegion.end : 0), engine.customPrograms);
         await engine.load(next.binary);
         if (token !== generation)
             return false;
@@ -333,6 +333,57 @@ export async function play() {
     }
 }
 export function installPlayback() {
+    const bank = $('sound-bank');
+    const chooseBank = async (id) => {
+        if (phase === 'loading') {
+            bank.value = activeSoundBank();
+            status('Wait for playback to finish loading before changing sound banks.');
+            return;
+        }
+        stopPlayback(false);
+        phase = 'loading';
+        buttons();
+        bank.disabled = true;
+        status('Loading sound bank…');
+        try {
+            await changeSoundBank(id);
+            engine = null;
+            plan = null;
+            try {
+                localStorage.setItem('mml-studio-sound-bank', id);
+            }
+            catch { }
+            status('Sound bank: ' + id + '. Overrides matching presets; General MIDI supplies missing instruments.');
+        }
+        catch (error) {
+            status('Sound bank could not be loaded: ' + error);
+        }
+        finally {
+            bank.value = activeSoundBank();
+            bank.disabled = false;
+            phase = 'idle';
+            buttons();
+        }
+    };
+    bank.onchange = () => void chooseBank(bank.value);
+    const files = window.files;
+    if (files?.soundBanks) {
+        bank.disabled = true;
+        void files.soundBanks().then(async (banks) => {
+            bank.replaceChildren(...banks.map(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.name; return option; }));
+            let saved = null;
+            try {
+                saved = localStorage.getItem('mml-studio-sound-bank');
+            }
+            catch { }
+            bank.value = activeSoundBank();
+            bank.disabled = false;
+            if (saved && banks.some(item => item.id === saved))
+                await chooseBank(saved);
+            else if (saved)
+                status('Saved sound bank is unavailable; using TimGM6mb.sf2.');
+        }).catch((error) => { bank.disabled = false; status('Could not list sound banks: ' + error); });
+    }
     const speed = $('playback-speed'), volume = $('playback-volume');
     let draggingSpeed = false;
     speed.value = '100';

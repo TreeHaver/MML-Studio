@@ -24,10 +24,10 @@ test('preview ignores invalid pitches and stale initialization, and reports reco
 });
 
 test('preview releases notes, replaces rapid clicks, and uses a synth separate from transport',async()=>{
- const calls=[],timers=new Map(),gains=[];let nextTimer=0,nextSynth=0,contexts=0;
- class Context{constructor(){contexts++;this.currentTime=0;this.destination={};this.audioWorklet={addModule:async()=>{}};}createGain(){const output={context:this,connect(){},gain:{value:1,setTargetAtTime(value){this.value=value}}};gains.push(output);return output;}async resume(){}async close(){}}
+ const calls=[],timers=new Map(),gains=[];let nextTimer=0,nextSynth=0,contexts=0,closed=0,failBank=false;
+ class Context{constructor(){contexts++;this.currentTime=0;this.destination={};this.audioWorklet={addModule:async()=>{}};}createGain(){const output={context:this,connect(){},gain:{value:1,setTargetAtTime(value){this.value=value}}};gains.push(output);return output;}async resume(){}async close(){closed++;}}
  class Synth{
-  constructor(){this.id=++nextSynth;this.midiChannels=Array.from({length:16},()=>({setSystemParameter(){}}));this.soundBankManager={addSoundBank:async()=>{}};this.isReady=Promise.resolve();}
+  constructor(){this.id=++nextSynth;this.presetList=[{program:73,bankMSB:0,bankLSB:0,isDrum:false}];this.midiChannels=Array.from({length:16},()=>({setSystemParameter(){}}));this.soundBankManager={addSoundBank:async()=>{}};this.isReady=Promise.resolve();}
   connect(){}stopAll(force){calls.push([this.id,'stop',force]);}
   controllerChange(c,cc,v){calls.push([this.id,'cc',c,cc,v]);}
   programChange(c,p){calls.push([this.id,'program',c,p]);}
@@ -36,9 +36,9 @@ test('preview releases notes, replaces rapid clicks, and uses a synth separate f
   noteOn(c,p,v){calls.push([this.id,'on',c,p,v]);}
   noteOff(c,p){calls.push([this.id,'off',c,p]);}
  }
- const context=vm.createContext({AudioContext:Context,URL,Uint8Array,window:{files:{soundBank:async()=>new Uint8Array(4)}},
-  setTimeout:(fn,ms)=>{assert.equal(ms,500);timers.set(++nextTimer,fn);return nextTimer;},clearTimeout:id=>timers.delete(id)});
- const lib=new vm.SyntheticModule(['WorkletSynthesizer','Sequencer'],function(){this.setExport('WorkletSynthesizer',Synth);this.setExport('Sequencer',class{});},{context});
+ const context=vm.createContext({AudioContext:Context,URL,Uint8Array,window:{files:{soundBank:async()=>{if(failBank)throw Error('Invalid bank');return new Uint8Array(4);}}},
+  setTimeout:(fn,ms)=>{assert.ok(ms===500||ms===30000);timers.set(++nextTimer,fn);return nextTimer;},clearTimeout:id=>timers.delete(id)});
+ const lib=new vm.SyntheticModule(['WorkletSynthesizer','Sequencer'],function(){this.setExport('WorkletSynthesizer',Synth);this.setExport('Sequencer',class{pause(){}});},{context});
  await lib.link(()=>{});await lib.evaluate();
  const engine=new vm.SourceTextModule(transpile(fs.readFileSync('src/playback/engine.ts','utf8'),'engine.ts'),{
   context,initializeImportMeta:meta=>{meta.url='file:///studio/dist/playback/engine.js';},importModuleDynamically:()=>lib
@@ -55,4 +55,12 @@ test('preview releases notes, replaces rapid clicks, and uses a synth separate f
  engine.namespace.setMasterVolume(.35);assert.deepEqual(gains.map(g=>g.gain.value),[.35,.35]);
  engine.namespace.setMasterVolume(0);assert.deepEqual(gains.map(g=>g.gain.value),[0,0]);
  assert.equal(await engine.namespace.getPreviewEngine(),preview);
+ failBank=true;await assert.rejects(engine.namespace.changeSoundBank('broken.dls'),/Invalid bank/);
+ assert.equal(engine.namespace.activeSoundBank(),'TimGM6mb.sf2');assert.equal(await engine.namespace.getPreviewEngine(),preview);
+ failBank=false;await engine.namespace.changeSoundBank('other.dls');
+ assert.equal(engine.namespace.activeSoundBank(),'other.dls');assert.equal(closed,3);assert.equal(timers.size,0);
+ const other=await engine.namespace.getPreviewEngine();calls.length=0;await other.preview(109,73);
+ assert.ok(calls.some(c=>c[1]==='on'&&c[3]===109),'DLS preview must not use TimGM sample remapping');
+ const synthCount=nextSynth;await engine.namespace.getEngine();assert.equal(nextSynth,synthCount,'reuse the validated candidate');
+ await engine.namespace.changeSoundBank('TimGM6mb.sf2');assert.equal(engine.namespace.activeSoundBank(),'TimGM6mb.sf2');
 });

@@ -6,11 +6,11 @@ import { renderAudio, SAMPLE_RATE } from './render.js';
 let cancelled = false;
 parentPort.on('message', () => { cancelled = true; });
 async function run() {
-    const { request, encoder, bank, target, temporary, codec } = workerData;
+    const { request, encoder, bank, fallbackBank, target, temporary, codec } = workerData;
     let child;
     let finished, closed = false;
     try {
-        const bytes = await readFile(bank);
+        const bytes = await readFile(bank), fallback = fallbackBank ? await readFile(fallbackBank) : undefined;
         if (cancelled)
             throw Error('Audio export canceled.');
         child = spawn(encoder, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-f', 'f32le', '-ar', String(SAMPLE_RATE), '-ac', '2', '-i', 'pipe:0', ...codec, temporary], { windowsHide: true, stdio: ['pipe', 'ignore', 'pipe'] });
@@ -30,7 +30,7 @@ async function run() {
             // A copy is necessary: the renderer reuses its PCM buffer on the next block.
             await new Promise((resolve, reject) => child.stdin.write(Buffer.from(buffer), error => error ? reject(error) : resolve()));
             await setImmediate();
-        }, fraction => parentPort.postMessage({ progress: fraction }), () => cancelled);
+        }, fraction => parentPort.postMessage({ progress: fraction }), () => cancelled, fallback?.buffer.slice(fallback.byteOffset, fallback.byteOffset + fallback.byteLength));
         child.stdin.end();
         await finished;
         if (cancelled)

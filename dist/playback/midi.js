@@ -1,4 +1,4 @@
-import { samplePitch, tuningControllers, tuningWheel } from './sample-pitch.js';
+import { samplePitch, tuningControllers, tuningWheel, usesBundledSamples } from './sample-pitch.js';
 import { partitionChannels } from '../music/channels.js';
 import { playbackPitch } from './drums.js';
 import { expandLoops } from '../music/loops.js';
@@ -30,7 +30,7 @@ export function heldPlaybackNotes(project, channels, tick) {
     const routing = new Map();
     for (const c of channels)
         for (const id of c.noteIds)
-            routing.set(id, c.channel);
+            routing.set(id, c);
     const notes = project.notes.filter(n => routing.has(n.id) && n.start < tick).sort((a, b) => a.start - b.start || a.id - b.id);
     const volumes = resolveVolumes(notes), held = [];
     for (const n of notes) {
@@ -38,13 +38,13 @@ export function heldPlaybackNotes(project, channels, tick) {
             continue;
         const pitch = playbackPitch(project.instruments[n.instrument], n.pitch), velocity = Math.round((volumes.get(n.id) ?? 8) * 127 / 15);
         if (pitch >= 0 && pitch <= 127 && velocity > 0) {
-            const instrument = project.instruments[n.instrument], sample = samplePitch(pitch, instrument.midiProgram ?? 0, !!(instrument.isDrum || instrument.ms2Drum));
-            held.push({ channel: routing.get(n.id), pitch: sample.pitch, velocity, ...(sample.tuning ? { tuning: sample.tuning } : {}) });
+            const route = routing.get(n.id), tuning = route.tuning ?? 0;
+            held.push({ channel: route.channel, pitch: pitch - tuning, velocity, ...(tuning ? { tuning } : {}) });
         }
     }
     return held;
 }
-export function compilePlayback(project, minimumEnd = 0) {
+export function compilePlayback(project, minimumEnd = 0, samplePolicy = true) {
     const expanded = expandLoops(project, minimumEnd);
     project = expanded.project;
     minimumEnd = expanded.end;
@@ -72,7 +72,7 @@ export function compilePlayback(project, minimumEnd = 0) {
         // Use the same monophonic allocation as MML, including within one Instrument.
         const owner = project.instruments[instrument], groups = new Map();
         for (const n of notes) {
-            const sample = samplePitch(playbackPitch(owner, n.pitch), owner.midiProgram ?? 0, !!(owner.isDrum || owner.ms2Drum));
+            const sample = samplePitch(playbackPitch(owner, n.pitch), owner.midiProgram ?? 0, !!(owner.isDrum || owner.ms2Drum), usesBundledSamples(owner.midiProgram ?? 0, samplePolicy));
             const group = groups.get(sample.tuning) ?? [];
             group.push(n);
             groups.set(sample.tuning, group);

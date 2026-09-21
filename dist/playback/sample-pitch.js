@@ -1,8 +1,13 @@
 // Audible key zones measured with effects disabled in the bundled TimGM6mb.sf2.
 // Revalidate these ranges if the sound bank changes. GM programs are zero-based.
 const ranges = { 10: [[12, 119]], 56: [[12, 119]], 44: [[0, 120]], 48: [[0, 127]], 49: [[0, 127]], 52: [[0, 127]], 60: [[0, 127]], 65: [[0, 127]], 66: [[0, 127]], 50: [[0, 116]], 64: [[0, 119]], 67: [[0, 79]], 68: [[36, 108]], 77: [[21, 108]], 96: [[21, 108]], 124: [[21, 108]], 78: [[0, 78], [102, 108]], 113: [[0, 89]], 122: [[36, 86]], 123: [[21, 127]] };
-export function samplePitch(pitch, program = 0, isDrum = false) {
-    if (isDrum || pitch < 0 || pitch > 127)
+// The editor requests bank 0. Other banks and drum kits must not disable its melodic fallback.
+export function overridePrograms(presets) {
+    return presets.filter(p => !p.isDrum && p.bankMSB === 0 && p.bankLSB === 0).map(p => p.program);
+}
+export const usesBundledSamples = (program, policy = true) => typeof policy === 'boolean' ? policy : !policy.includes(program);
+export function samplePitch(pitch, program = 0, isDrum = false, bundledBank = true) {
+    if (!bundledBank || isDrum || pitch < 0 || pitch > 127)
         return { pitch, tuning: 0 };
     const zones = ranges[program] ?? [[0, 108]], audible = (key) => zones.some(([low, high]) => key >= low && key <= high);
     if (audible(pitch))

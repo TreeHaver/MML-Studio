@@ -1,0 +1,58 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {SoundBankLoader} from 'spessasynth_core';
+import banks from '../sound-banks.cjs';
+import {fresh} from '../dist/model/project.js';
+import {compilePlayback,heldPlaybackNotes} from '../dist/playback/midi.js';
+import {renderAudio} from '../dist/audio/render.js';
+import {overridePrograms} from '../dist/playback/sample-pitch.js';
+
+test('bank discovery accepts only local bank IDs',async()=>{
+ assert.ok((await banks.listSoundBanks()).some(b=>b.id==='TimGM6mb.sf2'));
+ for(const id of ['../package.json','C:\\bank.dls',null,{},'missing.dls'])await assert.rejects(banks.soundBankPath(id),/unavailable/);
+ assert.match(await banks.soundBankPath(),/TimGM6mb.sf2$/);
+});
+test('custom bank playback and held notes retain original pitches',()=>{
+ const p=fresh();p.notes=[{id:1,instrument:0,start:0,length:32,pitch:109,volume:8}];
+ const original=JSON.stringify(p),bundled=compilePlayback(p),custom=compilePlayback(p,0,false);
+ assert.equal(bundled.channels[0].tuning,12);assert.equal(custom.channels[0].tuning,undefined);
+ assert.equal(heldPlaybackNotes(p,bundled.channels,16)[0].pitch,97);
+ assert.equal(heldPlaybackNotes(p,custom.channels,16)[0].pitch,109);
+ assert.equal(JSON.stringify(p),original);
+});
+test('DLS bank renders nonzero finite PCM through the offline renderer',async()=>{
+ const bytes=fs.readFileSync('assets/TimGM6mb.sf2');
+ // A repeatable DLS fixture without redistributing the user's bank.
+ const parsed=SoundBankLoader.fromArrayBuffer(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
+ const dls=fs.existsSync('assets/ms2.dls')?fs.readFileSync('assets/ms2.dls'):new Uint8Array(await parsed.writeDLS());
+ const buffer=dls.buffer.slice(dls.byteOffset,dls.byteOffset+dls.byteLength);
+ assert.equal(SoundBankLoader.fromArrayBuffer(buffer).type,'dls');
+ const p=fresh();p.notes=[{id:1,instrument:0,start:0,length:8,pitch:60,volume:8}];
+ let peak=0,frames=0;
+ const result=await renderAudio({project:p,minimumEnd:0,speed:1,volume:1,muted:[],soundBank:'test.dls'},buffer,async pcm=>{
+  for(const value of pcm){assert.ok(Number.isFinite(value));peak=Math.max(peak,Math.abs(value));}frames+=pcm.length/2;
+ },()=>{},()=>false,bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
+ assert.ok(peak>.001);assert.ok(frames>0);assert.ok(result.musicSeconds>0);
+});
+
+test('partial DLS overrides matching programs while missing melodic and drum programs render identically to GM',async()=>{
+ const bytes=fs.readFileSync('assets/TimGM6mb.sf2'),gm=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
+ const custom=SoundBankLoader.fromArrayBuffer(gm);
+ // Keep one melodic voice, mapped to piano, with a distinct name and sound.
+ const selected=custom.presets.find(p=>p.program===40&&!p.isDrum&&p.bankMSB===0&&p.bankLSB===0);
+ for(const preset of [...custom.presets])if(preset!==selected)custom.deletePreset(preset);
+ selected.program=0;selected.name='Override violin';
+ const dls=await custom.writeDLS(),parsed=SoundBankLoader.fromArrayBuffer(dls);
+ assert.deepEqual(overridePrograms(parsed.presets),[0]);
+ const p=fresh();p.notes=[{id:1,instrument:0,start:0,length:8,pitch:109,volume:8}];
+ const plan=compilePlayback(p,0,[0]);assert.equal(plan.channels[0].tuning,undefined);
+ p.instruments[0].midiProgram=73;
+ assert.equal(compilePlayback(p,0,[0]).channels[0].tuning,12,'missing high flute uses TimGM fallback');
+ const render=async(layered)=>{const data=[];await renderAudio({project:p,minimumEnd:0,speed:1,volume:1,muted:[]},layered?dls:gm,async pcm=>data.push(...pcm),()=>{},()=>false,layered?gm:undefined);return data;};
+ assert.deepEqual(await render(true),await render(false),'missing flute PCM matches bundled GM');
+ p.instruments[0].isDrum=true;p.notes[0].pitch=38;
+ assert.deepEqual(await render(true),await render(false),'missing drum kit PCM matches bundled GM');
+ p.instruments[0].isDrum=false;p.instruments[0].midiProgram=0;p.notes[0].pitch=60;
+ assert.notDeepEqual(await render(true),await render(false),'matching piano slot is overridden by violin');
+});

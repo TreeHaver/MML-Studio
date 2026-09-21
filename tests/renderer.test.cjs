@@ -10,7 +10,8 @@ test('renderer handles click, edge resize, group box/delete, rename, grid and sc
  const path=require('node:path'),cache=new Map();
  async function load(file){file=path.resolve(file);if(cache.has(file))return cache.get(file);
  if(file===path.resolve('src/playback/engine.ts')){
-  const module=new vm.SyntheticModule(['getPreviewEngine','getEngine','setMasterVolume'],function(){
+  const module=new vm.SyntheticModule(['getPreviewEngine','getEngine','setMasterVolume','activeSoundBank','changeSoundBank'],function(){
+   this.setExport('activeSoundBank',()=> 'TimGM6mb.sf2');this.setExport('changeSoundBank',async()=>{});
    this.setExport('setMasterVolume',value=>masterVolumes.push(value));
    this.setExport('getPreviewEngine',async()=>({preview:async(pitch,program,isDrum)=>previewCalls.push({pitch,program,...(isDrum?{isDrum:true}:{})})}));
    this.setExport('getEngine',async()=>({seq,gain:()=>{},mute:(channel,muted)=>muteCalls.push({channel,muted}),load:async binary=>{songLoads.push(binary);if(loadGate)await loadGate;},restoreNotes:notes=>restoredNotes.push(notes),play:async()=>{},pause(){},stop(){seq.currentHighResolutionTime=0;}}));

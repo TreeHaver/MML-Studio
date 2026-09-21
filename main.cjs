@@ -113,7 +113,9 @@ ipcMain.handle('export-zip',async(_,archiveName,files)=>{
 });
 require('./audio-export.cjs')({ipcMain,getWindow:()=>win,fileDialog,safeFileStem});
 app.on('window-all-closed',async()=>{if(updateHandoff)await updateHandoff;app.quit();});
-ipcMain.handle('sound-bank',async()=>new Uint8Array(await fs.readFile(path.join(__dirname,'assets','TimGM6mb.sf2'))));
+const {listSoundBanks,soundBankPath}=require('./sound-banks.cjs');
+ipcMain.handle('sound-banks',()=>listSoundBanks());
+ipcMain.handle('sound-bank',async(_,id)=>new Uint8Array(await fs.readFile(await soundBankPath(id))));
 
 let mmlWindow,mmlData;
 function validMml(data){return data&&typeof data.name==='string'&&Array.isArray(data.channels)&&data.channels.every(s=>typeof s==='string')&&Array.isArray(data.warnings)&&data.warnings.every(s=>typeof s==='string');}

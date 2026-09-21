@@ -1,4 +1,4 @@
-import {samplePitch,tuningControllers,tuningWheel} from './sample-pitch.ts';
+import {samplePitch,tuningControllers,tuningWheel,usesBundledSamples,type SamplePolicy} from './sample-pitch.ts';
 import {partitionChannels} from '../music/channels.ts';
 import {playbackPitch} from './drums.ts';
 import {expandLoops} from '../music/loops.ts';
@@ -22,18 +22,18 @@ function track(events:Event[],end:number):number[]{
  return [77,84,114,107,...dword(data.length),...data];
 }
 export function heldPlaybackNotes(project:Project,channels:PlaybackChannel[],tick:number){
- const routing=new Map<number,number>();
- for(const c of channels)for(const id of c.noteIds)routing.set(id,c.channel);
+ const routing=new Map<number,PlaybackChannel>();
+ for(const c of channels)for(const id of c.noteIds)routing.set(id,c);
  const notes=project.notes.filter(n=>routing.has(n.id)&&n.start<tick).sort((a,b)=>a.start-b.start||a.id-b.id);
  const volumes=resolveVolumes(notes),held:{channel:number,pitch:number,velocity:number}[]=[];
  for(const n of notes){
    if(n.start+n.length<=tick)continue;
    const pitch=playbackPitch(project.instruments[n.instrument],n.pitch),velocity=Math.round((volumes.get(n.id)??8)*127/15);
-   if(pitch>=0&&pitch<=127&&velocity>0){const instrument=project.instruments[n.instrument],sample=samplePitch(pitch,instrument.midiProgram??0,!!(instrument.isDrum||instrument.ms2Drum));held.push({channel:routing.get(n.id)!,pitch:sample.pitch,velocity,...(sample.tuning?{tuning:sample.tuning}:{})});}
+   if(pitch>=0&&pitch<=127&&velocity>0){const route=routing.get(n.id)!,tuning=route.tuning??0;held.push({channel:route.channel,pitch:pitch-tuning,velocity,...(tuning?{tuning}:{})});}
  }
  return held;
 }
-export function compilePlayback(project:Project,minimumEnd=0){
+export function compilePlayback(project:Project,minimumEnd=0,samplePolicy:SamplePolicy=true){
  const expanded=expandLoops(project,minimumEnd);project=expanded.project;minimumEnd=expanded.end;
  if(!valid(project.notes))throw Error('Invalid notes or conflicting tempo instructions.');
  const map=tempoMap(project.notes),end=project.notes.reduce((end,n)=>Math.max(end,n.start+(project.instruments[n.instrument]?.isInstructions?0:n.length)),minimumEnd);
@@ -49,7 +49,7 @@ export function compilePlayback(project:Project,minimumEnd=0){
   const volumes=resolveVolumes(notes);
   // Use the same monophonic allocation as MML, including within one Instrument.
   const owner=project.instruments[instrument],groups=new Map<number,Project['notes']>();
-  for(const n of notes){const sample=samplePitch(playbackPitch(owner,n.pitch),owner.midiProgram??0,!!(owner.isDrum||owner.ms2Drum));const group=groups.get(sample.tuning)??[];group.push(n);groups.set(sample.tuning,group);}
+  for(const n of notes){const sample=samplePitch(playbackPitch(owner,n.pitch),owner.midiProgram??0,!!(owner.isDrum||owner.ms2Drum),usesBundledSamples(owner.midiProgram??0,samplePolicy));const group=groups.get(sample.tuning)??[];group.push(n);groups.set(sample.tuning,group);}
   // Tuning stays fixed for each route, including release tails and seek restoration.
   for(const [tuning,group] of groups)for(const lane of partitionChannels(group)){
   const drums=project.instruments[instrument]?.isDrum===true||!!project.instruments[instrument]?.ms2Drum;

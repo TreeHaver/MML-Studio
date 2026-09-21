@@ -1,3 +1,4 @@
+import { activeSoundBank } from './playback/engine.js';
 import { expandLoops } from './music/loops.js';
 import { exportSegments } from './music/structure.js';
 import { playbackSettings } from './playback/transport.js';
@@ -117,7 +118,7 @@ export function installExport() {
                 }
                 const muted = project.instruments.map((_, i) => i).filter(i => isMuted(i) || (!projectExport && i !== active));
                 const name = (range ? range.name + '-' : '') + (projectExport ? (project.name?.trim() || 'Project') : project.instruments[active].name);
-                const request = { project, minimumEnd: range ? range.end - range.start : 0, speed: playbackSettings.speed, volume: playbackSettings.volume, muted };
+                const request = { soundBank: activeSoundBank(), project, minimumEnd: range ? range.end - range.start : 0, speed: playbackSettings.speed, volume: playbackSettings.volume, muted };
                 $('audio-export-message').textContent = 'Choose the audio file type in the save dialog.';
                 $('audio-export-progress').value = 0;
                 audioDialog.showModal();

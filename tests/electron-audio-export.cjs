@@ -8,6 +8,13 @@ dialog.showSaveDialog=async(_,options)=>{filters=options.filters;selectedPath=pa
 app.on('browser-window-created',(_,win)=>win.webContents.once('did-finish-load',async()=>{try{
  const evaluate=code=>win.webContents.executeJavaScript(code,true);
  const wait=async fn=>{for(let i=0;i<600;i++){if(await fn())return;await new Promise(r=>setTimeout(r,30));}throw Error('Waiting for '+stage);};
+ if(process.env.MML_STUDIO_TEST_BANK){
+  await wait(()=>evaluate(`!document.getElementById('sound-bank').disabled`));
+  await evaluate(`document.getElementById('sound-bank').value=${JSON.stringify(process.env.MML_STUDIO_TEST_BANK)};document.getElementById('sound-bank').dispatchEvent(new Event('change'));`);
+  await wait(()=>evaluate(`!document.getElementById('sound-bank').disabled`));
+  assert.equal(await evaluate(`import('./dist/playback/engine.js').then(e=>e.activeSoundBank())`),process.env.MML_STUDIO_TEST_BANK);
+  checks.push({soundBank:process.env.MML_STUDIO_TEST_BANK});
+ }
  await evaluate(`Promise.all([import('./dist/state.js'),import('./dist/commands.js'),import('./dist/playback/transport.js')]).then(([{state,instrumentView},commands,transport])=>{window.s=state;window.iv=instrumentView;window.transport=transport;window.commands=commands;
  s.project={format:'mml-studio',version:2,grid:4,name:'Audio test',instruments:[{name:'Flute',color:'#4488aa',midiProgram:73},{name:'Instructions',color:'#f4d35e',isInstructions:true}],notes:[{id:1,instrument:0,start:16,length:16,pitch:72,volume:10},{id:2,instrument:1,start:0,length:1,pitch:60,volume:0,loopEntry:true,loopCount:3},{id:3,instrument:1,start:32,length:1,pitch:60,volume:0,loopExit:true}]};s.active=0;s.selection.clear();commands.refresh();})`);
  const before=await evaluate('JSON.stringify(s.project)');let captured=false;

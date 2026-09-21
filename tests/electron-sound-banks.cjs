@@ -1,0 +1,48 @@
+const {app}=require('electron'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const output=path.resolve('.validation');fs.mkdirSync(output,{recursive:true});
+const badName=`test-invalid-${require('node:crypto').randomUUID()}.dls`,badFile=path.resolve('assets',badName);
+fs.writeFileSync(badFile,'Invalid DLS fixture');
+app.setPath('userData',fs.mkdtempSync(path.join(output,'sound-banks-')));app.disableHardwareAcceleration();
+const result={checks:[]};let started=false;
+const deadline=setTimeout(()=>finish(Error('Sound bank test timed out')),60000);
+function finish(error){clearTimeout(deadline);fs.unlinkSync(badFile);result.passed=!error;if(error)result.error=String(error.stack??error);fs.writeFileSync(path.join(output,'electron-sound-banks.json'),JSON.stringify(result,null,2));console.log(result);app.exit(error?1:0);}
+app.on('browser-window-created',(_,win)=>{if(started)return;started=true;
+ win.webContents.once('did-finish-load',async()=>{try{
+  const run=code=>win.webContents.executeJavaScript(code,true);
+  const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const settled=async()=>{for(let i=0;i<150;i++){if(await run(`!document.getElementById('sound-bank').disabled`))return;await wait(100);}throw Error('Bank never became ready');};
+  await settled();
+  assert.ok(await run(`Array.from(document.getElementById('sound-bank').options).some(o=>o.value==='ms2.dls')`),'Place the user DLS at assets/ms2.dls for this native test');
+  await run(`Promise.all([import('./dist/state.js'),import('./dist/commands.js'),import('./dist/playback/engine.js'),import('./dist/playback/transport.js')]).then(([{state},{refresh},engine,transport])=>{
+   window.s=state;window.e=engine;window.t=transport;
+   s.project.notes=[{id:1,instrument:0,start:0,length:256,pitch:60,volume:8}];refresh();window.before=JSON.stringify(s.project);
+   const original=AudioContext.prototype.createGain;
+   window.meters=[];AudioContext.prototype.createGain=function(){const gain=original.call(this),meter=this.createAnalyser();gain.connect(meter);meters.push(meter);return gain;};
+  })`);
+  await run(`t.play()`);assert.equal(await run(`document.getElementById('play').classList.contains('is-playing')`),true);
+  await run(`const select=document.getElementById('sound-bank');select.value='ms2.dls';select.dispatchEvent(new Event('change'));`);await settled();
+  assert.equal(await run(`e.activeSoundBank()`),'ms2.dls');
+  assert.ok(await run(`e.getEngine().then(engine=>engine.customPrograms.includes(0)&&!engine.customPrograms.includes(127))`),'native bank metadata must distinguish overridden and fallback programs');
+  assert.equal(await run(`document.getElementById('play').classList.contains('is-playing')`),false);
+  assert.equal(await run(`JSON.stringify(s.project)===before`),true);
+  assert.equal(await run(`localStorage.getItem('mml-studio-sound-bank')`),'ms2.dls');
+  result.checks.push('Switch while playing stops transport, preserves project and saves preference');
+  await run(`t.play()`);await wait(300);
+  const peak=await run(`Math.max(...meters.map(m=>{const samples=new Float32Array(m.fftSize);m.getFloatTimeDomainData(samples);return samples.reduce((v,x)=>Math.max(v,Math.abs(x)),0);}));`);
+  assert.ok(peak>.0001,'DLS AudioWorklet must output nonzero PCM');result.peak=peak;
+  await run(`t.stopPlayback(false);e.getPreviewEngine().then(engine=>engine.preview(60,0))`);
+  result.checks.push('DLS plays through the real AudioWorklet and initializes independent keyboard preview');
+  await run(`document.getElementById('sound-bank').value=${JSON.stringify(badName)};document.getElementById('sound-bank').dispatchEvent(new Event('change'));`);await settled();
+  assert.equal(await run(`e.activeSoundBank()`),'ms2.dls');
+  assert.match(await run(`document.getElementById('status').textContent`),/could not be loaded/);
+  result.checks.push('Malformed DLS reports its error and preserves the active bank');
+  await run(`document.getElementById('sound-bank').value='TimGM6mb.sf2';document.getElementById('sound-bank').dispatchEvent(new Event('change'));`);await settled();
+  assert.equal(await run(`e.activeSoundBank()`),'TimGM6mb.sf2');await run(`t.play();`);
+  result.checks.push('Switch back to SF2 and restart playback');
+  await run(`t.stopPlayback(false);document.getElementById('sound-bank').value='ms2.dls';document.getElementById('sound-bank').dispatchEvent(new Event('change'));`);await settled();
+  await win.webContents.reload();await new Promise(resolve=>win.webContents.once('did-finish-load',resolve));await settled();
+  assert.equal(await run(`import('./dist/playback/engine.js').then(e=>e.activeSoundBank())`),'ms2.dls');
+  result.checks.push('Saved DLS choice restores on reload');finish();
+ }catch(error){finish(error);}});
+});
+require('../main.cjs');

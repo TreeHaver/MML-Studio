@@ -1,13 +1,54 @@
-import { samplePitch, tuningControllers, tuningWheel } from './sample-pitch.js';
+import { samplePitch, tuningControllers, tuningWheel, overridePrograms, usesBundledSamples } from './sample-pitch.js';
 // Independent lazy synths keep keyboard previews from changing song channels.
 let masterVolume = 1;
+let bankId = 'TimGM6mb.sf2', changingBank = false;
+let prepared = null;
+export const activeSoundBank = () => bankId;
+/** Prepare the new bank before retiring either live engine. Failed loads retain the old bank. */
+export async function changeSoundBank(id) {
+    if (changingBank)
+        throw Error('A sound bank is already loading.');
+    if (id === bankId)
+        return;
+    changingBank = true;
+    try {
+        const next = await createSynth(id);
+        const old = await Promise.allSettled([instance, previewInstance]);
+        for (const result of old)
+            if (result.status === 'fulfilled')
+                await result.value?.dispose();
+        await prepared?.dispose();
+        prepared = next;
+        instance = null;
+        previewInstance = null;
+        bankId = id;
+    }
+    finally {
+        changingBank = false;
+    }
+}
 const outputs = new Set();
 export function setMasterVolume(value) {
     masterVolume = Math.max(0, Math.min(1, value));
     for (const output of outputs)
         output.gain.setTargetAtTime(masterVolume, output.context.currentTime, .015);
 }
-async function createSynth() {
+async function loadBank(synth, bytes, id) {
+    let timer;
+    try {
+        await new Promise((resolve, reject) => {
+            // The wrapper emits parse errors as events without rejecting addSoundBank's promise.
+            synth.eventHandler?.addEvent('soundBankError', 'studio-bank', reject);
+            timer = setTimeout(() => reject(Error('Sound bank loading timed out.')), 30000);
+            synth.soundBankManager.addSoundBank(new Uint8Array(bytes).buffer, id).then(resolve, reject);
+        });
+    }
+    finally {
+        clearTimeout(timer);
+        synth.eventHandler?.removeEvent('soundBankError', 'studio-bank');
+    }
+}
+async function createSynth(id = bankId) {
     const lib = await import('../../vendor/synth.js');
     const context = new AudioContext({ sampleRate: 44100 });
     try {
@@ -18,12 +59,18 @@ async function createSynth() {
         output.gain.value = masterVolume;
         synth.connect(output);
         output.connect(context.destination);
-        const bytes = await window.files.soundBank();
-        await synth.soundBankManager.addSoundBank(new Uint8Array(bytes).buffer, 'General MIDI');
+        const bytes = await window.files.soundBank(id);
+        await loadBank(synth, bytes, 'Selected');
+        const customPrograms = id === 'TimGM6mb.sf2' ? [] : overridePrograms(synth.presetList ?? []);
+        if (id !== 'TimGM6mb.sf2') {
+            const fallback = await window.files.soundBank('TimGM6mb.sf2');
+            await loadBank(synth, fallback, 'General MIDI');
+            synth.soundBankManager.priorityOrder = ['Selected', 'General MIDI'];
+        }
         await synth.isReady;
         output.gain.value = masterVolume;
         outputs.add(output);
-        return { lib, context, synth };
+        return { lib, context, synth, customPrograms, dispose: async () => { outputs.delete(output); synth.stopAll(true); await context.close(); } };
     }
     catch (error) {
         await context.close();
@@ -32,14 +79,16 @@ async function createSynth() {
 }
 let previewInstance = null;
 export function getPreviewEngine() {
+    if (changingBank)
+        return Promise.reject(Error('Sound bank is loading. Try again when it is ready.'));
     if (previewInstance)
         return previewInstance;
     previewInstance = (async () => {
         try {
-            const { context, synth } = await createSynth();
+            const { context, synth, dispose, customPrograms } = await createSynth();
             let timer;
             let generation = 0;
-            return { context,
+            return { context, dispose: async () => { generation++; clearTimeout(timer); await dispose(); },
                 async preview(pitch, program, isDrum = false, volume = 100) {
                     const token = ++generation;
                     await context.resume();
@@ -48,7 +97,7 @@ export function getPreviewEngine() {
                     clearTimeout(timer);
                     synth.stopAll(false);
                     const channel = isDrum ? 9 : 0;
-                    const sample = samplePitch(pitch, program, isDrum), sourcePitch = sample.pitch;
+                    const sample = samplePitch(pitch, program, isDrum, usesBundledSamples(program, customPrograms)), sourcePitch = sample.pitch;
                     for (const [cc, value] of tuningControllers())
                         synth.controllerChange(channel, cc, value);
                     synth.pitchWheel(channel, tuningWheel(sample.tuning));
@@ -68,18 +117,21 @@ export function getPreviewEngine() {
 }
 let instance = null;
 export function getEngine() {
+    if (changingBank)
+        return Promise.reject(Error('Sound bank is loading. Try again when it is ready.'));
     if (instance)
         return instance;
     instance = (async () => {
         let context;
         try {
-            const ready = await createSynth();
+            const ready = prepared ?? await createSynth();
+            prepared = null;
             context = ready.context;
             const { lib, synth } = ready;
             const seq = new lib.Sequencer(synth, { skipToFirstNoteOn: false });
             seq.loopCount = 0;
             return {
-                seq, context,
+                seq, context, customPrograms: ready.customPrograms, dispose: async () => { seq.pause(); await ready.dispose(); },
                 restoreNotes(notes) { for (const n of notes) {
                     for (const [cc, value] of tuningControllers())
                         synth.controllerChange(n.channel, cc, value);
