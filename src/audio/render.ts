@@ -1,3 +1,4 @@
+import {filterSoundBank} from './sound-bank.ts';
 import {SpessaSynthProcessor,SoundBankLoader} from 'spessasynth_core';
 import {overridePrograms,type SamplePolicy} from '../playback/sample-pitch.ts';
 import {compilePlayback} from '../playback/midi.ts';
@@ -26,7 +27,7 @@ export function audioPlan(request:AudioRequest,samplePolicy:SamplePolicy=true){
 
 /** Stream stereo PCM without holding the whole recording in memory. No DOM or live synth. */
 export async function renderAudio(request:AudioRequest,bankBytes:ArrayBuffer,write:(pcm:Float32Array)=>Promise<void>,progress:(fraction:number)=>void=()=>{},cancelled:()=>boolean=()=>false,fallbackBytes?:ArrayBuffer){
- const bank=SoundBankLoader.fromArrayBuffer(bankBytes);
+ const bank=filterSoundBank(SoundBankLoader.fromArrayBuffer(bankBytes),request.soundBank);
  const plan=audioPlan(request,fallbackBytes?overridePrograms(bank.presets):true),synth=new SpessaSynthProcessor(SAMPLE_RATE);
  await synth.processorInitialized;
  synth.soundBankManager.addSoundBank(bank,'Selected');

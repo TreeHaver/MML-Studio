@@ -1,5 +1,14 @@
 # Progress
 
+## Maplebeats default with three excluded presets
+
+**2026-09-21.** New profiles select maplebeats-2.dls when present; saved choices remain authoritative and absent defaults fall back to TimGM6mb.sf2. Release packaging requires the new DLS. CRASH60B, KICK264 and FATSD60A are removed from this bank's parsed copy by exact name, leaving 125 melodic overrides; slots 122–124 use bundled GM Breath Noise, Seashore and Bird Tweet, including TimGM pitch correction. The source DLS is unchanged (SHA-256 0102aefc43d79a0d16892ac091007858826d884a6227dc4b528251e5e843f9ee) and remains untracked. Other custom banks are unaffected.
+
+New src/audio/sound-bank.ts owns the shared exclusions. The renderer synth bundle now uses src/audio/synth-entry.ts to expose an in-memory bank preparation helper; it serializes the filtered bank as SF2 for the AudioWorklet. Offline rendering filters its parsed bank with the same helper. Updated build-audio.cjs, engine, render, transport, release asset list, native/regression tests and generated outputs. The SF3 decoder remains disabled.
+
+Validation: authorized node tests/run.cjs rebuilt all bundles and passed 223/223 tests. New coverage verifies precisely three deletions, retained preset names after worklet serialization, unaffected other banks, and exact GM PCM equality for all three excluded slots. Native electron-sound-banks passed the first-run default, 125-program policy, real AudioWorklet PCM, switching, malformed-bank rollback and saved-choice persistence. With MML_STUDIO_TEST_BANK=maplebeats-2.dls, electron-audio-export passed all six encode/decode formats, mute, scope and cancellation. git diff --check passed. No manual listening, game comparison or release packaging performed.
+
+
 ## Restore General MIDI as the default; retain optional DLS testing
 
 **2026-09-21.** Reversed the first-run MS2 default at the user's request: new profiles again use TimGM6mb.sf2. Saved selections are preserved, and ms2.dls remains available in the Sound bank selector with the existing GM fallback. Removed ms2.dls from required release assets; the local bank remains unchanged and untracked. Updated transport, generated output, release list, playback guide and the existing native startup assertion.

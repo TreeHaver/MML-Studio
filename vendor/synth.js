@@ -22327,6 +22327,20 @@ var WebMIDILinkHandler = class {
     SpessaLog.info("%cWeb MIDI Link handler created!", ConsoleColors2.recognized);
   }
 };
+
+// src/audio/sound-bank.ts
+var ignored = /* @__PURE__ */ new Set(["CRASH60B", "KICK264", "FATSD60A"]);
+function filterSoundBank(bank, id) {
+  if (id === "maplebeats-2.dls") for (const preset of [...bank.presets]) {
+    if (ignored.has(preset.name.trim())) bank.deletePreset(preset);
+  }
+  return bank;
+}
+function prepareSoundBank(bytes, id) {
+  const buffer = new Uint8Array(bytes).buffer;
+  if (id !== "maplebeats-2.dls") return buffer;
+  return filterSoundBank(SoundBankLoader.fromArrayBuffer(buffer), id).writeSF2();
+}
 export {
   DEFAULT_SYNTH_CONFIG,
   MIDIDeviceHandler,
@@ -22335,5 +22349,6 @@ export {
   WorkerSynthesizer,
   WorkerSynthesizerCore,
   WorkletSynthesizer,
-  audioBufferToWav
+  audioBufferToWav,
+  prepareSoundBank
 };

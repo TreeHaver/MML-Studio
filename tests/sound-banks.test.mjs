@@ -7,6 +7,7 @@ import {fresh} from '../dist/model/project.js';
 import {compilePlayback,heldPlaybackNotes} from '../dist/playback/midi.js';
 import {renderAudio} from '../dist/audio/render.js';
 import {overridePrograms} from '../dist/playback/sample-pitch.js';
+import {filterSoundBank,prepareSoundBank} from '../dist/audio/sound-bank.js';
 
 test('bank discovery accepts only local bank IDs',async()=>{
  assert.ok((await banks.listSoundBanks()).some(b=>b.id==='TimGM6mb.sf2'));
@@ -55,4 +56,27 @@ test('partial DLS overrides matching programs while missing melodic and drum pro
  assert.deepEqual(await render(true),await render(false),'missing drum kit PCM matches bundled GM');
  p.instruments[0].isDrum=false;p.instruments[0].midiProgram=0;p.notes[0].pitch=60;
  assert.notDeepEqual(await render(true),await render(false),'matching piano slot is overridden by violin');
+});
+
+test('Maplebeats excludes exactly the three named replacements in worklet bytes and offline PCM',async()=>{
+ const buffer=bytes=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
+ const gm=buffer(fs.readFileSync('assets/TimGM6mb.sf2'));
+ const fixture=SoundBankLoader.fromArrayBuffer(gm);
+ for(const [index,name] of ['CRASH60B','KICK264','FATSD60A'].entries())fixture.presets.find(p=>p.program===121+index&&!p.isDrum).name=name;
+ const source=fs.existsSync('assets/maplebeats-2.dls')?buffer(fs.readFileSync('assets/maplebeats-2.dls')):fixture.writeSF2();
+ const untouched=SoundBankLoader.fromArrayBuffer(source);
+ const filtered=filterSoundBank(SoundBankLoader.fromArrayBuffer(source),'maplebeats-2.dls');
+ assert.equal(filtered.presets.length,untouched.presets.length-3);
+ const expected=untouched.presets.filter(p=>!['CRASH60B','KICK264','FATSD60A'].includes(p.name)).map(p=>p.name);
+ assert.deepEqual(filtered.presets.map(p=>p.name),expected);
+ assert.equal(filterSoundBank(untouched,'other.dls').presets.length,untouched.presets.length);
+ const worklet=SoundBankLoader.fromArrayBuffer(prepareSoundBank(new Uint8Array(source),'maplebeats-2.dls'));
+ assert.deepEqual(worklet.presets.map(p=>p.name),expected);
+ const p=fresh();p.notes=[{id:1,instrument:0,start:0,length:8,pitch:60,volume:8}];
+ for(const program of [121,122,123]){
+  assert.ok(!overridePrograms(filtered.presets).includes(program));
+  p.instruments[0].midiProgram=program;
+  const render=async(custom)=>{const pcm=[];await renderAudio({project:p,minimumEnd:0,speed:1,volume:1,muted:[],soundBank:custom?'maplebeats-2.dls':'TimGM6mb.sf2'},custom?source:gm,async chunk=>pcm.push(...chunk),()=>{},()=>false,custom?gm:undefined);return pcm;};
+  assert.deepEqual(await render(true),await render(false),`slot ${program+1} must use the original GM sound`);
+ }
 });

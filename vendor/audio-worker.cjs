@@ -16680,6 +16680,15 @@ var SpessaSynthProcessor = class {
   }
 };
 
+// src/audio/sound-bank.ts
+var ignored = /* @__PURE__ */ new Set(["CRASH60B", "KICK264", "FATSD60A"]);
+function filterSoundBank(bank, id) {
+  if (id === "maplebeats-2.dls") for (const preset of [...bank.presets]) {
+    if (ignored.has(preset.name.trim())) bank.deletePreset(preset);
+  }
+  return bank;
+}
+
 // src/playback/sample-pitch.ts
 var ranges = { 10: [[12, 119]], 56: [[12, 119]], 44: [[0, 120]], 48: [[0, 127]], 49: [[0, 127]], 52: [[0, 127]], 60: [[0, 127]], 65: [[0, 127]], 66: [[0, 127]], 50: [[0, 116]], 64: [[0, 119]], 67: [[0, 79]], 68: [[36, 108]], 77: [[21, 108]], 96: [[21, 108]], 124: [[21, 108]], 78: [[0, 78], [102, 108]], 113: [[0, 89]], 122: [[36, 86]], 123: [[21, 127]] };
 function overridePrograms(presets) {
@@ -17272,7 +17281,7 @@ function audioPlan(request, samplePolicy = true) {
 }
 async function renderAudio(request, bankBytes, write, progress = () => {
 }, cancelled2 = () => false, fallbackBytes) {
-  const bank = SoundBankLoader.fromArrayBuffer(bankBytes);
+  const bank = filterSoundBank(SoundBankLoader.fromArrayBuffer(bankBytes), request.soundBank);
   const plan = audioPlan(request, fallbackBytes ? overridePrograms(bank.presets) : true), synth = new SpessaSynthProcessor(SAMPLE_RATE);
   await synth.processorInitialized;
   synth.soundBankManager.addSoundBank(bank, "Selected");

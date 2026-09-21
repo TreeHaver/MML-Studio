@@ -224,7 +224,8 @@ export function installPlayback(){
    bank.replaceChildren(...banks.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=item.name;return option;}));
    let saved:string|null=null;try{saved=localStorage.getItem('mml-studio-sound-bank');}catch{}
    bank.value=activeSoundBank();bank.disabled=false;
-   if(saved&&banks.some(item=>item.id===saved))await chooseBank(saved);
+   const initial=saved??'maplebeats-2.dls';
+   if(banks.some(item=>item.id===initial))await chooseBank(initial);
    else if(saved)status('Saved sound bank is unavailable; using TimGM6mb.sf2.');
   }).catch((error:unknown)=>{bank.disabled=false;status('Could not list sound banks: '+error);});
  }

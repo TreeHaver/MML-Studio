@@ -21,7 +21,7 @@ module.exports = function buildAudio() {
   const worker=bundle('src/audio/worker.ts',{format:'cjs',platform:'node',target:'node22'});
   fs.mkdirSync('vendor',{recursive:true});
   writeChanged('vendor/audio-worker.cjs',worker);
-  const synth = bundle('./node_modules/spessasynth_lib/dist/index.js');
+  const synth = bundle('./src/audio/synth-entry.ts');
   // The distributed processor embeds stb-vorbis. Rebuild the wrapper from the
   // original TypeScript included in the pinned release's source map, using the
   // same installed core/adapter as the renderer. Never copy the prebuilt worklet.

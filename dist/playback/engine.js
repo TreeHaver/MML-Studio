@@ -60,7 +60,7 @@ async function createSynth(id = bankId) {
         synth.connect(output);
         output.connect(context.destination);
         const bytes = await window.files.soundBank(id);
-        await loadBank(synth, bytes, 'Selected');
+        await loadBank(synth, id === 'maplebeats-2.dls' ? new Uint8Array(lib.prepareSoundBank(new Uint8Array(bytes), id)) : bytes, 'Selected');
         const customPrograms = id === 'TimGM6mb.sf2' ? [] : overridePrograms(synth.presetList ?? []);
         if (id !== 'TimGM6mb.sf2') {
             const fallback = await window.files.soundBank('TimGM6mb.sf2');
